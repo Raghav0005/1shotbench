@@ -1,3 +1,7 @@
 To run proxy server for Gemini to format requests: 
 
-`uvicorn gemini_wrapper:app --port 4000 &> proxy.txt`
+`uvicorn proxy:app --port 4000 &> proxy.txt`
+
+Gemini's problem is the tools formatting. TODO: test that it can actually call tools with the new setup.
+
+MiniMax's problem is 1) it doesn't accept the 'developer' role and if we try to map it to the 'system' role, it only expects one message with the 'system' role. 
