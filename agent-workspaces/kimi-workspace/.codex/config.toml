@@ -1,0 +1,9 @@
+model = "kimi-k2.5"
+model_provider = "moonshot"
+
+[model_providers.moonshot]
+name = "Moonshot Kimi"
+base_url = "http://localhost:4000/kimi/"
+env_key = "MOONSHOT_API_KEY"
+
+wire_api = "chat"

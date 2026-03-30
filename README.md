@@ -5,3 +5,5 @@ To run proxy server for Gemini to format requests:
 Gemini's problem is the tools formatting. TODO: test that it can actually call tools with the new setup.
 
 MiniMax's problem is 1) it doesn't accept the 'developer' role and if we try to map it to the 'system' role, it only expects one message with the 'system' role. 
+
+Kimi doesn't accept 'developer' role. Changing 'developer' role to 'system' role fixes problem. 

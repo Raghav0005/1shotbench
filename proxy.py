@@ -10,6 +10,8 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/compl
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 MINIMAX_URL = "https://api.minimax.io/v1/chat/completions"
 MINIMAX_API_KEY = os.environ["MINIMAX_API_KEY"]
+KIMI_URL = "https://api.moonshot.ai/v1/chat/completions"
+MOONSHOT_API_KEY = os.environ["MOONSHOT_API_KEY"]
 
 app = FastAPI()
 def convert_tools_gemini(payload):
@@ -95,6 +97,35 @@ async def proxy(req: Request):
             headers={"Authorization": f"Bearer {MINIMAX_API_KEY}"}
         )
     print(r.content)
+
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type="application/json"
+    )
+
+def convert_developer_role(payload):
+    if "messages" not in payload:
+        return payload
+
+    for m in payload["messages"]:
+        if m.get("role") == "developer":
+            m["role"] = "system"
+
+    return payload
+
+@app.post("/kimi/chat/completions")
+async def kimi_proxy(req: Request):
+    payload = await req.json()
+
+    payload = convert_developer_role(payload)
+    print(json.dumps(payload["messages"], indent=2))
+    async with httpx.AsyncClient(timeout=None) as client:
+        r = await client.post(
+            KIMI_URL,
+            json=payload,
+            headers={"Authorization": f"Bearer {MOONSHOT_API_KEY}"}
+        )
 
     return Response(
         content=r.content,
