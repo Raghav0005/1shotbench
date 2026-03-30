@@ -3,7 +3,7 @@ model_provider = "z_ai"
 
 [model_providers.z_ai]
 name = "z.ai GLM Coding"
-base_url = "https://api.z.ai/api/coding/paas/v4"
+base_url = "http://127.0.0.1:4000/glm/"
 env_key = "Z_AI_API_KEY"
 
 wire_api = "chat"
