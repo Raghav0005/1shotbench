@@ -4,6 +4,5 @@ model_provider = "minimax"
 [model_providers.minimax]
 name = "MiniMax"
 base_url = "http://127.0.0.1:4000/minimax/"
-env_key = "MINIMAX_API_KEY"
 
 wire_api = "chat"

@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex LLM Bench</title>
+    <style>
+      body { font-family: sans-serif; margin: 1rem; background: #111; color: #eee; }
+      h1 { margin-top: 0; }
+      textarea, input, button, select { width: 100%; margin: 0.4rem 0; }
+      .grid { display: grid; gap: 0.75rem; }
+      .card { border: 1px solid #333; border-radius: 8px; padding: 0.6rem; background: #181818; }
+      pre { white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
+      .stdout { margin-top: 0.4rem; }
+      details { margin-top: 0.4rem; }
+      .history-item { cursor: pointer; padding: 0.3rem 0; border-bottom: 1px solid #2a2a2a; }
+      .history-item:hover { color: #9ac7ff; }
+      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      th, td { border: 1px solid #333; padding: 0.35rem; text-align: left; }
+      .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
+      .card-meta { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0 0.35rem; }
+      .card-meta .state { font-weight: 600; }
+      .card-meta .elapsed { color: #8ab4ff; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Codex LLM Benchmark</h1>
+    <label>Prompt</label>
+    <textarea id="prompt" rows="6" placeholder="Enter benchmark prompt"></textarea>
+
+    <div class="row">
+      <div>
+        <label>Mode</label>
+        <select id="mode">
+          <option value="parallel">parallel</option>
+          <option value="sequential">sequential</option>
+        </select>
+      </div>
+      <div>
+        <label>Concurrency</label>
+        <input id="maxConcurrency" type="number" value="0" min="0" />
+      </div>
+      <div>
+        <label>Label</label>
+        <input id="label" type="text" value="benchmark" />
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>Models</strong>
+      <div id="models"></div>
+    </div>
+
+    <button id="start">Start Run</button>
+    <div id="status"></div>
+
+    <h2>Live Output</h2>
+    <div class="grid" id="live"></div>
+
+    <h2>Final Stats</h2>
+    <table id="stats">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Status</th>
+          <th>Duration (ms)</th>
+          <th>Input</th>
+          <th>Output</th>
+          <th>Reasoning</th>
+          <th>Cache</th>
+          <th>Total</th>
+          <th>Cost (USD)</th>
+          <th>Requests</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <h2>Recent Runs</h2>
+    <div id="history" class="card"></div>
+
+    <script>
+      const modelsDiv = document.getElementById("models");
+      const liveDiv = document.getElementById("live");
+      const statusDiv = document.getElementById("status");
+      const statsBody = document.querySelector("#stats tbody");
+      const modelCards = {};
+      const modelTimers = {};
+      const historyDiv = document.getElementById("history");
+      let currentSummary = null;
+
+      function clearAllModelTimers() {
+        Object.keys(modelTimers).forEach((m) => stopModelTimer(m));
+      }
+
+      function formatElapsed(ms) {
+        if (ms < 1000) return `${(ms / 1000).toFixed(1)} s`;
+        const s = Math.floor(ms / 1000);
+        const m = Math.floor(s / 60);
+        const rs = s % 60;
+        if (m > 0) return `${m}m ${rs}s`;
+        return `${s} s`;
+      }
+
+      function stopModelTimer(model) {
+        if (modelTimers[model]) {
+          clearInterval(modelTimers[model]);
+          delete modelTimers[model];
+        }
+      }
+
+      function startModelTimer(model) {
+        const card = ensureCard(model);
+        const el = card.querySelector(".elapsed");
+        if (!el) return;
+        stopModelTimer(model);
+        const start = performance.now();
+        modelTimers[model] = setInterval(() => {
+          el.textContent = `· ${formatElapsed(performance.now() - start)}`;
+        }, 100);
+      }
+
+      function setElapsedFinal(model, durationMs) {
+        stopModelTimer(model);
+        const card = modelCards[model];
+        if (!card) return;
+        const el = card.querySelector(".elapsed");
+        if (el) el.textContent = durationMs != null ? `· ${durationMs} ms` : "· —";
+      }
+
+      function resetElapsedDisplay(model) {
+        stopModelTimer(model);
+        const card = modelCards[model];
+        if (!card) return;
+        const el = card.querySelector(".elapsed");
+        if (el) el.textContent = "";
+      }
+
+      async function loadModels() {
+        const res = await fetch("/api/models");
+        const models = await res.json();
+        modelsDiv.innerHTML = models.map((m) =>
+          `<label><input type="checkbox" value="${m.key}" checked /> ${m.key} (${m.model})</label>`
+        ).join("<br/>");
+      }
+
+      async function loadHistory() {
+        const res = await fetch("/api/history");
+        const rows = await res.json();
+        historyDiv.innerHTML = rows.map((r) =>
+          `<div class="history-item" data-run-id="${r.run_id}">${r.run_id} | ${r.label} | ${r.mode} | ${r.duration_ms}ms | ${r.started_at}</div>`
+        ).join("") || "No runs yet.";
+        historyDiv.querySelectorAll(".history-item").forEach((item) => {
+          item.onclick = () => loadRunDetails(item.dataset.runId);
+        });
+      }
+
+      function selectedModels() {
+        return [...modelsDiv.querySelectorAll("input[type=checkbox]:checked")].map((el) => el.value);
+      }
+
+      function ensureCard(model) {
+        if (modelCards[model]) return modelCards[model];
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h3>${model}</h3><div class="card-meta"><span class="state">queued</span><span class="elapsed" aria-live="polite"></span></div><pre class="stdout"></pre><details><summary>stderr</summary><pre class="stderr"></pre></details>`;
+        liveDiv.appendChild(card);
+        modelCards[model] = card;
+        applyGridColumns();
+        return card;
+      }
+
+      function appendOutput(model, text, stream = "stdout") {
+        const card = ensureCard(model);
+        const pre = stream === "stderr" ? card.querySelector(".stderr") : card.querySelector(".stdout");
+        pre.textContent = (pre.textContent + "\n" + (text || "")).slice(-10000);
+      }
+
+      function applyGridColumns() {
+        const count = Object.keys(modelCards).length;
+        if (count <= 0) return;
+        if (count === 4) {
+          liveDiv.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+          return;
+        }
+        const cols = Math.min(3, count);
+        liveDiv.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      }
+
+      function updateState(model, state) {
+        const card = ensureCard(model);
+        card.querySelector(".state").textContent = state;
+        if (state === "running") {
+          if (!modelTimers[model]) startModelTimer(model);
+        } else if (state === "retrying") {
+          if (!modelTimers[model]) startModelTimer(model);
+        } else if (state === "queued") {
+          resetElapsedDisplay(model);
+        }
+      }
+
+      function fillStats(summary) {
+        currentSummary = summary;
+        statsBody.innerHTML = "";
+        for (const r of summary.results || []) {
+          const m = r.metrics || {};
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${r.model_key}</td><td>${r.status}</td><td>${r.duration_ms}</td>
+            <td>${m.input_tokens || 0}</td><td>${m.output_tokens || 0}</td>
+            <td>${m.reasoning_tokens || 0}</td><td>${m.cache_read_tokens || 0}</td>
+            <td>${m.total_tokens || 0}</td><td>${(m.cost_usd || 0).toFixed(4)}</td>
+            <td>${m.requests || 0}</td>`;
+          statsBody.appendChild(tr);
+        }
+      }
+
+      async function loadRunDetails(runId) {
+        const res = await fetch(`/api/runs/${runId}/details`);
+        if (!res.ok) {
+          statusDiv.textContent = `Failed to load run ${runId}`;
+          return;
+        }
+        const data = await res.json();
+        const summary = data.summary || {};
+        const outputs = data.outputs || {};
+        document.getElementById("prompt").value = data.prompt || "";
+        liveDiv.innerHTML = "";
+        clearAllModelTimers();
+        Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+        for (const r of summary.results || []) {
+          const model = r.model_key;
+          ensureCard(model);
+          updateState(model, r.status || "completed");
+          setElapsedFinal(model, r.duration_ms);
+          appendOutput(model, (outputs[model] || {}).stdout || "", "stdout");
+          appendOutput(model, (outputs[model] || {}).stderr || "", "stderr");
+        }
+        fillStats(summary);
+        statusDiv.textContent = `Loaded run: ${runId}`;
+      }
+
+      document.getElementById("start").onclick = async () => {
+        liveDiv.innerHTML = "";
+        statsBody.innerHTML = "";
+        statusDiv.textContent = "Starting...";
+        clearAllModelTimers();
+        Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+        const payload = {
+          prompt: document.getElementById("prompt").value,
+          models: selectedModels(),
+          mode: document.getElementById("mode").value,
+          max_concurrency: Number(document.getElementById("maxConcurrency").value || 0),
+          label: document.getElementById("label").value || "benchmark"
+        };
+        if (payload.mode === "parallel" && payload.max_concurrency <= 0) {
+          payload.max_concurrency = Math.max(1, payload.models.length);
+        }
+        for (const model of payload.models) ensureCard(model);
+
+        const startRes = await fetch("/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!startRes.ok) {
+          statusDiv.textContent = "Failed to start run";
+          const err = await startRes.text();
+          appendOutput("system", err);
+          return;
+        }
+        const { run_id } = await startRes.json();
+        statusDiv.textContent = `Running: ${run_id}`;
+
+        const events = new EventSource(`/api/runs/${run_id}/events`);
+        events.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          if (data.type === "status") {
+            updateState(data.model, data.status);
+          } else if (data.type === "output") {
+            appendOutput(data.model, data.text || "", data.stream || "stdout");
+          } else if (data.type === "complete") {
+            updateState(data.model, data.status);
+            setElapsedFinal(data.model, data.duration_ms);
+            // Do not append stdout_tail/stderr_tail here: output events already streamed
+            // the full logs; re-appending duplicates GLM/GPT (and others) in the GUI.
+          } else if (data.type === "run_complete") {
+            statusDiv.textContent = "Completed";
+            (data.summary.results || []).forEach((r) => setElapsedFinal(r.model_key, r.duration_ms));
+            fillStats(data.summary);
+            loadHistory();
+            events.close();
+          } else if (data.type === "run_failed") {
+            clearAllModelTimers();
+            statusDiv.textContent = `Run failed: ${data.error || "unknown error"}`;
+            events.close();
+          }
+        };
+      };
+
+      loadModels();
+      loadHistory();
+    </script>
+  </body>
+</html>

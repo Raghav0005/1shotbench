@@ -4,6 +4,5 @@ model_provider = "google_gemini"
 [model_providers.google_gemini]
 name = "Google Gemini"
 base_url = "http://127.0.0.1:4000/gemini/"
-env_key = "GEMINI_API_KEY"
 
 wire_api = "chat"

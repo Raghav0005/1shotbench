@@ -4,6 +4,5 @@ model_provider = "anthropic"
 [model_providers.anthropic]
 name = "anthropic"
 base_url = "http://127.0.0.1:4000/claude/"
-env_key = "ANTHROPIC_API_KEY"
 
 wire_api = "chat"
