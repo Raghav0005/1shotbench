@@ -33,6 +33,27 @@ class WorkspaceConfig:
     path: str
     model: str
     provider: str | None = None
+    thinking: str | None = None
+    system_prompt: str | None = None
+    append_system_prompt: list[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    required_skills: list[str] = field(default_factory=list)
+
+    def pi_args(self) -> list[str]:
+        args = ["pi", "--print", "--no-session"]
+        if self.provider:
+            args.extend(["--provider", self.provider])
+        if self.model:
+            args.extend(["--model", self.model])
+        if self.thinking:
+            args.extend(["--thinking", self.thinking])
+        if self.system_prompt:
+            args.extend(["--system-prompt", self.system_prompt])
+        for value in self.append_system_prompt:
+            args.extend(["--append-system-prompt", value])
+        if self.tools:
+            args.extend(["--tools", ",".join(self.tools)])
+        return args
 
 
 @dataclass
@@ -50,8 +71,8 @@ class RunJobResult:
     stdout_path: str
     stderr_path: str
     result_path: str
+    command: list[str]
     attempts: int = 1
-    session_id: str | None = None
     error: str | None = None
     metrics: TokenMetrics = field(default_factory=TokenMetrics)
 
@@ -76,7 +97,6 @@ class BenchmarkSummary:
     prompt_hash: str
     selected_models: list[str]
     git_commit: str | None
-    proxy_log_path: str
     results: list[RunJobResult]
 
     def to_dict(self) -> dict[str, Any]:
@@ -94,7 +114,6 @@ class BenchmarkSummary:
             "prompt_hash": self.prompt_hash,
             "selected_models": self.selected_models,
             "git_commit": self.git_commit,
-            "proxy_log_path": self.proxy_log_path,
             "results": [result.to_dict() for result in self.results],
             "totals": self.compute_totals(),
         }

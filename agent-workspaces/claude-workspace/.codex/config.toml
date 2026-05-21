@@ -1,8 +1,0 @@
-model = "claude-sonnet-4-6"
-model_provider = "anthropic"
-
-[model_providers.anthropic]
-name = "anthropic"
-base_url = "http://127.0.0.1:4000/claude/"
-
-wire_api = "chat"

@@ -1,50 +1,145 @@
-## Proxy Server
+# Pi Bench
 
-Run the proxy for non-GPT provider request shaping and usage logging:
+Pi Bench runs the same task prompt through multiple Pi agent workspaces so you can compare how different models behave under the same harness.
 
-`uvicorn proxy:app --port 4000 > proxy.txt 2>&1`
+The old Codex proxy path has been removed. Each model now runs through the `pi` CLI directly, using a small `bench.toml` file inside its workspace.
 
-Token usage logs are written to:
+## Workspace Layout
 
-`usage_logs/usage.jsonl`
+Model workspaces live under:
 
-Each line stores `timestamp`, `provider`, `request_model`, `response_model`, `status_code`, and token usage fields.
+```text
+agent-workspaces/
+  gpt-workspace/
+    bench.toml
+  claude-workspace/
+    bench.toml
+  gemini-workspace/
+    bench.toml
+```
 
-### Tool calling and provider quirks
+Each workspace config supports:
 
-The proxy applies request tweaks before forwarding:
+```toml
+name = "GPT workspace"
+provider = "openai-codex"
+model = "gpt-5.4"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]
 
-- **Claude / Gemini / Kimi / MiniMax**: `parallel_tool_calls` is set to `false` where supported.
-- **Claude / Gemini / Kimi / MiniMax (tool turns)**: after each `assistant` message with `tool_calls`, the proxy **reorders** `tool` messages to match `tool_calls[].id` order, **drops** tool rows whose `tool_call_id` is not in that turn (orphans confuse Anthropic/MiniMax), and **inserts stubs** only for ids that are still missing. This fixes Anthropic errors like `tool_call_id ... not found in tool_calls of previous message` and MiniMax **2013** (`tool call result does not follow tool call`).
-- **Kimi (Moonshot)**: requests set **`"thinking": {"type": "disabled"}`** per the [Kimi K2.5 docs](https://platform.moonshot.ai/docs/guide/kimi-k2-5-quickstart). With thinking enabled, the API requires **`reasoning_content` preserved across tool steps**; Codex often drops it. Disabling thinking avoids that (tradeoff: less chain-of-thought from Kimi). Assistant messages still get `reasoning_content: ""` when present with tools as a fallback.
-- **MiniMax**: an earlier version merged every message to `{role, content}` only, which **stripped `tool_calls` and `tool_call_id`** and broke tool protocol (`tool id ... (2013)`). Non-system messages are now copied in full (system/developer merged into one system message). See [kilocode#3967](https://github.com/Kilo-Org/kilocode/issues/3967).
+# Optional:
+# system_prompt = "Custom system prompt"
+# append_system_prompt = ["extra instructions", "path/to/file.md"]
+```
 
-Codex may still print `deprecated: ... wire_api = "responses"` — that is a Codex migration notice; this repo still uses `wire_api = "chat"` with `/chat/completions` on the proxy until a Responses-compatible proxy path exists.
+The runner executes Pi from the workspace directory with:
 
-**Gemini with empty stdout**: if the proxy logs `200` but the GUI shows no text, check Codex `stderr` and whether the model returned only tool/reasoning chunks; not always a proxy 4xx.
+```text
+pi --print --no-session --provider <provider> --model <model> [prompt]
+```
 
-Restart **`uvicorn proxy:app`** after changing `proxy.py`.
+Root-level task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` are symlinked into every model workspace before each run. For example, `PRDv2.md` is available to every agent as `./PRDv2.md` from inside its workspace.
 
-### Retries, timeouts, and Gemini debug logs
+## Workspace Isolation
 
-- Upstream HTTP uses a **600s read timeout** and **retries** (connection/read errors, **429**, **500/502/503/504**) with exponential backoff so transient **ReadError** / rate limits / MiniMax 5xx are less likely to kill runs.
-- **Gemini** (when `PROXY_GEMINI_DEBUG` is not `0`): append-only JSON lines to **`proxy_logs/gemini_debug.jsonl`** with `stream`, message role summary, HTTP status, and a **response preview** (first 8k chars) for debugging empty Codex output.
+Pi Bench runs each model from its own workspace directory and, on macOS, wraps each Pi subprocess with `sandbox-exec`. The generated sandbox profile allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
 
-### Benchmark fairness (Kimi thinking)
+That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces. If `sandbox-exec` is unavailable, preflight fails because that isolation cannot be enforced.
 
-Kimi runs with **`thinking: {"type": "disabled"}`** so Codex can complete tool loops without Moonshot’s **`reasoning_content` history** requirement. That is **not** the same as default **Kimi K2.5 with thinking on** (different latency, token mix, and behavior). For fair cross-model tables, either:
+This is workspace isolation, not a full container. Agents can still use allowed tools and the network according to the host environment and Pi configuration.
 
-- label runs as **“Kimi (thinking off)”**, or  
-- run a **separate** benchmark track if you later wire a client that preserves full `reasoning_content` (often impractical with Codex today).
+## Pi Auth And Keys
 
-## Benchmark Runner (CLI)
+Pi supports subscription logins and API-key providers.
+
+For subscriptions, run Pi interactively and use `/login`:
+
+```sh
+pi
+# then type /login and choose ChatGPT Plus/Pro (Codex), Claude Pro/Max, or GitHub Copilot
+```
+
+Pi stores login credentials in:
+
+```text
+~/.pi/agent/auth.json
+```
+
+For API keys, either use Pi's `/login` flow and choose the provider, edit `~/.pi/agent/auth.json`, export environment variables in your shell, or put them in this project's gitignored `.env` file. Pi Bench loads `.env` before starting each agent process.
+
+Common `.env` entries:
+
+```sh
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+ZAI_API_KEY=...
+MINIMAX_API_KEY=...
+MOONSHOT_API_KEY=...
+KIMI_API_KEY=...
+```
+
+Auth file example:
+
+```json
+{
+  "anthropic": { "type": "api_key", "key": "sk-ant-..." },
+  "openai": { "type": "api_key", "key": "sk-..." },
+  "google": { "type": "api_key", "key": "..." },
+  "zai": { "type": "api_key", "key": "..." },
+  "minimax": { "type": "api_key", "key": "..." },
+  "moonshotai": { "type": "api_key", "key": "..." }
+}
+```
+
+Pi resolves credentials from `~/.pi/agent/auth.json` before environment variables. The `key` value in `auth.json` can also name an environment variable or start with `!` to run a shell command such as a password-manager lookup.
+
+## Skills And Web Access
+
+Pi's built-in tools are coding tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, and `ls`. The Pi CLI help for version `0.75.1` does not list a built-in web-search tool. Agents can still use `bash` for commands and skill installers when network access is available, and Pi supports installing packages with:
+
+```sh
+pi install <source>
+```
+
+`PRDv2.md` asks the agent to use the public `anserini-fatjar` skill and to install it automatically if it is missing and the source is reachable. For fully reproducible runs, preinstall the same skill for every model before benchmarking, or include the exact install source in the task prompt.
+
+Preinstalling skills is usually the fairer benchmark setup. It removes skill discovery, installation time, network variability, and “who found the right package first?” from the model comparison. Letting agents install missing skills is useful for testing agent autonomy, but it changes the benchmark from task implementation to task implementation plus environment bootstrap.
+
+## Benchmark Tracks
+
+The default track is a prepared-environment benchmark. Required task skills and docs are installed before the run, and preflight fails if they are missing. This keeps the comparison focused on whether each model can use the same resources to complete the same implementation task.
+
+A future bootstrap/autonomy track should evaluate skill discovery separately. In that mode, agents would start without the Anserini skills, receive the same web-search or package-discovery capability, and be scored on whether they can find, install, and correctly use the relevant skills before implementing the app.
+
+Keep these tracks separate in run labels and result tables. Mixing them would confound implementation quality with web search, network reliability, package installation, and documentation discovery.
+
+For the current Anserini PRD, preinstall the Anserini skill set into the project before running:
+
+```sh
+scripts/install_anserini_skills.sh
+```
+
+This copies Anserini's `.agents/skills` directory into this repo's `.agents/skills`. Pi discovers `.agents/skills` from the current workspace and ancestor directories, so every model workspace sees the same local copies. The workspace configs declare these required skills:
+
+- `install-anserini-fatjar`
+- `anserini-cli`
+- `anserini-reproduction`
+
+Preflight fails if any declared `required_skills` are missing from `.agents/skills`, `.pi/skills`, `~/.pi/agent/skills`, or `~/.agents/skills`.
+
+## CLI
 
 Run one prompt against multiple model workspaces:
 
-`python -m bench.cli --prompt "Your task prompt" --models gpt gemini minimax kimi glm`
+```sh
+python -m bench.cli --prompt "Your task prompt" --models gpt claude gemini
+```
 
 Useful options:
 
+- `--prompt-file path/to/prompt.txt`
 - `--mode sequential|parallel`
 - `--max-concurrency 2`
 - `--timeout-seconds 1800`
@@ -54,28 +149,53 @@ Useful options:
 
 Artifacts are written to:
 
-`runs/<run_id>/`
+```text
+runs/<run_id>/
+```
 
-Each run includes per-model logs/result JSON plus `summary.json`, `summary.csv`, and `summary.md`.
+Each run includes per-model stdout/stderr logs, per-model result JSON, and `summary.json`, `summary.csv`, and `summary.md`.
 
-## Benchmark GUI
+## Web UI
 
 Start the GUI server:
 
-`uvicorn bench.web:app --port 4010`
+```sh
+uvicorn bench.web:app --port 4010
+```
 
 Open:
 
-`http://127.0.0.1:4010`
+```text
+http://127.0.0.1:4010
+```
 
-GUI features:
+The UI can:
 
-- pick models and run mode (parallel/sequential)
-- live side-by-side stdout/stderr streaming
-- final comparison table (duration + normalized token/cost metrics)
-- recent run history
+- pick configured model workspaces
+- run models sequentially or in parallel
+- stream stdout/stderr side by side
+- show final duration and any parsed token metrics
+- load recent run history
 
-## Notes on Metrics
+## Metrics
 
-- Non-GPT models: metrics are aggregated from `usage_logs/usage.jsonl` in the run time window.
-- GPT models: metrics are parsed from inline `Token usage:` output when available; fallback is `npx @ccusage/codex@latest session` (use `conda activate cdx` if `npx` lives in that env).
+Pi Bench records wall-clock duration and process status for every model. Token fields are populated only when Pi or a provider prints a line matching:
+
+```text
+Token usage: total=<n> input=<n> output=<n> (reasoning <n>)
+```
+
+If that line is absent, token and cost fields remain zero. This keeps the benchmark agent-agnostic and avoids the previous provider proxy.
+
+## Requirements
+
+- Python 3.11+
+- Pi coding agent available on `PATH`
+- provider API keys configured for the models you run
+- any task-specific Pi skills installed or installable by the agent. `PRDv2.md` currently asks agents to use an `anserini-fatjar` skill.
+
+Install Python server dependencies:
+
+```sh
+pip install -r requirements.txt
+```

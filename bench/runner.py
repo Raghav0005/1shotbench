@@ -4,7 +4,8 @@ import asyncio
 import csv
 import hashlib
 import json
-import socket
+import re
+import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -12,13 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from bench.config import RUNS_DIR, USAGE_LOG_PATH
-from bench.metrics import (
-    extract_inline_token_usage,
-    extract_session_id,
-    get_gpt_metrics_from_ccusage,
-    get_non_gpt_metrics,
-)
+from bench.config import RUNS_DIR, discover_shared_task_files, load_project_env
+from bench.metrics import extract_inline_token_usage
 from bench.schemas import BenchmarkSummary, RunJobResult, TokenMetrics, WorkspaceConfig
 
 
@@ -79,28 +75,60 @@ class BenchmarkRunner:
             if workspace and not Path(workspace.path).exists():
                 errors.append(f"Workspace not found: {workspace.path}")
 
-        codex_check = subprocess.run(
-            ["codex", "--version"],
-            cwd=str(self.root_dir),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if codex_check.returncode != 0:
-            errors.append("`codex` command is not available in PATH.")
-
-        requires_proxy = any(model != "gpt" for model in selected_models)
-        if requires_proxy:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.75)
-            try:
-                sock.connect(("127.0.0.1", 4000))
-            except OSError:
-                errors.append("Proxy is not reachable at 127.0.0.1:4000 for non-GPT models.")
-            finally:
-                sock.close()
+        if not shutil.which("pi"):
+            errors.append("`pi` command is not available in PATH.")
+        if not shutil.which("sandbox-exec"):
+            errors.append("`sandbox-exec` is not available; workspace isolation cannot be enforced.")
+        for skill in sorted({skill for model in selected_models for skill in self.workspaces.get(model, WorkspaceConfig("", "", "", "")).required_skills}):
+            if not self._skill_available(skill):
+                errors.append(
+                    f"Required skill `{skill}` is not installed. Install it under `.agents/skills/`, "
+                    "`~/.pi/agent/skills/`, or another Pi skill location before running."
+                )
 
         return errors
+
+    def _skill_available(self, skill_name: str) -> bool:
+        search_roots = [
+            self.root_dir / ".agents" / "skills",
+            self.root_dir / ".pi" / "skills",
+            Path.home() / ".pi" / "agent" / "skills",
+            Path.home() / ".agents" / "skills",
+        ]
+        for root in search_roots:
+            if not root.exists():
+                continue
+            direct = root / skill_name / "SKILL.md"
+            if direct.exists():
+                return True
+            for skill_file in root.rglob("SKILL.md"):
+                try:
+                    text = skill_file.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    continue
+                if re.search(rf"(?m)^name:\s*{re.escape(skill_name)}\s*$", text):
+                    return True
+        return False
+
+    def sync_shared_task_files(self) -> None:
+        task_files = discover_shared_task_files()
+        if not task_files:
+            return
+        for workspace in self.workspaces.values():
+            workspace_path = Path(workspace.path)
+            if not workspace_path.exists():
+                continue
+            for task_file in task_files:
+                link_path = workspace_path / task_file.name
+                target = Path("..") / ".." / task_file.name
+                if link_path.is_symlink():
+                    if link_path.readlink() != target:
+                        link_path.unlink()
+                        link_path.symlink_to(target)
+                    continue
+                if link_path.exists():
+                    continue
+                link_path.symlink_to(target)
 
     async def run(
         self,
@@ -111,6 +139,7 @@ class BenchmarkRunner:
         run_id = options.run_id or f"{run_started.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
         run_dir = RUNS_DIR / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
+        self.sync_shared_task_files()
 
         prompt_hash = _sha256(options.prompt)
         prompt_file = run_dir / "prompt.txt"
@@ -180,7 +209,6 @@ class BenchmarkRunner:
             prompt_hash=prompt_hash,
             selected_models=options.selected_models,
             git_commit=_git_commit(self.root_dir),
-            proxy_log_path=str(USAGE_LOG_PATH),
             results=results,
         )
         summary_path = run_dir / "summary.json"
@@ -226,15 +254,22 @@ class BenchmarkRunner:
         final_error: str | None = None
         final_stdout = ""
         final_stderr = ""
+        command = workspace.pi_args() + [prompt]
+        displayed_command = workspace.pi_args() + ["<prompt>"]
+        env = load_project_env()
+        exec_command = self._apply_workspace_sandbox(
+            command=command,
+            workspace=workspace,
+            model_dir=model_dir,
+        )
 
         while attempts <= retries:
             attempts += 1
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "codex",
-                    "exec",
-                    prompt,
+                    *exec_command,
                     cwd=workspace.path,
+                    env=env,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -294,13 +329,7 @@ class BenchmarkRunner:
         stderr_path.write_text(final_stderr, encoding="utf-8")
 
         run_ended = _now()
-        session_id = extract_session_id(final_stdout + "\n" + final_stderr)
-        metrics = self._collect_metrics(
-            workspace=workspace,
-            started_at=_iso(run_started),
-            ended_at=_iso(run_ended),
-            output_text=final_stdout + "\n" + final_stderr,
-        )
+        metrics = extract_inline_token_usage(final_stdout + "\n" + final_stderr) or TokenMetrics()
         result = RunJobResult(
             model_key=workspace.key,
             workspace_path=workspace.path,
@@ -315,8 +344,8 @@ class BenchmarkRunner:
             stdout_path=str(stdout_path),
             stderr_path=str(stderr_path),
             result_path=str(result_path),
+            command=displayed_command,
             attempts=attempts,
-            session_id=session_id,
             error=final_error,
             metrics=metrics,
         )
@@ -337,25 +366,33 @@ class BenchmarkRunner:
         )
         return result
 
-    def _collect_metrics(
+    def _apply_workspace_sandbox(
         self,
+        command: list[str],
         workspace: WorkspaceConfig,
-        started_at: str,
-        ended_at: str,
-        output_text: str,
-    ) -> TokenMetrics:
-        if workspace.key == "gpt":
-            inline = extract_inline_token_usage(output_text)
-            if inline:
-                return inline
-            return get_gpt_metrics_from_ccusage(Path(workspace.path))
-        return get_non_gpt_metrics(
-            usage_log_path=USAGE_LOG_PATH,
-            provider=workspace.key if workspace.provider else workspace.key,
-            model_name=workspace.model,
-            started_at=started_at,
-            ended_at=ended_at,
-        )
+        model_dir: Path,
+    ) -> list[str]:
+        sandbox_exe = shutil.which("sandbox-exec")
+        if not sandbox_exe:
+            return command
+
+        workspace_path = Path(workspace.path).resolve()
+        denied_paths = [
+            Path(other.path).resolve()
+            for other in self.workspaces.values()
+            if Path(other.path).resolve() != workspace_path
+        ]
+        if not denied_paths:
+            return command
+
+        profile_path = model_dir / "workspace.sb"
+        lines = ["(version 1)", "(allow default)"]
+        for denied_path in denied_paths:
+            quoted = json.dumps(str(denied_path))
+            lines.append(f"(deny file-read* (subpath {quoted}))")
+            lines.append(f"(deny file-write* (subpath {quoted}))")
+        profile_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return [sandbox_exe, "-f", str(profile_path), *command]
 
     def _write_summary_csv(self, run_dir: Path, summary: BenchmarkSummary) -> None:
         csv_path = run_dir / "summary.csv"

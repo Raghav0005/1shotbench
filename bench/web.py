@@ -11,11 +11,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from bench.config import ROOT_DIR, RUNS_DIR, load_workspace_configs
+from bench.config import ROOT_DIR, RUNS_DIR, discover_shared_task_files, load_workspace_configs
 from bench.runner import BenchmarkRunner, RunnerOptions
 
 
-app = FastAPI(title="Codex LLM Bench")
+app = FastAPI(title="Pi Agent Bench")
 app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "bench" / "static")), name="static")
 
 workspaces = load_workspace_configs()
@@ -48,9 +48,23 @@ async def models() -> list[dict[str, Any]]:
             "name": cfg.name,
             "model": cfg.model,
             "provider": cfg.provider,
+            "thinking": cfg.thinking,
+            "tools": cfg.tools,
             "path": cfg.path,
         }
         for cfg in workspaces.values()
+    ]
+
+
+@app.get("/api/task-files")
+async def task_files() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": path.name,
+            "path": str(path),
+            "size": path.stat().st_size,
+        }
+        for path in discover_shared_task_files()
     ]
 
 

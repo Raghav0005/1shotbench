@@ -1,8 +1,0 @@
-model = "glm-5.1"
-model_provider = "z_ai"
-
-[model_providers.z_ai]
-name = "z.ai GLM Coding"
-base_url = "http://127.0.0.1:4000/glm/"
-
-wire_api = "chat"

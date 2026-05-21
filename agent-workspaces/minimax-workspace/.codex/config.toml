@@ -1,8 +1,0 @@
-model = "MiniMax-M2.7"
-model_provider = "minimax"
-
-[model_providers.minimax]
-name = "MiniMax"
-base_url = "http://127.0.0.1:4000/minimax/"
-
-wire_api = "chat"

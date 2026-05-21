@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
@@ -9,7 +10,18 @@ from bench.schemas import WorkspaceConfig
 ROOT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACES_DIR = ROOT_DIR / "agent-workspaces"
 RUNS_DIR = ROOT_DIR / "runs"
-USAGE_LOG_PATH = ROOT_DIR / "usage_logs" / "usage.jsonl"
+WORKSPACE_CONFIG_NAME = "bench.toml"
+SHARED_TASK_GLOBS = ("PRD*.md", "TASK*.md", "task*.md", "prompt*.md")
+
+
+def _as_str_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    return []
 
 
 def load_workspace_configs() -> dict[str, WorkspaceConfig]:
@@ -20,7 +32,7 @@ def load_workspace_configs() -> dict[str, WorkspaceConfig]:
     for workspace in sorted(WORKSPACES_DIR.iterdir()):
         if not workspace.is_dir() or not workspace.name.endswith("-workspace"):
             continue
-        config_path = workspace / ".codex" / "config.toml"
+        config_path = workspace / WORKSPACE_CONFIG_NAME
         if not config_path.exists():
             continue
 
@@ -28,9 +40,40 @@ def load_workspace_configs() -> dict[str, WorkspaceConfig]:
         key = workspace.name.removesuffix("-workspace")
         configs[key] = WorkspaceConfig(
             key=key,
-            name=workspace.name,
+            name=parsed.get("name", workspace.name),
             path=str(workspace),
             model=parsed.get("model", ""),
-            provider=parsed.get("model_provider"),
+            provider=parsed.get("provider"),
+            thinking=parsed.get("thinking"),
+            system_prompt=parsed.get("system_prompt"),
+            append_system_prompt=_as_str_list(parsed.get("append_system_prompt")),
+            tools=_as_str_list(parsed.get("tools")),
+            required_skills=_as_str_list(parsed.get("required_skills")),
         )
     return configs
+
+
+def discover_shared_task_files() -> list[Path]:
+    files: dict[str, Path] = {}
+    for pattern in SHARED_TASK_GLOBS:
+        for path in ROOT_DIR.glob(pattern):
+            if path.is_file():
+                files[path.name] = path
+    return [files[name] for name in sorted(files)]
+
+
+def load_project_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env_path = ROOT_DIR / ".env"
+    if not env_path.exists():
+        return env
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            env[key] = value
+    return env

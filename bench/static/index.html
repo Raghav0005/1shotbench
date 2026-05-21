@@ -3,80 +3,306 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Codex LLM Bench</title>
+    <title>Pi Agent Bench</title>
     <style>
-      body { font-family: sans-serif; margin: 1rem; background: #111; color: #eee; }
-      h1 { margin-top: 0; }
-      textarea, input, button, select { width: 100%; margin: 0.4rem 0; }
+      :root {
+        color-scheme: dark;
+        --bg: #111318;
+        --panel: #191d24;
+        --panel-2: #202631;
+        --line: #313845;
+        --text: #f3f6f8;
+        --muted: #9ca8b7;
+        --accent: #46c2b1;
+        --accent-2: #e5b454;
+        --danger: #ff7b7b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1, h2, h3, p { margin: 0; }
+      button, input, select, textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #11151c;
+        color: var(--text);
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        border-color: transparent;
+        color: #07110f;
+        font-weight: 700;
+        min-height: 38px;
+      }
+      button.secondary {
+        background: #252c37;
+        border-color: var(--line);
+        color: var(--text);
+      }
+      input, select { min-height: 38px; padding: 0 0.7rem; }
+      textarea {
+        min-height: 150px;
+        resize: vertical;
+        padding: 0.75rem;
+      }
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        margin-bottom: 0.35rem;
+      }
+      .shell { max-width: 1440px; margin: 0 auto; padding: 1.25rem; }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-end;
+        padding: 0.6rem 0 1.1rem;
+      }
+      .title { display: grid; gap: 0.2rem; }
+      .title h1 { font-size: 1.65rem; font-weight: 750; }
+      .title p { color: var(--muted); max-width: 720px; }
+      .status-pill {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 0.45rem 0.75rem;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 1rem;
+      }
+      .panel h2 {
+        font-size: 0.92rem;
+        margin-bottom: 0.75rem;
+      }
+      .stack { display: grid; gap: 0.9rem; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+      .task-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 0.55rem; }
+      .models-list {
+        display: grid;
+        gap: 0.4rem;
+        max-height: 210px;
+        overflow: auto;
+        padding-right: 0.2rem;
+      }
+      .model-option {
+        display: flex;
+        gap: 0.55rem;
+        align-items: center;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: 7px;
+        padding: 0.55rem 0.65rem;
+        color: var(--text);
+        margin: 0;
+      }
+      .model-option input { width: auto; min-height: 0; }
+      .model-option span { color: var(--muted); font-size: 0.82rem; }
+      .start-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
       .grid { display: grid; gap: 0.75rem; }
-      .card { border: 1px solid #333; border-radius: 8px; padding: 0.6rem; background: #181818; }
-      pre { white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
-      .stdout { margin-top: 0.4rem; }
-      details { margin-top: 0.4rem; }
-      .history-item { cursor: pointer; padding: 0.3rem 0; border-bottom: 1px solid #2a2a2a; }
-      .history-item:hover { color: #9ac7ff; }
-      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-      th, td { border: 1px solid #333; padding: 0.35rem; text-align: left; }
-      .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
-      .card-meta { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0 0.35rem; }
-      .card-meta .state { font-weight: 600; }
-      .card-meta .elapsed { color: #8ab4ff; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 0.2rem 0 0.75rem;
+      }
+      .section-head h2 { font-size: 0.95rem; }
+      .section-head span { color: var(--muted); font-size: 0.82rem; }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+      .card h3 {
+        padding: 0.65rem 0.75rem 0;
+        font-size: 0.92rem;
+      }
+      .card-meta {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.2rem 0.75rem 0.55rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .card-meta .state {
+        color: var(--accent-2);
+        font-weight: 700;
+      }
+      .card-meta .elapsed {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        font-size: 0.88rem;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 360px;
+        overflow: auto;
+        padding: 0.75rem;
+        background: #0d1016;
+        color: #dbe4ec;
+        font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      details {
+        border-top: 1px solid var(--line);
+        background: #11151c;
+      }
+      summary {
+        cursor: pointer;
+        padding: 0.55rem 0.75rem;
+        color: var(--muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      th, td {
+        border-bottom: 1px solid var(--line);
+        padding: 0.55rem;
+        text-align: left;
+        font-variant-numeric: tabular-nums;
+      }
+      th { color: var(--muted); font-size: 0.78rem; }
+      .history-item {
+        cursor: pointer;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .history-item:hover { color: var(--accent); }
+      .history-item:last-child { border-bottom: 0; }
+      @media (max-width: 960px) {
+        .layout { grid-template-columns: 1fr; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+      }
+      @media (max-width: 640px) {
+        .shell { padding: 0.8rem; }
+        .row, .task-row, .start-row { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
-    <h1>Codex LLM Benchmark</h1>
-    <label>Prompt</label>
-    <textarea id="prompt" rows="6" placeholder="Enter benchmark prompt"></textarea>
+    <main class="shell">
+      <header class="topbar">
+        <div class="title">
+          <h1>Pi Agent Benchmark</h1>
+          <p>Run the same e2e task across model workspaces and compare behavior, logs, duration, and usage signals.</p>
+        </div>
+        <div class="status-pill" id="status">Idle</div>
+      </header>
 
-    <div class="row">
-      <div>
-        <label>Mode</label>
-        <select id="mode">
-          <option value="parallel">parallel</option>
-          <option value="sequential">sequential</option>
-        </select>
+      <div class="layout">
+        <aside class="panel stack">
+          <section class="stack">
+            <h2>Run Setup</h2>
+            <div>
+              <label>Task File</label>
+              <div class="task-row">
+                <select id="taskFile"></select>
+                <button class="secondary" id="useTask" type="button">Use file</button>
+              </div>
+            </div>
+            <div>
+              <label>Prompt</label>
+              <textarea id="prompt" placeholder="Enter benchmark prompt"></textarea>
+            </div>
+            <div class="row">
+              <div>
+                <label>Mode</label>
+                <select id="mode">
+                  <option value="parallel">parallel</option>
+                  <option value="sequential">sequential</option>
+                </select>
+              </div>
+              <div>
+                <label>Concurrency</label>
+                <input id="maxConcurrency" type="number" value="0" min="0" />
+              </div>
+            </div>
+            <div>
+              <label>Label</label>
+              <input id="label" type="text" value="benchmark" />
+            </div>
+          </section>
+
+          <section class="stack">
+            <h2>Models</h2>
+            <div class="models-list" id="models"></div>
+          </section>
+
+          <div class="start-row">
+            <button id="start">Start Run</button>
+            <button class="secondary" id="refreshHistory" type="button">Refresh</button>
+          </div>
+
+          <section>
+            <h2>Recent Runs</h2>
+            <div id="history"></div>
+          </section>
+        </aside>
+
+        <section class="stack">
+          <div>
+            <div class="section-head">
+              <h2>Live Output</h2>
+              <span id="liveHint">No active run</span>
+            </div>
+            <div class="grid" id="live"></div>
+          </div>
+
+          <div>
+            <div class="section-head">
+              <h2>Final Stats</h2>
+              <span>duration and parsed token usage</span>
+            </div>
+            <table id="stats">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                  <th>Input</th>
+                  <th>Output</th>
+                  <th>Reasoning</th>
+                  <th>Cache</th>
+                  <th>Total</th>
+                  <th>Cost</th>
+                  <th>Requests</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
       </div>
-      <div>
-        <label>Concurrency</label>
-        <input id="maxConcurrency" type="number" value="0" min="0" />
-      </div>
-      <div>
-        <label>Label</label>
-        <input id="label" type="text" value="benchmark" />
-      </div>
-    </div>
-
-    <div class="card">
-      <strong>Models</strong>
-      <div id="models"></div>
-    </div>
-
-    <button id="start">Start Run</button>
-    <div id="status"></div>
-
-    <h2>Live Output</h2>
-    <div class="grid" id="live"></div>
-
-    <h2>Final Stats</h2>
-    <table id="stats">
-      <thead>
-        <tr>
-          <th>Model</th>
-          <th>Status</th>
-          <th>Duration (ms)</th>
-          <th>Input</th>
-          <th>Output</th>
-          <th>Reasoning</th>
-          <th>Cache</th>
-          <th>Total</th>
-          <th>Cost (USD)</th>
-          <th>Requests</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <h2>Recent Runs</h2>
-    <div id="history" class="card"></div>
+    </main>
 
     <script>
       const modelsDiv = document.getElementById("models");
@@ -86,6 +312,8 @@
       const modelCards = {};
       const modelTimers = {};
       const historyDiv = document.getElementById("history");
+      const liveHint = document.getElementById("liveHint");
+      const taskFileSelect = document.getElementById("taskFile");
       let currentSummary = null;
 
       function clearAllModelTimers() {
@@ -139,8 +367,19 @@
         const res = await fetch("/api/models");
         const models = await res.json();
         modelsDiv.innerHTML = models.map((m) =>
-          `<label><input type="checkbox" value="${m.key}" checked /> ${m.key} (${m.model})</label>`
-        ).join("<br/>");
+          `<label class="model-option"><input type="checkbox" value="${m.key}" checked /><strong>${m.key}</strong><span>${m.provider || "default"}/${m.model}</span></label>`
+        ).join("");
+      }
+
+      async function loadTaskFiles() {
+        const res = await fetch("/api/task-files");
+        const files = await res.json();
+        taskFileSelect.innerHTML = files.map((f) =>
+          `<option value="${f.name}">${f.name}</option>`
+        ).join("") || `<option value="">No task files found</option>`;
+        if (files.length && !document.getElementById("prompt").value.trim()) {
+          document.getElementById("prompt").value = `Please read ${files[0].name} and complete the task exactly as specified.`;
+        }
       }
 
       async function loadHistory() {
@@ -164,6 +403,7 @@
         card.className = "card";
         card.innerHTML = `<h3>${model}</h3><div class="card-meta"><span class="state">queued</span><span class="elapsed" aria-live="polite"></span></div><pre class="stdout"></pre><details><summary>stderr</summary><pre class="stderr"></pre></details>`;
         liveDiv.appendChild(card);
+        liveHint.textContent = `${Object.keys(modelCards).length + 1} workspace${Object.keys(modelCards).length ? "s" : ""}`;
         modelCards[model] = card;
         applyGridColumns();
         return card;
@@ -237,7 +477,16 @@
         }
         fillStats(summary);
         statusDiv.textContent = `Loaded run: ${runId}`;
+        liveHint.textContent = `${(summary.results || []).length} loaded workspace${(summary.results || []).length === 1 ? "" : "s"}`;
       }
+
+      document.getElementById("useTask").onclick = () => {
+        const file = taskFileSelect.value;
+        if (!file) return;
+        document.getElementById("prompt").value = `Please read ${file} and complete the task exactly as specified.`;
+      };
+
+      document.getElementById("refreshHistory").onclick = loadHistory;
 
       document.getElementById("start").onclick = async () => {
         liveDiv.innerHTML = "";
@@ -245,6 +494,7 @@
         statusDiv.textContent = "Starting...";
         clearAllModelTimers();
         Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+        liveHint.textContent = "Preparing workspaces";
         const payload = {
           prompt: document.getElementById("prompt").value,
           models: selectedModels(),
@@ -270,6 +520,7 @@
         }
         const { run_id } = await startRes.json();
         statusDiv.textContent = `Running: ${run_id}`;
+        liveHint.textContent = `${payload.models.length} active workspace${payload.models.length === 1 ? "" : "s"}`;
 
         const events = new EventSource(`/api/runs/${run_id}/events`);
         events.onmessage = (msg) => {
@@ -298,6 +549,7 @@
       };
 
       loadModels();
+      loadTaskFiles();
       loadHistory();
     </script>
   </body>

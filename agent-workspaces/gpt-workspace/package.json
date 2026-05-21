@@ -1,0 +1,23 @@
+{
+  "name": "msmarco-passage-search-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p ${FRONTEND_PORT:-3000}",
+    "build": "next build",
+    "start": "next start -p ${FRONTEND_PORT:-3000}",
+    "backend": "bash scripts/start-anserini-rest.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}

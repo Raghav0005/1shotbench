@@ -10,7 +10,7 @@ from bench.runner import BenchmarkRunner, RunnerOptions
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Codex LLM benchmark runner")
+    parser = argparse.ArgumentParser(description="Pi agent benchmark runner")
     parser.add_argument("--prompt", help="Prompt text to run")
     parser.add_argument("--prompt-file", help="Read prompt from file path")
     parser.add_argument("--models", nargs="+", required=True, help="Model keys to run")
