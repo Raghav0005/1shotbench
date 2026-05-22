@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import hashlib
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -286,88 +289,114 @@ class BenchmarkRunner:
             event_chunks: list[str] = []
             attempt_metrics = TokenMetrics()
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    *exec_command,
-                    cwd=workspace.path,
-                    env=env,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
+                with (
+                    stdout_path.open("w", encoding="utf-8") as stdout_file,
+                    stderr_path.open("w", encoding="utf-8") as stderr_file,
+                    events_path.open("w", encoding="utf-8") as events_file,
+                ):
+                    proc = await asyncio.create_subprocess_exec(
+                        *exec_command,
+                        cwd=workspace.path,
+                        env=env,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        start_new_session=True,
+                    )
 
-                async def drain(stream, name: str, sink: list[str]) -> None:
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        text = line.decode("utf-8", errors="replace")
-                        sink.append(text)
-                        await self._emit(
-                            event_callback,
-                            {
-                                "type": "output",
-                                "model": workspace.key,
-                                "stream": name,
-                                "text": text,
-                            },
-                        )
-
-                async def drain_pi_json_stdout(stream) -> None:
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        text = line.decode("utf-8", errors="replace")
-                        event_chunks.append(text)
-                        try:
-                            event = json.loads(text)
-                        except json.JSONDecodeError:
-                            stdout_chunks.append(text)
+                    async def drain(stream, name: str, sink: list[str], file_obj) -> None:
+                        while True:
+                            line = await stream.readline()
+                            if not line:
+                                break
+                            text = line.decode("utf-8", errors="replace")
+                            sink.append(text)
+                            file_obj.write(text)
+                            file_obj.flush()
                             await self._emit(
                                 event_callback,
                                 {
                                     "type": "output",
                                     "model": workspace.key,
-                                    "stream": "stdout",
+                                    "stream": name,
                                     "text": text,
                                 },
                             )
-                            continue
 
-                        self._accumulate_pi_event_metrics(event, attempt_metrics)
-                        rendered = self._render_pi_event(event)
-                        if rendered:
-                            stdout_chunks.append(rendered)
-                            await self._emit(
-                                event_callback,
-                                {
-                                    "type": "output",
-                                    "model": workspace.key,
-                                    "stream": "stdout",
-                                    "text": rendered,
-                                },
-                            )
+                    async def drain_pi_json_stdout(stream) -> None:
+                        while True:
+                            line = await stream.readline()
+                            if not line:
+                                break
+                            text = line.decode("utf-8", errors="replace")
+                            event_chunks.append(text)
+                            events_file.write(text)
+                            events_file.flush()
+                            try:
+                                event = json.loads(text)
+                            except json.JSONDecodeError:
+                                stdout_chunks.append(text)
+                                stdout_file.write(text)
+                                stdout_file.flush()
+                                await self._emit(
+                                    event_callback,
+                                    {
+                                        "type": "output",
+                                        "model": workspace.key,
+                                        "stream": "stdout",
+                                        "text": text,
+                                    },
+                                )
+                                continue
 
-                stdout_task = asyncio.create_task(drain_pi_json_stdout(proc.stdout))
-                stderr_task = asyncio.create_task(drain(proc.stderr, "stderr", stderr_chunks))
-                if timeout_seconds > 0:
-                    await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
-                else:
-                    await proc.wait()
-                await self._settle_stream_tasks([stdout_task, stderr_task])
-                final_stdout = "".join(stdout_chunks)
-                final_stderr = "".join(stderr_chunks)
-                final_events = "".join(event_chunks)
-                metrics = attempt_metrics
-                final_exit_code = proc.returncode
-                if proc.returncode == 0:
-                    final_status = "completed"
-                    final_error = None
-                    break
-                final_error = f"Non-zero exit code: {proc.returncode}"
+                            self._accumulate_pi_event_metrics(event, attempt_metrics)
+                            rendered = self._render_pi_event(event)
+                            if rendered:
+                                stdout_chunks.append(rendered)
+                                stdout_file.write(rendered)
+                                stdout_file.flush()
+                                await self._emit(
+                                    event_callback,
+                                    {
+                                        "type": "output",
+                                        "model": workspace.key,
+                                        "stream": "stdout",
+                                        "text": rendered,
+                                    },
+                                )
+
+                    stdout_task = asyncio.create_task(drain_pi_json_stdout(proc.stdout))
+                    stderr_task = asyncio.create_task(
+                        drain(proc.stderr, "stderr", stderr_chunks, stderr_file)
+                    )
+                    try:
+                        if timeout_seconds > 0:
+                            await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+                        else:
+                            await proc.wait()
+                    finally:
+                        if proc.returncode is None:
+                            self._terminate_process_group(proc)
+                            with contextlib.suppress(Exception):
+                                await asyncio.wait_for(proc.wait(), timeout=10)
+                        else:
+                            self._terminate_process_group(proc, include_exited_leader=True)
+                        await self._settle_stream_tasks([stdout_task, stderr_task])
+
+                    final_stdout = "".join(stdout_chunks)
+                    final_stderr = "".join(stderr_chunks)
+                    final_events = "".join(event_chunks)
+                    metrics = attempt_metrics
+                    final_exit_code = proc.returncode
+                    if proc.returncode == 0:
+                        final_status = "completed"
+                        final_error = None
+                        break
+                    final_error = f"Non-zero exit code: {proc.returncode}"
             except asyncio.TimeoutError:
                 if proc and proc.returncode is None:
-                    proc.kill()
-                    await proc.wait()
+                    self._terminate_process_group(proc)
+                    with contextlib.suppress(Exception):
+                        await asyncio.wait_for(proc.wait(), timeout=10)
                 await self._settle_stream_tasks([stdout_task, stderr_task])
                 final_stdout = "".join(stdout_chunks)
                 final_stderr = "".join(stderr_chunks)
@@ -388,9 +417,12 @@ class BenchmarkRunner:
                     },
                 )
 
-        stdout_path.write_text(final_stdout, encoding="utf-8")
-        stderr_path.write_text(final_stderr, encoding="utf-8")
-        events_path.write_text(final_events, encoding="utf-8")
+        if not stdout_path.exists():
+            stdout_path.write_text(final_stdout, encoding="utf-8")
+        if not stderr_path.exists():
+            stderr_path.write_text(final_stderr, encoding="utf-8")
+        if not events_path.exists():
+            events_path.write_text(final_events, encoding="utf-8")
 
         run_ended = _now()
         if metrics.total_tokens == 0:
@@ -431,6 +463,23 @@ class BenchmarkRunner:
             },
         )
         return result
+
+    def _terminate_process_group(
+        self,
+        proc: asyncio.subprocess.Process,
+        include_exited_leader: bool = False,
+    ) -> None:
+        if proc.pid is None:
+            return
+        if proc.returncode is not None and not include_exited_leader:
+            return
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        except OSError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
 
     async def _settle_stream_tasks(
         self,
