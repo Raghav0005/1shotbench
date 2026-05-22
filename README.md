@@ -21,10 +21,10 @@ anserini-frontend/
     PRDv2.md -> ../PRDv2.md
     bench.toml
 
-bm25-tuning/
-  PRD-bm25-tuning.md
+anserini-evaluator/
+  PRD-anserini-evaluator.md
   gpt-workspace/
-    PRD-bm25-tuning.md -> ../PRD-bm25-tuning.md
+    PRD-anserini-evaluator.md -> ../PRD-anserini-evaluator.md
     bench.toml
 ```
 
@@ -228,7 +228,7 @@ becomes:
 pi --mode json --print --no-session --provider anthropic --model claude-sonnet-4-6 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
 ```
 
-The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-bm25-tuning.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
+The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-anserini-evaluator.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
 
 On macOS, each subprocess is wrapped with `sandbox-exec`. The generated profile is written under the run's per-model artifact directory and denies reads and writes to the other configured model workspaces plus `.codex-private/`.
 
