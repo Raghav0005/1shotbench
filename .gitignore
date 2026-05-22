@@ -1,3 +1,4 @@
 .env
+.codex-private/
 __pycache__/
 runs/

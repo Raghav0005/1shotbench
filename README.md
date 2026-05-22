@@ -6,10 +6,10 @@ The old Codex proxy path has been removed. Each model now runs through the `pi` 
 
 ## Workspace Layout
 
-Model workspaces live under:
+Task workspaces live in task-specific directories. The current task is:
 
 ```text
-agent-workspaces/
+anserini-frontend/
   gpt-workspace/
     bench.toml
   claude-workspace/
@@ -18,12 +18,14 @@ agent-workspaces/
     bench.toml
 ```
 
+Future benchmark tasks can live as sibling directories with the same `*-workspace/bench.toml` structure.
+
 Each workspace config supports:
 
 ```toml
 name = "GPT workspace"
 provider = "openai-codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 thinking = "high"
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]
@@ -36,7 +38,7 @@ required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduc
 The runner executes Pi from the workspace directory with:
 
 ```text
-pi --print --no-session --provider <provider> --model <model> [prompt]
+pi --mode json --print --no-session --provider <provider> --model <model> [prompt]
 ```
 
 Root-level task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` are symlinked into every model workspace before each run. For example, `PRDv2.md` is available to every agent as `./PRDv2.md` from inside its workspace.
@@ -45,9 +47,15 @@ Root-level task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md
 
 Pi Bench runs each model from its own workspace directory and, on macOS, wraps each Pi subprocess with `sandbox-exec`. The generated sandbox profile allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
 
-That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces. If `sandbox-exec` is unavailable, preflight fails because that isolation cannot be enforced.
+That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces for the same task. If `sandbox-exec` is unavailable, preflight fails because that isolation cannot be enforced.
 
 This is workspace isolation, not a full container. Agents can still use allowed tools and the network according to the host environment and Pi configuration.
+
+## Codex-Private Notes
+
+Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated `sandbox-exec` profile as a denied read/write path.
+
+Do not put benchmark instructions for Pi agents there. Use root task files such as `PRDv2.md` for agent-visible task prompts.
 
 ## Pi Auth And Keys
 
@@ -129,6 +137,37 @@ This copies Anserini's `.agents/skills` directory into this repo's `.agents/skil
 
 Preflight fails if any declared `required_skills` are missing from `.agents/skills`, `.pi/skills`, `~/.pi/agent/skills`, or `~/.agents/skills`.
 
+## Creating Workspaces
+
+Create or refresh the standard model workspace folders for a task with:
+
+```sh
+python scripts/create_agent_workspaces.py anserini-frontend
+```
+
+By default, the script creates:
+
+- `gpt-workspace`
+- `claude-workspace`
+- `gemini-workspace`
+- `glm-workspace`
+- `kimi-workspace`
+- `minimax-workspace`
+
+It writes missing `bench.toml` files using the current benchmark defaults and symlinks root task files such as `PRDv2.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
+
+Run a non-default task directory with:
+
+```sh
+python -m bench.cli --task-dir anserini-frontend --prompt "..." --models gpt claude
+```
+
+The web server uses `anserini-frontend` by default. To point it at another sibling task directory:
+
+```sh
+PI_BENCH_TASK_DIR=other-task uvicorn bench.web:app --port 4010
+```
+
 ## CLI
 
 Run one prompt against multiple model workspaces:
@@ -137,8 +176,15 @@ Run one prompt against multiple model workspaces:
 python -m bench.cli --prompt "Your task prompt" --models gpt claude gemini
 ```
 
+Or read the prompt from a file:
+
+```sh
+python -m bench.cli --prompt-file PRDv2.md --models gpt claude gemini glm kimi minimax
+```
+
 Useful options:
 
+- `--task-dir anserini-frontend`
 - `--prompt-file path/to/prompt.txt`
 - `--mode sequential|parallel`
 - `--max-concurrency 2`
@@ -147,13 +193,56 @@ Useful options:
 - `--warmup`
 - `--label e2e-bench-1`
 
+The CLI flow is:
+
+1. It reads the prompt from `--prompt` or `--prompt-file`.
+2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `anserini-frontend`.
+3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, `sandbox-exec`, and any declared `required_skills`.
+4. It symlinks root task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
+5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
+6. It starts one Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
+7. It writes per-model logs and a combined summary when the run finishes.
+
+For each selected model, `bench.toml` is converted into Pi CLI flags. This config:
+
+```toml
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+```
+
+becomes:
+
+```text
+pi --mode json --print --no-session --provider anthropic --model claude-sonnet-4-6 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
+```
+
+The runner sets the subprocess working directory to that model's workspace, so `./PRDv2.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
+
+On macOS, each subprocess is wrapped with `sandbox-exec`. The generated profile is written under the run's per-model artifact directory and denies reads and writes to the other configured model workspaces plus `.codex-private/`.
+
 Artifacts are written to:
 
 ```text
 runs/<run_id>/
 ```
 
-Each run includes per-model stdout/stderr logs, per-model result JSON, and `summary.json`, `summary.csv`, and `summary.md`.
+Each run includes:
+
+- `prompt.txt`: the prompt used for the run
+- `<model>/stdout.log`: readable assistant output and tool markers
+- `<model>/stderr.log`: Pi stderr
+- `<model>/events.jsonl`: raw Pi JSON events
+- `<model>/result.json`: status, timing, command, paths, attempts, and token metrics for that model
+- `<model>/workspace.sb`: the generated macOS sandbox profile
+- `summary.json`: full machine-readable benchmark summary
+- `summary.csv`: compact table for spreadsheets
+- `summary.md`: compact Markdown summary
+
+Statuses are process-level statuses. `completed` means Pi exited with code `0`; `failed` means a non-zero exit; `timeout` means the process exceeded `--timeout-seconds`. `--retries` reruns only failed or timed-out model subprocesses, and the final artifact files contain the last attempt's logs.
+
+`--warmup` performs a short, unreported pre-run for each selected model before the measured run. Warmup logs are saved as `warmup.*` files inside each model artifact directory, but the benchmark summary uses the measured run.
 
 ## Web UI
 
@@ -179,13 +268,9 @@ The UI can:
 
 ## Metrics
 
-Pi Bench records wall-clock duration and process status for every model. Token fields are populated only when Pi or a provider prints a line matching:
+Pi Bench records wall-clock duration and process status for every model. New runs execute Pi in JSON event mode and parse final assistant `usage` fields from `message_end` events. Raw Pi events are saved per model as `events.jsonl`, while readable output remains in `stdout.log`.
 
-```text
-Token usage: total=<n> input=<n> output=<n> (reasoning <n>)
-```
-
-If that line is absent, token and cost fields remain zero. This keeps the benchmark agent-agnostic and avoids the previous provider proxy.
+Older runs made before JSON event parsing may show zero token and cost fields because they were run with `--no-session` and text output did not include usage.
 
 ## Requirements
 

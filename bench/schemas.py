@@ -40,7 +40,7 @@ class WorkspaceConfig:
     required_skills: list[str] = field(default_factory=list)
 
     def pi_args(self) -> list[str]:
-        args = ["pi", "--print", "--no-session"]
+        args = ["pi", "--mode", "json", "--print", "--no-session"]
         if self.provider:
             args.extend(["--provider", self.provider])
         if self.model:
@@ -72,6 +72,7 @@ class RunJobResult:
     stderr_path: str
     result_path: str
     command: list[str]
+    events_path: str | None = None
     attempts: int = 1
     error: str | None = None
     metrics: TokenMetrics = field(default_factory=TokenMetrics)

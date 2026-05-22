@@ -240,6 +240,7 @@ class BenchmarkRunner:
         model_dir.mkdir(parents=True, exist_ok=True)
         stdout_path = model_dir / ("warmup.stdout.log" if warmup else "stdout.log")
         stderr_path = model_dir / ("warmup.stderr.log" if warmup else "stderr.log")
+        events_path = model_dir / ("warmup.events.jsonl" if warmup else "events.jsonl")
         result_path = model_dir / ("warmup.result.json" if warmup else "result.json")
 
         await self._emit(
@@ -254,6 +255,8 @@ class BenchmarkRunner:
         final_error: str | None = None
         final_stdout = ""
         final_stderr = ""
+        final_events = ""
+        metrics = TokenMetrics()
         command = workspace.pi_args() + [prompt]
         displayed_command = workspace.pi_args() + ["<prompt>"]
         env = load_project_env()
@@ -275,6 +278,8 @@ class BenchmarkRunner:
                 )
                 stdout_chunks: list[str] = []
                 stderr_chunks: list[str] = []
+                event_chunks: list[str] = []
+                attempt_metrics = TokenMetrics()
 
                 async def drain(stream, name: str, sink: list[str]) -> None:
                     while True:
@@ -293,13 +298,51 @@ class BenchmarkRunner:
                             },
                         )
 
-                stdout_task = asyncio.create_task(drain(proc.stdout, "stdout", stdout_chunks))
+                async def drain_pi_json_stdout(stream) -> None:
+                    while True:
+                        line = await stream.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace")
+                        event_chunks.append(text)
+                        try:
+                            event = json.loads(text)
+                        except json.JSONDecodeError:
+                            stdout_chunks.append(text)
+                            await self._emit(
+                                event_callback,
+                                {
+                                    "type": "output",
+                                    "model": workspace.key,
+                                    "stream": "stdout",
+                                    "text": text,
+                                },
+                            )
+                            continue
+
+                        self._accumulate_pi_event_metrics(event, attempt_metrics)
+                        rendered = self._render_pi_event(event)
+                        if rendered:
+                            stdout_chunks.append(rendered)
+                            await self._emit(
+                                event_callback,
+                                {
+                                    "type": "output",
+                                    "model": workspace.key,
+                                    "stream": "stdout",
+                                    "text": rendered,
+                                },
+                            )
+
+                stdout_task = asyncio.create_task(drain_pi_json_stdout(proc.stdout))
                 stderr_task = asyncio.create_task(drain(proc.stderr, "stderr", stderr_chunks))
                 await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
                 await stdout_task
                 await stderr_task
                 final_stdout = "".join(stdout_chunks)
                 final_stderr = "".join(stderr_chunks)
+                final_events = "".join(event_chunks)
+                metrics = attempt_metrics
                 final_exit_code = proc.returncode
                 if proc.returncode == 0:
                     final_status = "completed"
@@ -327,9 +370,11 @@ class BenchmarkRunner:
 
         stdout_path.write_text(final_stdout, encoding="utf-8")
         stderr_path.write_text(final_stderr, encoding="utf-8")
+        events_path.write_text(final_events, encoding="utf-8")
 
         run_ended = _now()
-        metrics = extract_inline_token_usage(final_stdout + "\n" + final_stderr) or TokenMetrics()
+        if metrics.total_tokens == 0:
+            metrics = extract_inline_token_usage(final_stdout + "\n" + final_stderr) or TokenMetrics()
         result = RunJobResult(
             model_key=workspace.key,
             workspace_path=workspace.path,
@@ -345,6 +390,7 @@ class BenchmarkRunner:
             stderr_path=str(stderr_path),
             result_path=str(result_path),
             command=displayed_command,
+            events_path=str(events_path),
             attempts=attempts,
             error=final_error,
             metrics=metrics,
@@ -366,6 +412,38 @@ class BenchmarkRunner:
         )
         return result
 
+    def _render_pi_event(self, event: dict) -> str:
+        if event.get("type") == "message_update":
+            update = event.get("assistantMessageEvent") or {}
+            if update.get("type") == "text_delta":
+                return update.get("delta") or ""
+        if event.get("type") == "tool_execution_start":
+            tool_name = event.get("toolName") or "tool"
+            return f"\n[tool start] {tool_name}\n"
+        if event.get("type") == "tool_execution_end":
+            tool_name = event.get("toolName") or "tool"
+            status = "error" if event.get("isError") else "ok"
+            return f"\n[tool end] {tool_name}: {status}\n"
+        return ""
+
+    def _accumulate_pi_event_metrics(self, event: dict, metrics: TokenMetrics) -> None:
+        if event.get("type") != "message_end":
+            return
+        message = event.get("message") or {}
+        if message.get("role") != "assistant":
+            return
+        usage = message.get("usage") or {}
+        total_tokens = int(usage.get("totalTokens") or 0)
+        if total_tokens <= 0:
+            return
+        metrics.input_tokens += int(usage.get("input") or 0)
+        metrics.output_tokens += int(usage.get("output") or 0)
+        metrics.cache_read_tokens += int(usage.get("cacheRead") or 0)
+        metrics.total_tokens += total_tokens
+        cost = usage.get("cost") or {}
+        metrics.cost_usd += float(cost.get("total") or 0)
+        metrics.requests += 1
+
     def _apply_workspace_sandbox(
         self,
         command: list[str],
@@ -377,11 +455,13 @@ class BenchmarkRunner:
             return command
 
         workspace_path = Path(workspace.path).resolve()
+        private_path = (self.root_dir / ".codex-private").resolve()
         denied_paths = [
             Path(other.path).resolve()
             for other in self.workspaces.values()
             if Path(other.path).resolve() != workspace_path
         ]
+        denied_paths.append(private_path)
         if not denied_paths:
             return command
 

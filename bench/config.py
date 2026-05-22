@@ -8,10 +8,19 @@ from bench.schemas import WorkspaceConfig
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-WORKSPACES_DIR = ROOT_DIR / "agent-workspaces"
+DEFAULT_TASK_DIR_NAME = "anserini-frontend"
 RUNS_DIR = ROOT_DIR / "runs"
 WORKSPACE_CONFIG_NAME = "bench.toml"
 SHARED_TASK_GLOBS = ("PRD*.md", "TASK*.md", "task*.md", "prompt*.md")
+
+
+def resolve_workspaces_dir(task_dir: str | Path | None = None) -> Path:
+    selected = task_dir or os.environ.get("PI_BENCH_TASK_DIR") or DEFAULT_TASK_DIR_NAME
+    path = Path(selected)
+    return path if path.is_absolute() else ROOT_DIR / path
+
+
+WORKSPACES_DIR = resolve_workspaces_dir()
 
 
 def _as_str_list(value: object) -> list[str]:
@@ -24,12 +33,13 @@ def _as_str_list(value: object) -> list[str]:
     return []
 
 
-def load_workspace_configs() -> dict[str, WorkspaceConfig]:
+def load_workspace_configs(task_dir: str | Path | None = None) -> dict[str, WorkspaceConfig]:
     configs: dict[str, WorkspaceConfig] = {}
-    if not WORKSPACES_DIR.exists():
+    workspaces_dir = resolve_workspaces_dir(task_dir)
+    if not workspaces_dir.exists():
         return configs
 
-    for workspace in sorted(WORKSPACES_DIR.iterdir()):
+    for workspace in sorted(workspaces_dir.iterdir()):
         if not workspace.is_dir() or not workspace.name.endswith("-workspace"):
             continue
         config_path = workspace / WORKSPACE_CONFIG_NAME
