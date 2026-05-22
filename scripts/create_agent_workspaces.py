@@ -58,10 +58,10 @@ def _toml_list(values: list[str]) -> str:
     return "[" + ", ".join(f'"{value}"' for value in values) + "]"
 
 
-def discover_task_files() -> list[Path]:
+def discover_task_files(task_dir: Path) -> list[Path]:
     files: dict[str, Path] = {}
     for pattern in TASK_FILE_PATTERNS:
-        for path in ROOT_DIR.glob(pattern):
+        for path in task_dir.glob(pattern):
             if path.is_file():
                 files[path.name] = path
     return [files[name] for name in sorted(files)]
@@ -69,7 +69,7 @@ def discover_task_files() -> list[Path]:
 
 def create_workspaces(task_dir: Path, force: bool) -> None:
     task_dir.mkdir(parents=True, exist_ok=True)
-    task_files = discover_task_files()
+    task_files = discover_task_files(task_dir)
 
     for spec in WORKSPACES:
         workspace_dir = task_dir / spec.directory_name
@@ -84,7 +84,7 @@ def create_workspaces(task_dir: Path, force: bool) -> None:
 
         for task_file in task_files:
             link_path = workspace_dir / task_file.name
-            target = Path("..") / ".." / task_file.name
+            target = Path("..") / task_file.name
             if link_path.is_symlink():
                 if link_path.readlink() != target:
                     link_path.unlink()

@@ -63,10 +63,11 @@ def load_workspace_configs(task_dir: str | Path | None = None) -> dict[str, Work
     return configs
 
 
-def discover_shared_task_files() -> list[Path]:
+def discover_shared_task_files(task_dir: str | Path | None = None) -> list[Path]:
     files: dict[str, Path] = {}
+    workspaces_dir = resolve_workspaces_dir(task_dir)
     for pattern in SHARED_TASK_GLOBS:
-        for path in ROOT_DIR.glob(pattern):
+        for path in workspaces_dir.glob(pattern):
             if path.is_file():
                 files[path.name] = path
     return [files[name] for name in sorted(files)]

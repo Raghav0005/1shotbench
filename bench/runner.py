@@ -111,7 +111,7 @@ class BenchmarkRunner:
         return False
 
     def sync_shared_task_files(self) -> None:
-        task_files = discover_shared_task_files()
+        task_files = discover_shared_task_files(self._task_dir())
         if not task_files:
             return
         for workspace in self.workspaces.values():
@@ -120,7 +120,7 @@ class BenchmarkRunner:
                 continue
             for task_file in task_files:
                 link_path = workspace_path / task_file.name
-                target = Path("..") / ".." / task_file.name
+                target = Path("..") / task_file.name
                 if link_path.is_symlink():
                     if link_path.readlink() != target:
                         link_path.unlink()
@@ -129,6 +129,16 @@ class BenchmarkRunner:
                 if link_path.exists():
                     continue
                 link_path.symlink_to(target)
+
+    def _task_dir(self) -> Path | None:
+        parents = {
+            Path(workspace.path).resolve().parent
+            for workspace in self.workspaces.values()
+            if workspace.path
+        }
+        if len(parents) == 1:
+            return next(iter(parents))
+        return None
 
     async def run(
         self,
@@ -268,6 +278,13 @@ class BenchmarkRunner:
 
         while attempts <= retries:
             attempts += 1
+            proc: asyncio.subprocess.Process | None = None
+            stdout_task: asyncio.Task | None = None
+            stderr_task: asyncio.Task | None = None
+            stdout_chunks: list[str] = []
+            stderr_chunks: list[str] = []
+            event_chunks: list[str] = []
+            attempt_metrics = TokenMetrics()
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *exec_command,
@@ -276,10 +293,6 @@ class BenchmarkRunner:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout_chunks: list[str] = []
-                stderr_chunks: list[str] = []
-                event_chunks: list[str] = []
-                attempt_metrics = TokenMetrics()
 
                 async def drain(stream, name: str, sink: list[str]) -> None:
                     while True:
@@ -336,9 +349,11 @@ class BenchmarkRunner:
 
                 stdout_task = asyncio.create_task(drain_pi_json_stdout(proc.stdout))
                 stderr_task = asyncio.create_task(drain(proc.stderr, "stderr", stderr_chunks))
-                await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
-                await stdout_task
-                await stderr_task
+                if timeout_seconds > 0:
+                    await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+                else:
+                    await proc.wait()
+                await self._settle_stream_tasks([stdout_task, stderr_task])
                 final_stdout = "".join(stdout_chunks)
                 final_stderr = "".join(stderr_chunks)
                 final_events = "".join(event_chunks)
@@ -350,9 +365,14 @@ class BenchmarkRunner:
                     break
                 final_error = f"Non-zero exit code: {proc.returncode}"
             except asyncio.TimeoutError:
-                if "proc" in locals() and proc.returncode is None:
+                if proc and proc.returncode is None:
                     proc.kill()
                     await proc.wait()
+                await self._settle_stream_tasks([stdout_task, stderr_task])
+                final_stdout = "".join(stdout_chunks)
+                final_stderr = "".join(stderr_chunks)
+                final_events = "".join(event_chunks)
+                metrics = attempt_metrics
                 final_exit_code = None
                 final_error = f"Timed out after {timeout_seconds}s"
                 final_status = "timeout"
@@ -411,6 +431,23 @@ class BenchmarkRunner:
             },
         )
         return result
+
+    async def _settle_stream_tasks(
+        self,
+        tasks: list[asyncio.Task | None],
+        timeout_seconds: float = 5,
+    ) -> None:
+        pending = [task for task in tasks if task is not None and not task.done()]
+        if pending:
+            _, still_pending = await asyncio.wait(pending, timeout=timeout_seconds)
+            for task in still_pending:
+                task.cancel()
+            if still_pending:
+                await asyncio.gather(*still_pending, return_exceptions=True)
+
+        done = [task for task in tasks if task is not None and task.done()]
+        if done:
+            await asyncio.gather(*done, return_exceptions=True)
 
     def _render_pi_event(self, event: dict) -> str:
         if event.get("type") == "message_update":

@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models", nargs="+", required=True, help="Model keys to run")
     parser.add_argument("--mode", choices=["sequential", "parallel"], default="parallel")
     parser.add_argument("--max-concurrency", type=int, default=2)
-    parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parser.add_argument("--timeout-seconds", type=int, default=1800, help="Per-model timeout. Use 0 for no timeout.")
     parser.add_argument("--retries", type=int, default=0)
     parser.add_argument("--label", default="benchmark")
     parser.add_argument("--warmup", action="store_true")

@@ -10,11 +10,21 @@ Task workspaces live in task-specific directories. The current task is:
 
 ```text
 anserini-frontend/
+  PRDv2.md
   gpt-workspace/
+    PRDv2.md -> ../PRDv2.md
     bench.toml
   claude-workspace/
+    PRDv2.md -> ../PRDv2.md
     bench.toml
   gemini-workspace/
+    PRDv2.md -> ../PRDv2.md
+    bench.toml
+
+bm25-tuning/
+  PRD-bm25-tuning.md
+  gpt-workspace/
+    PRD-bm25-tuning.md -> ../PRD-bm25-tuning.md
     bench.toml
 ```
 
@@ -41,7 +51,7 @@ The runner executes Pi from the workspace directory with:
 pi --mode json --print --no-session --provider <provider> --model <model> [prompt]
 ```
 
-Root-level task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` are symlinked into every model workspace before each run. For example, `PRDv2.md` is available to every agent as `./PRDv2.md` from inside its workspace.
+Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should live in the task directory, not the repo root. They are symlinked into every model workspace before each run. For example, `anserini-frontend/PRDv2.md` is available to every Anserini frontend agent as `./PRDv2.md` from inside its workspace.
 
 ## Workspace Isolation
 
@@ -55,7 +65,7 @@ This is workspace isolation, not a full container. Agents can still use allowed 
 
 Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated `sandbox-exec` profile as a denied read/write path.
 
-Do not put benchmark instructions for Pi agents there. Use root task files such as `PRDv2.md` for agent-visible task prompts.
+Do not put benchmark instructions for Pi agents there. Use task-local files such as `anserini-frontend/PRDv2.md` for agent-visible task prompts.
 
 ## Pi Auth And Keys
 
@@ -111,7 +121,7 @@ Pi's built-in tools are coding tools: `read`, `bash`, `edit`, `write`, `grep`, `
 pi install <source>
 ```
 
-`PRDv2.md` asks the agent to use the public `anserini-fatjar` skill and to install it automatically if it is missing and the source is reachable. For fully reproducible runs, preinstall the same skill for every model before benchmarking, or include the exact install source in the task prompt.
+The Anserini task PRDs ask the agent to use the public `anserini-fatjar` skill and to install it automatically if it is missing and the source is reachable. For fully reproducible runs, preinstall the same skill for every model before benchmarking, or include the exact install source in the task prompt.
 
 Preinstalling skills is usually the fairer benchmark setup. It removes skill discovery, installation time, network variability, and “who found the right package first?” from the model comparison. Letting agents install missing skills is useful for testing agent autonomy, but it changes the benchmark from task implementation to task implementation plus environment bootstrap.
 
@@ -154,7 +164,7 @@ By default, the script creates:
 - `kimi-workspace`
 - `minimax-workspace`
 
-It writes missing `bench.toml` files using the current benchmark defaults and symlinks root task files such as `PRDv2.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
+It writes missing `bench.toml` files using the current benchmark defaults and symlinks task-local files such as `PRDv2.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
 
 Run a non-default task directory with:
 
@@ -179,7 +189,7 @@ python -m bench.cli --prompt "Your task prompt" --models gpt claude gemini
 Or read the prompt from a file:
 
 ```sh
-python -m bench.cli --prompt-file PRDv2.md --models gpt claude gemini glm kimi minimax
+python -m bench.cli --task-dir anserini-frontend --prompt-file anserini-frontend/PRDv2.md --models gpt claude gemini glm kimi minimax
 ```
 
 Useful options:
@@ -188,7 +198,7 @@ Useful options:
 - `--prompt-file path/to/prompt.txt`
 - `--mode sequential|parallel`
 - `--max-concurrency 2`
-- `--timeout-seconds 1800`
+- `--timeout-seconds 1800` or `--timeout-seconds 0` for no per-model timeout
 - `--retries 1`
 - `--warmup`
 - `--label e2e-bench-1`
@@ -198,7 +208,7 @@ The CLI flow is:
 1. It reads the prompt from `--prompt` or `--prompt-file`.
 2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `anserini-frontend`.
 3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, `sandbox-exec`, and any declared `required_skills`.
-4. It symlinks root task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
+4. It symlinks task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
 5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
 6. It starts one Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
 7. It writes per-model logs and a combined summary when the run finishes.
@@ -218,7 +228,7 @@ becomes:
 pi --mode json --print --no-session --provider anthropic --model claude-sonnet-4-6 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
 ```
 
-The runner sets the subprocess working directory to that model's workspace, so `./PRDv2.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
+The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-bm25-tuning.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
 
 On macOS, each subprocess is wrapped with `sandbox-exec`. The generated profile is written under the run's per-model artifact directory and denies reads and writes to the other configured model workspaces plus `.codex-private/`.
 
@@ -277,7 +287,7 @@ Older runs made before JSON event parsing may show zero token and cost fields be
 - Python 3.11+
 - Pi coding agent available on `PATH`
 - provider API keys configured for the models you run
-- any task-specific Pi skills installed or installable by the agent. `PRDv2.md` currently asks agents to use an `anserini-fatjar` skill.
+- any task-specific Pi skills installed or installable by the agent. The current Anserini PRDs ask agents to use an `anserini-fatjar` skill.
 
 Install Python server dependencies:
 

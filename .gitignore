@@ -2,3 +2,14 @@
 .codex-private/
 __pycache__/
 runs/
+node_modules/
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/runs/
+*.log
+*.pid
