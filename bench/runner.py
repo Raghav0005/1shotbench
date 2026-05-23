@@ -22,6 +22,7 @@ from bench.schemas import BenchmarkSummary, RunJobResult, TokenMetrics, Workspac
 
 
 EventCallback = Callable[[dict], Awaitable[None]]
+SUBPROCESS_STREAM_LIMIT_BYTES = 8 * 1024 * 1024
 
 
 @dataclass
@@ -300,6 +301,7 @@ class BenchmarkRunner:
                         env=env,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
+                        limit=SUBPROCESS_STREAM_LIMIT_BYTES,
                         start_new_session=True,
                     )
 
