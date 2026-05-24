@@ -13,3 +13,9 @@ node_modules/
 **/runs/
 *.log
 *.pid
+
+# Generated agent workspace artifacts.
+**/anserini-*-fatjar.jar
+**/run.*.txt
+**/eval.*.txt
+**/.cache/
