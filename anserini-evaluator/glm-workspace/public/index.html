@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anserini Prebuilt Index Evaluator</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #475569;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --accent: #3b82f6;
+    --accent2: #2563eb;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  .jar-badge { background: var(--surface2); padding: 4px 10px; border-radius: var(--radius); font-size: 0.8rem; color: var(--text2); }
+  .jar-badge.error { background: rgba(239,68,68,0.15); color: var(--error); }
+
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  @media (max-width: 800px) { .main-grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+  .search-box { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.9rem; margin-bottom: 12px; }
+  .search-box:focus { outline: none; border-color: var(--accent); }
+
+  .index-list { max-height: 400px; overflow-y: auto; }
+  .index-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+  .index-item:hover { background: var(--surface2); }
+  .index-item.selected { background: rgba(59,130,246,0.15); border: 1px solid var(--accent); }
+  .index-item.disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+  .tag.evaluable { background: rgba(34,197,94,0.15); color: var(--success); }
+  .tag.catalog-only { background: rgba(148,163,184,0.15); color: var(--text2); }
+  .tag.type { background: rgba(59,130,246,0.15); color: var(--accent); }
+
+  .meta-table { width: 100%; font-size: 0.85rem; }
+  .meta-table td { padding: 4px 0; vertical-align: top; }
+  .meta-table td:first-child { color: var(--text2); white-space: nowrap; padding-right: 16px; width: 120px; }
+
+  select { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.9rem; margin-bottom: 12px; }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .btn { padding: 10px 24px; border: none; border-radius: var(--radius); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .status-bar { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 0.85rem; }
+  .status-bar.pending { background: rgba(59,130,246,0.1); color: var(--accent); }
+  .status-bar.success { background: rgba(34,197,94,0.1); color: var(--success); }
+  .status-bar.error { background: rgba(239,68,68,0.1); color: var(--error); }
+
+  .score-display { font-size: 2.5rem; font-weight: 700; text-align: center; padding: 20px 0; color: var(--success); }
+  .score-metric { text-align: center; color: var(--text2); font-size: 0.9rem; margin-bottom: 16px; }
+
+  .result-meta { font-size: 0.8rem; color: var(--text2); margin-top: 8px; }
+  .result-meta td:first-child { color: var(--text2); }
+
+  .preview-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre; margin-top: 12px; color: var(--text2); }
+
+  .full-width { grid-column: 1 / -1; }
+
+  .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--surface2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .index-count { font-size: 0.8rem; color: var(--text2); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Anserini Prebuilt Index Evaluator</h1>
+    <span id="jarBadge" class="jar-badge">Loading...</span>
+  </header>
+
+  <div class="main-grid">
+    <!-- Index Catalog -->
+    <div class="card">
+      <h2>Index Catalog</h2>
+      <input type="text" class="search-box" id="indexSearch" placeholder="Search indexes..." data-testid="index-search">
+      <div class="index-count" id="indexCount"></div>
+      <div class="index-list" id="indexList">
+        <div style="color:var(--text2);font-size:0.85rem;">Loading indexes...</div>
+      </div>
+    </div>
+
+    <!-- Evaluation Panel -->
+    <div class="card">
+      <h2>Evaluation</h2>
+      <div id="evalContent">
+        <div style="color:var(--text2);font-size:0.85rem;">Select an evaluable index to start evaluation.</div>
+      </div>
+    </div>
+
+    <!-- Results (shown after evaluation) -->
+    <div class="card full-width" id="resultsCard" style="display:none;">
+      <h2>Evaluation Results</h2>
+      <div id="resultsContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  indexes: [],
+  evaluableConfigs: {},
+  selectedIndex: null,
+  evaluating: false,
+  jarName: ''
+};
+
+// Fetch all data on load
+async function init() {
+  try {
+    const [indexesRes, evalRes] = await Promise.all([
+      fetch('/api/indexes').then(r => r.json()),
+      fetch('/api/evaluable').then(r => r.json())
+    ]);
+
+    if (indexesRes.error) throw new Error(indexesRes.error);
+    state.indexes = indexesRes.indexes || [];
+    state.jarName = indexesRes.jar || '';
+    state.evaluableConfigs = evalRes.configs || {};
+
+    document.getElementById('jarBadge').textContent = state.jarName ? `JAR: ${state.jarName}` : 'No JAR found';
+    if (!state.jarName) document.getElementById('jarBadge').classList.add('error');
+
+    renderIndexList();
+
+    // Auto-select CACM if present
+    const cacm = state.indexes.find(i => i.name === 'cacm');
+    if (cacm) selectIndex('cacm');
+
+  } catch (err) {
+    document.getElementById('jarBadge').textContent = 'Error loading';
+    document.getElementById('jarBadge').classList.add('error');
+    document.getElementById('indexList').innerHTML = `<div style="color:var(--error);font-size:0.85rem;">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderIndexList(filter = '') {
+  const list = document.getElementById('indexList');
+  const lower = filter.toLowerCase();
+  const filtered = state.indexes.filter(i => !lower || i.name.toLowerCase().includes(lower) || (i.description && i.description.toLowerCase().includes(lower)));
+
+  const evalNames = Object.keys(state.evaluableConfigs);
+  const evalCount = filtered.filter(i => evalNames.includes(i.name)).length;
+  document.getElementById('indexCount').textContent = `${filtered.length} indexes shown (${evalCount} evaluable, ${filtered.length - evalCount} catalog-only)`;
+
+  list.innerHTML = filtered.map(idx => {
+    const isEval = evalNames.includes(idx.name);
+    const selected = state.selectedIndex === idx.name;
+    return `<div class="index-item ${selected ? 'selected' : ''} ${!isEval ? 'disabled' : ''}"
+                 data-testid="index-item"
+                 data-name="${escapeHtml(idx.name)}"
+                 data-evaluable="${isEval}"
+                 onclick="${isEval ? `selectIndex('${escapeHtml(idx.name)}')` : ''}">
+      <span class="tag ${isEval ? 'evaluable' : 'catalog-only'}">${isEval ? 'EVALUABLE' : 'CATALOG'}</span>
+      <span style="flex:1;font-weight:${selected ? '600' : '400'}">${escapeHtml(idx.name)}</span>
+      ${idx.documents ? `<span style="color:var(--text2);font-size:0.75rem">${idx.documents.toLocaleString()} docs</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function selectIndex(name) {
+  state.selectedIndex = name;
+  renderIndexList(document.getElementById('indexSearch').value);
+  renderEvalPanel();
+}
+
+function renderEvalPanel() {
+  const content = document.getElementById('evalContent');
+  const name = state.selectedIndex;
+  const idx = state.indexes.find(i => i.name === name);
+  const config = state.evaluableConfigs[name];
+
+  if (!idx || !config) {
+    content.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">Select an evaluable index to start evaluation.</div>';
+    return;
+  }
+
+  content.innerHTML = `
+    <table class="meta-table">
+      <tr><td>Index</td><td>${escapeHtml(name)}</td></tr>
+      <tr><td>Type</td><td><span class="tag type">${escapeHtml(idx.type || 'N/A')}</span></td></tr>
+      <tr><td>Documents</td><td>${idx.documents ? idx.documents.toLocaleString() : 'N/A'}</td></tr>
+      <tr><td>Description</td><td>${escapeHtml(config.description || idx.description || 'N/A')}</td></tr>
+      <tr><td>Topics</td><td>${escapeHtml(config.topics)}</td></tr>
+      <tr><td>Qrels</td><td>${escapeHtml(config.qrels)}</td></tr>
+    </table>
+
+    <div style="margin-top:16px;">
+      <label style="font-size:0.85rem;color:var(--text2);display:block;margin-bottom:4px;">Evaluation Metric</label>
+      <select id="metricSelect" data-testid="metric-select">
+        ${config.metrics.map(m => `<option value="${m.id}">${escapeHtml(m.label)} (${m.id})</option>`).join('')}
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="runBtn" data-testid="run-eval-btn" onclick="runEvaluation()">
+      Run Evaluation
+    </button>
+
+    <div id="evalStatus"></div>
+  `;
+}
+
+async function runEvaluation() {
+  const name = state.selectedIndex;
+  const metric = document.getElementById('metricSelect').value;
+  const btn = document.getElementById('runBtn');
+  const status = document.getElementById('evalStatus');
+
+  if (!name || !metric) return;
+
+  btn.disabled = true;
+  state.evaluating = true;
+  status.innerHTML = '<div class="status-bar pending"><span class="loading-spinner"></span> Running retrieval and evaluation...</div>';
+
+  try {
+    const res = await fetch(`/api/evaluate?index=${encodeURIComponent(name)}&metric=${encodeURIComponent(metric)}`).then(r => r.json());
+
+    if (res.error) {
+      status.innerHTML = `<div class="status-bar error">Error: ${escapeHtml(res.error)}</div>`;
+    } else {
+      status.innerHTML = '<div class="status-bar success">Evaluation complete!</div>';
+      showResults(res);
+    }
+  } catch (err) {
+    status.innerHTML = `<div class="status-bar error">Request failed: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    state.evaluating = false;
+  }
+}
+
+function showResults(res) {
+  const card = document.getElementById('resultsCard');
+  const content = document.getElementById('resultsContent');
+  card.style.display = '';
+
+  content.innerHTML = `
+    <div class="score-display" data-testid="score-display">${res.score !== null ? res.score.toFixed(4) : 'N/A'}</div>
+    <div class="score-metric">${escapeHtml(res.metricLabel || res.metric)}</div>
+
+    <table class="meta-table result-meta" data-testid="result-meta">
+      <tr><td>Index</td><td>${escapeHtml(res.index)}</td></tr>
+      <tr><td>Topics</td><td>${escapeHtml(res.topics)}</td></tr>
+      <tr><td>Qrels</td><td>${escapeHtml(res.qrels)}</td></tr>
+      <tr><td>Metric</td><td>${escapeHtml(res.metricLabel || res.metric)} (${escapeHtml(res.metric)})</td></tr>
+      <tr><td>Score</td><td>${res.score !== null ? res.score : 'N/A'}</td></tr>
+      <tr><td>Run Lines</td><td>${res.runLines || 'N/A'}</td></tr>
+      <tr><td>Search Time</td><td>${res.searchTimeMs ? res.searchTimeMs + 'ms' : 'N/A'}</td></tr>
+      <tr><td>Eval Time</td><td>${res.evalTimeMs ? res.evalTimeMs + 'ms' : 'N/A'}</td></tr>
+      <tr><td>Run File</td><td data-testid="run-file">${escapeHtml(res.runFile || 'N/A')}</td></tr>
+    </table>
+
+    <div style="margin-top:16px;">
+      <div style="font-size:0.85rem;color:var(--text2);margin-bottom:4px;">Evaluation Output</div>
+      <div class="preview-box" data-testid="eval-output">${escapeHtml(res.evalOutput || '')}</div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div style="font-size:0.85rem;color:var(--text2);margin-bottom:4px;">Run File Preview (first 10 lines)</div>
+      <div class="preview-box" data-testid="run-preview">${escapeHtml(res.runPreview || '')}</div>
+    </div>
+  `;
+}
+
+// Search filter
+document.getElementById('indexSearch').addEventListener('input', (e) => {
+  renderIndexList(e.target.value);
+});
+
+// Init
+init();
+</script>
+</body>
+</html>

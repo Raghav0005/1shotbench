@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Local Anserini fatjar workflow</p>
+        <h1>Anserini Prebuilt Index Evaluator</h1>
+        <p>Browse the registry-derived Lucene inverted-index catalog and run a real CACM retrieval evaluation.</p>
+      </div>
+      <div id="health" class="status-pill">Checking Java and fatjar…</div>
+    </header>
+
+    <section id="error" class="error" hidden></section>
+
+    <section class="grid">
+      <aside class="panel catalog-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Index catalog</h2>
+            <p id="catalogSummary">Loading PrebuiltIndexRegistry…</p>
+          </div>
+          <button id="refreshCatalog" type="button">Refresh</button>
+        </div>
+        <label class="search-label" for="filter">Filter indexes</label>
+        <input id="filter" type="search" placeholder="Try cacm, msmarco, beir…" />
+        <div id="catalogSource" class="source-note"></div>
+        <ul id="indexList" class="index-list" aria-label="Prebuilt inverted indexes"></ul>
+      </aside>
+
+      <section class="panel evaluator-panel">
+        <h2>Evaluation</h2>
+        <div id="selection" class="selection-card">
+          <p>Loading CACM pairing…</p>
+        </div>
+
+        <form id="evalForm" class="eval-form">
+          <label for="metric">Metric</label>
+          <select id="metric" name="metric"></select>
+          <button id="runButton" type="submit">Run Evaluation</button>
+        </form>
+
+        <div id="runStatus" class="run-status idle">Ready</div>
+
+        <section id="result" class="result" hidden>
+          <div class="score-card">
+            <span>Score</span>
+            <strong id="score"></strong>
+          </div>
+          <dl class="metadata">
+            <dt>Index</dt><dd id="metaIndex"></dd>
+            <dt>Topics</dt><dd id="metaTopics"></dd>
+            <dt>Qrels / eval source</dt><dd id="metaQrels"></dd>
+            <dt>Metric</dt><dd id="metaMetric"></dd>
+            <dt>Elapsed</dt><dd id="metaElapsed"></dd>
+            <dt>Run file</dt><dd><code id="metaRunFile"></code></dd>
+            <dt>Evaluation output</dt><dd><code id="metaEvalFile"></code></dd>
+          </dl>
+          <h3>Evaluation output preview</h3>
+          <pre id="evalPreview"></pre>
+          <h3>Run file preview</h3>
+          <pre id="runPreview"></pre>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
