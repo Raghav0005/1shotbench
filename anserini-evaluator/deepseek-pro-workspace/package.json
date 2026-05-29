@@ -1,0 +1,12 @@
+{
+  "name": "anserini-evaluator-e2e",
+  "private": true,
+  "description": "Playwright e2e tests for the Anserini Prebuilt Index Evaluator",
+  "scripts": {
+    "test": "node test_e2e.mjs",
+    "test:headed": "HEADED=1 node test_e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}
