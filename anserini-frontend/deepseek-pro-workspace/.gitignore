@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Next.js build
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Anserini artifacts
+*.fatjar.jar
+fatjar/
+run.*.txt
+eval.*.txt
+cacm/
+indexes/
+collections/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
