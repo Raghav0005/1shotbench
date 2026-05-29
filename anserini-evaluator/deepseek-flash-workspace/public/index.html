@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .app-header {
+      background: #16213e;
+      color: #fff;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .app-header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .app-header .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.ok { background: #2ecc71; }
+    .status-dot.warn { background: #f39c12; }
+    .status-dot.err { background: #e74c3c; }
+
+    .app-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .app-body { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #eef0f4;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-body { padding: 1rem 1.25rem; }
+
+    /* ── Search / Filter ── */
+    .search-input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 0.75rem;
+    }
+    .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+    /* ── Index Catalog List ── */
+    .catalog-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .catalog-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+      border: 1px solid transparent;
+      margin-bottom: 0.25rem;
+    }
+    .catalog-item:hover { background: #f0f4ff; }
+    .catalog-item.selected {
+      background: #e8f0fe;
+      border-color: #3b82f6;
+    }
+    .catalog-item.evaluable { border-left: 3px solid #2ecc71; }
+    .catalog-item.catalog-only { border-left: 3px solid #d0d5dd; }
+    .catalog-item.catalog-only { opacity: 0.7; }
+    .catalog-item .item-name {
+      font-weight: 500;
+      font-size: 0.875rem;
+      flex: 1;
+    }
+    .catalog-item .item-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-evaluable { background: #d1fae5; color: #065f46; }
+    .badge-catalog { background: #f3f4f6; color: #6b7280; }
+    .catalog-item .item-type {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    /* ── Evaluation Panel ── */
+    .eval-info {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .info-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .info-label {
+      font-weight: 500;
+      color: #6b7280;
+      min-width: 100px;
+    }
+    .info-value {
+      color: #1a1a2e;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8125rem;
+    }
+
+    .metric-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .metric-btn {
+      padding: 0.4rem 0.85rem;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .metric-btn:hover { border-color: #3b82f6; }
+    .metric-btn.active {
+      border-color: #3b82f6;
+      background: #e8f0fe;
+      color: #1d4ed8;
+      font-weight: 500;
+    }
+    .metric-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-run {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .btn-run:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-run:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-run.running {
+      background: #6b7280;
+      pointer-events: none;
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    .result-score {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #059669;
+      margin: 0.5rem 0;
+    }
+    .result-meta {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.8125rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 0.75rem;
+    }
+    .result-error {
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      margin-top: 0.75rem;
+    }
+
+    /* ── Warning banner ── */
+    .warning-banner {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.8125rem;
+      color: #92400e;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Misc ── */
+    .hidden { display: none !important; }
+    .text-muted { color: #9ca3af; font-size: 0.8rem; }
+    .mt-1 { margin-top: 0.5rem; }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .gap-1 { gap: 0.5rem; }
+    .flex { display: flex; }
+    .flex-col { flex-direction: column; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+
+    /* ── Loading states ── */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .skeleton-line { height: 1rem; margin-bottom: 0.5rem; }
+    .skeleton-line.w-75 { width: 75%; }
+    .skeleton-line.w-50 { width: 50%; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <h1>⚡ Anserini Prebuilt Index Evaluator</h1>
+    <div class="status-indicator">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Checking environment…</span>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <!-- Left: Index Catalog -->
+    <div class="card">
+      <div class="card-header">
+        <span>📚 Index Catalog</span>
+        <span id="catalogCount" class="text-muted"></span>
+      </div>
+      <div class="card-body">
+        <input type="text" class="search-input" id="searchInput" placeholder="Filter indexes…" />
+        <div id="catalogWarning" class="warning-banner hidden"></div>
+        <div id="catalogLoading">
+          <div class="skeleton skeleton-line w-75"></div>
+          <div class="skeleton skeleton-line w-50"></div>
+          <div class="skeleton skeleton-line w-75"></div>
+        </div>
+        <div class="catalog-list" id="catalogList"></div>
+      </div>
+    </div>
+
+    <!-- Right: Evaluation Panel -->
+    <div class="card">
+      <div class="card-header">
+        <span>🔬 Evaluation</span>
+        <span id="evalStatus" class="text-muted">Ready</span>
+      </div>
+      <div class="card-body">
+        <!-- No index selected -->
+        <div id="noSelection">
+          <p class="text-muted">Select an evaluable index from the catalog to begin.</p>
+        </div>
+
+        <!-- Evaluation details -->
+        <div id="evalDetails" class="hidden">
+          <div class="eval-info">
+            <div class="info-row">
+              <span class="info-label">Index</span>
+              <span class="info-value" id="evalIndexName">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Topics</span>
+              <span class="info-value" id="evalTopics">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Qrels</span>
+              <span class="info-value" id="evalQrels">—</span>
+            </div>
+          </div>
+
+          <div class="metric-selector" id="metricSelector"></div>
+
+          <div class="flex items-center gap-1" style="margin-bottom: 0.75rem;">
+            <button class="btn-run" id="btnRun" disabled>
+              ▶ Run Evaluation
+            </button>
+            <span id="runProgress" class="text-muted hidden">
+              <span class="spinner"></span> Running…
+            </span>
+          </div>
+
+          <!-- Results area -->
+          <div id="resultsArea" class="hidden">
+            <div class="info-row">
+              <span class="info-label">Score</span>
+              <span class="result-score" id="resultScore">—</span>
+            </div>
+            <div id="resultError" class="result-error hidden"></div>
+            <div class="result-meta" id="resultMeta"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──
+    const state = {
+      catalog: [],
+      selectedIndex: null,
+      selectedMetric: null,
+      isRunning: false,
+    };
+
+    // ── DOM refs ──
+    const $ = (s) => document.querySelector(s);
+    const catalogList = $('#catalogList');
+    const catalogLoading = $('#catalogLoading');
+    const catalogCount = $('#catalogCount');
+    const catalogWarning = $('#catalogWarning');
+    const searchInput = $('#searchInput');
+    const statusDot = $('#statusDot');
+    const statusText = $('#statusText');
+
+    const noSelection = $('#noSelection');
+    const evalDetails = $('#evalDetails');
+    const evalIndexName = $('#evalIndexName');
+    const evalTopics = $('#evalTopics');
+    const evalQrels = $('#evalQrels');
+    const metricSelector = $('#metricSelector');
+    const btnRun = $('#btnRun');
+    const runProgress = $('#runProgress');
+    const resultsArea = $('#resultsArea');
+    const resultScore = $('#resultScore');
+    const resultError = $('#resultError');
+    const resultMeta = $('#resultMeta');
+    const evalStatus = $('#evalStatus');
+
+    // ── Helpers ──
+    function setStatus(ok, text) {
+      statusDot.className = 'status-dot ' + (ok ? 'ok' : 'err');
+      statusText.textContent = text;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ── Load catalog ──
+    async function loadCatalog() {
+      catalogLoading.classList.remove('hidden');
+      catalogWarning.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/catalog');
+        const data = await res.json();
+        catalogLoading.classList.add('hidden');
+
+        if (!data.success) {
+          catalogWarning.textContent = 'Failed to load catalog: ' + (data.error || 'Unknown error');
+          catalogWarning.classList.remove('hidden');
+          return;
+        }
+
+        state.catalog = data.catalog || [];
+        if (data.warning) {
+          catalogWarning.textContent = data.warning;
+          catalogWarning.classList.remove('hidden');
+        }
+
+        renderCatalog(state.catalog);
+
+        // Auto-select CACM if available
+        const cacm = state.catalog.find((c) => c.name === 'cacm' && c.evaluable);
+        if (cacm) selectIndex(cacm);
+
+        setStatus(true, 'Ready — ' + state.catalog.length + ' indexes');
+      } catch (err) {
+        catalogLoading.classList.add('hidden');
+        catalogWarning.textContent = 'Error loading catalog: ' + err.message;
+        catalogWarning.classList.remove('hidden');
+        setStatus(false, 'Catalog error');
+      }
+    }
+
+    // ── Render catalog ──
+    function renderCatalog(indexes) {
+      catalogList.innerHTML = '';
+      catalogCount.textContent = indexes.length + ' index' + (indexes.length !== 1 ? 'es' : '');
+
+      const filter = searchInput.value.toLowerCase().trim();
+
+      indexes.forEach((idx) => {
+        if (filter && !idx.name.toLowerCase().includes(filter) &&
+            !(idx.displayName || '').toLowerCase().includes(filter) &&
+            !(idx.description || '').toLowerCase().includes(filter)) {
+          return;
+        }
+
+        const div = document.createElement('div');
+        div.className = 'catalog-item ' + (idx.evaluable ? 'evaluable' : 'catalog-only');
+        if (state.selectedIndex && state.selectedIndex.name === idx.name) {
+          div.classList.add('selected');
+        }
+
+        const badgeClass = idx.evaluable ? 'badge-evaluable' : 'badge-catalog';
+        const badgeText = idx.evaluable ? 'evaluable' : 'catalog';
+
+        div.innerHTML = `
+          <div class="item-name">${escapeHtml(idx.displayName || idx.name)}</div>
+          <span class="item-type">${escapeHtml(idx.type || '')}</span>
+          <span class="item-badge ${badgeClass}">${badgeText}</span>
+        `;
+
+        div.addEventListener('click', () => selectIndex(idx));
+        catalogList.appendChild(div);
+      });
+
+      if (catalogList.children.length === 0) {
+        catalogList.innerHTML = '<p class="text-muted" style="padding: 1rem;">No matching indexes.</p>';
+      }
+    }
+
+    // ── Select index ──
+    function selectIndex(idx) {
+      // Reset results
+      resultsArea.classList.add('hidden');
+      resultError.classList.add('hidden');
+      state.selectedMetric = null;
+
+      state.selectedIndex = idx;
+      renderCatalog(state.catalog);
+
+      if (!idx.evaluable) {
+        evalDetails.classList.add('hidden');
+        noSelection.classList.remove('hidden');
+        noSelection.innerHTML = `
+          <p class="text-muted">
+            <strong>${escapeHtml(idx.displayName || idx.name)}</strong> is a catalog-only index.
+            ${idx.hint ? '<br>' + escapeHtml(idx.hint) : ''}
+            <br><br>Select an evaluable index (marked with green left border) to run retrieval and evaluation.
+          </p>
+        `;
+        return;
+      }
+
+      noSelection.classList.add('hidden');
+      evalDetails.classList.remove('hidden');
+
+      evalIndexName.textContent = idx.displayName || idx.name;
+      evalTopics.textContent = idx.topics || '—';
+      evalQrels.textContent = idx.qrelsId || '—';
+
+      // Build metric buttons
+      const metrics = idx.availableMetrics || [];
+      metricSelector.innerHTML = '';
+      metrics.forEach((m) => {
+        const btn = document.createElement('button');
+        btn.className = 'metric-btn';
+        btn.textContent = m;
+        btn.dataset.metric = m;
+        btn.addEventListener('click', () => selectMetric(m, btn));
+        metricSelector.appendChild(btn);
+      });
+
+      // Auto-select first metric
+      if (metrics.length > 0) {
+        const firstBtn = metricSelector.querySelector('.metric-btn');
+        selectMetric(metrics[0], firstBtn);
+      }
+
+      btnRun.disabled = false;
+      evalStatus.textContent = 'Ready';
+    }
+
+    function selectMetric(metric, btn) {
+      state.selectedMetric = metric;
+      metricSelector.querySelectorAll('.metric-btn').forEach((b) => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      else {
+        const match = metricSelector.querySelector(`[data-metric="${metric}"]`);
+        if (match) match.classList.add('active');
+      }
+    }
+
+    // ── Run evaluation ──
+    btnRun.addEventListener('click', async () => {
+      if (state.isRunning) return;
+      const idx = state.selectedIndex;
+      if (!idx || !idx.evaluable || !state.selectedMetric) return;
+
+      state.isRunning = true;
+      btnRun.disabled = true;
+      btnRun.classList.add('running');
+      btnRun.innerHTML = '<span class="spinner"></span> Running…';
+      runProgress.classList.remove('hidden');
+      resultsArea.classList.add('hidden');
+      resultError.classList.add('hidden');
+      evalStatus.textContent = 'Running retrieval…';
+
+      try {
+        const res = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            indexName: idx.name,
+            topicsId: idx.topics,
+            qrelsId: idx.qrelsId,
+            metric: state.selectedMetric,
+          }),
+        });
+        const data = await res.json();
+
+        resultsArea.classList.remove('hidden');
+
+        if (data.success) {
+          const scoreVal = typeof data.rawScore === 'number' ? data.rawScore.toFixed(4) : data.score;
+          resultScore.textContent = scoreVal;
+          resultScore.style.color = '#059669';
+
+          let meta = '';
+          meta += `Index:     ${data.indexName}\n`;
+          meta += `Topics:    ${data.topicsId}\n`;
+          meta += `Qrels:     ${data.qrelsId}\n`;
+          meta += `Metric:    ${data.metric}\n`;
+          meta += `Score:     ${scoreVal}\n`;
+          meta += `Status:    completed\n`;
+          meta += `Elapsed:   ${data.elapsedSeconds}s\n`;
+          meta += `Run file:  ${data.runFilePath}\n`;
+          meta += `Eval file: ${data.evalFilePath}\n`;
+          if (data.runPreview) {
+            meta += `\n── Run preview ──\n${data.runPreview}`;
+          }
+
+          resultMeta.textContent = meta;
+          evalStatus.textContent = '✓ Done (' + data.elapsedSeconds + 's)';
+        } else {
+          resultScore.textContent = '✗';
+          resultScore.style.color = '#dc2626';
+          resultError.textContent = data.error || 'Evaluation failed';
+          resultError.classList.remove('hidden');
+
+          let meta = '';
+          meta += `Index:     ${data.indexName || idx.name}\n`;
+          meta += `Topics:    ${data.topicsId || idx.topics}\n`;
+          meta += `Qrels:     ${data.qrelsId || idx.qrelsId}\n`;
+          meta += `Metric:    ${data.metric || state.selectedMetric}\n`;
+          meta += `Status:    failed\n`;
+          meta += `Elapsed:   ${data.elapsedSeconds || '—'}s\n`;
+          meta += `Step:      ${data.step || '—'}\n`;
+          if (data.runFilePath) meta += `Run file:  ${data.runFilePath}\n`;
+          if (data.evalFilePath) meta += `Eval file: ${data.evalFilePath}\n`;
+
+          resultMeta.textContent = meta;
+          evalStatus.textContent = '✗ Failed';
+        }
+      } catch (err) {
+        resultsArea.classList.remove('hidden');
+        resultScore.textContent = '✗';
+        resultScore.style.color = '#dc2626';
+        resultError.textContent = 'Request failed: ' + err.message;
+        resultError.classList.remove('hidden');
+        resultMeta.textContent = `Error: ${err.message}`;
+        evalStatus.textContent = '✗ Error';
+      } finally {
+        state.isRunning = false;
+        btnRun.disabled = false;
+        btnRun.classList.remove('running');
+        btnRun.innerHTML = '▶ Run Evaluation';
+        runProgress.classList.add('hidden');
+      }
+    });
+
+    // ── Search filter ──
+    searchInput.addEventListener('input', () => renderCatalog(state.catalog));
+
+    // ── Init ──
+    loadCatalog();
+  </script>
+</body>
+</html>

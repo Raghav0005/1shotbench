@@ -1,0 +1,8 @@
+node_modules/
+runs/
+evals/
+*.txt
+*.jar
+.env
+test-results/
+playwright-report/
