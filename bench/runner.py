@@ -18,6 +18,7 @@ from typing import Awaitable, Callable
 
 from bench.config import RUNS_DIR, discover_shared_task_files, load_project_env
 from bench.metrics import extract_inline_token_usage
+from bench.sandbox import apply_workspace_sandbox, sandbox_preflight_error
 from bench.schemas import BenchmarkSummary, RunJobResult, TokenMetrics, WorkspaceConfig
 
 
@@ -81,8 +82,9 @@ class BenchmarkRunner:
 
         if not shutil.which("pi"):
             errors.append("`pi` command is not available in PATH.")
-        if not shutil.which("sandbox-exec"):
-            errors.append("`sandbox-exec` is not available; workspace isolation cannot be enforced.")
+        sandbox_error = sandbox_preflight_error()
+        if sandbox_error:
+            errors.append(sandbox_error)
         for skill in sorted({skill for model in selected_models for skill in self.workspaces.get(model, WorkspaceConfig("", "", "", "")).required_skills}):
             if not self._skill_available(skill):
                 errors.append(
@@ -538,29 +540,13 @@ class BenchmarkRunner:
         workspace: WorkspaceConfig,
         model_dir: Path,
     ) -> list[str]:
-        sandbox_exe = shutil.which("sandbox-exec")
-        if not sandbox_exe:
-            return command
-
-        workspace_path = Path(workspace.path).resolve()
-        private_path = (self.root_dir / ".codex-private").resolve()
-        denied_paths = [
-            Path(other.path).resolve()
-            for other in self.workspaces.values()
-            if Path(other.path).resolve() != workspace_path
-        ]
-        denied_paths.append(private_path)
-        if not denied_paths:
-            return command
-
-        profile_path = model_dir / "workspace.sb"
-        lines = ["(version 1)", "(allow default)"]
-        for denied_path in denied_paths:
-            quoted = json.dumps(str(denied_path))
-            lines.append(f"(deny file-read* (subpath {quoted}))")
-            lines.append(f"(deny file-write* (subpath {quoted}))")
-        profile_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return [sandbox_exe, "-f", str(profile_path), *command]
+        return apply_workspace_sandbox(
+            root_dir=self.root_dir,
+            workspaces=self.workspaces,
+            workspace=workspace,
+            model_dir=model_dir,
+            command=command,
+        )
 
     def _write_summary_csv(self, run_dir: Path, summary: BenchmarkSummary) -> None:
         csv_path = run_dir / "summary.csv"

@@ -55,15 +55,15 @@ Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should li
 
 ## Workspace Isolation
 
-Pi Bench runs each model from its own workspace directory and, on macOS, wraps each Pi subprocess with `sandbox-exec`. The generated sandbox profile allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
+Pi Bench runs each model from its own workspace directory and wraps each Pi subprocess in a platform sandbox. On macOS it uses `sandbox-exec`; on Linux it uses `bwrap` (bubblewrap). The sandbox allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
 
-That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces for the same task. If `sandbox-exec` is unavailable, preflight fails because that isolation cannot be enforced.
+That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces for the same task. Preflight fails if neither `sandbox-exec` nor a functional `bwrap` is available, because that isolation cannot be enforced.
 
 This is workspace isolation, not a full container. Agents can still use allowed tools and the network according to the host environment and Pi configuration.
 
 ## Codex-Private Notes
 
-Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated `sandbox-exec` profile as a denied read/write path.
+Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated sandbox profile as a denied read/write path.
 
 Do not put benchmark instructions for Pi agents there. Use task-local files such as `anserini-frontend/PRDv2.md` for agent-visible task prompts.
 
@@ -207,7 +207,7 @@ The CLI flow is:
 
 1. It reads the prompt from `--prompt` or `--prompt-file`.
 2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `anserini-frontend`.
-3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, `sandbox-exec`, and any declared `required_skills`.
+3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, a sandbox backend (`sandbox-exec` or `bwrap`), and any declared `required_skills`.
 4. It symlinks task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
 5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
 6. It starts one Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
@@ -230,7 +230,7 @@ pi --mode json --print --no-session --provider anthropic --model claude-sonnet-4
 
 The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-anserini-evaluator.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
 
-On macOS, each subprocess is wrapped with `sandbox-exec`. The generated profile is written under the run's per-model artifact directory and denies reads and writes to the other configured model workspaces plus `.codex-private/`.
+On macOS, each subprocess is wrapped with `sandbox-exec`. On Linux, each subprocess is wrapped with `bwrap`. The generated sandbox profile denies reads and writes to the other configured model workspaces plus `.codex-private/`.
 
 Artifacts are written to:
 
@@ -245,7 +245,8 @@ Each run includes:
 - `<model>/stderr.log`: Pi stderr
 - `<model>/events.jsonl`: raw Pi JSON events
 - `<model>/result.json`: status, timing, command, paths, attempts, and token metrics for that model
-- `<model>/workspace.sb`: the generated macOS sandbox profile
+- `<model>/workspace.sb`: generated macOS sandbox profile (when using `sandbox-exec`)
+- `<model>/workspace.bwrap.json`: generated Linux sandbox command metadata (when using `bwrap`)
 - `summary.json`: full machine-readable benchmark summary
 - `summary.csv`: compact table for spreadsheets
 - `summary.md`: compact Markdown summary
@@ -286,6 +287,7 @@ Older runs made before JSON event parsing may show zero token and cost fields be
 
 - Python 3.11+
 - Pi coding agent available on `PATH`
+- workspace sandbox support: `sandbox-exec` on macOS or `bwrap` (bubblewrap) on Linux
 - provider API keys configured for the models you run
 - any task-specific Pi skills installed or installable by the agent. The current Anserini PRDs ask agents to use an `anserini-fatjar` skill.
 

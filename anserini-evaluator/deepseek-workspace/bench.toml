@@ -1,0 +1,6 @@
+name = "DeepSeek workspace"
+provider = "deepseek"
+model = "deepseek-v4-flash"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]
