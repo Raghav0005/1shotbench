@@ -178,6 +178,59 @@ The web server uses `anserini-frontend` by default. To point it at another sibli
 PI_BENCH_TASK_DIR=other-task uvicorn bench.web:app --port 4010
 ```
 
+## Web app feature evaluation
+
+Judge agent-built web apps with PRD-derived feature checks, Playwright evidence, and an LLM judge. The evaluator can either read a checked-in `features.yaml` or ask the judge model to generate feature checks from the PRD before running the browser layer.
+
+One-time setup for the browser layer:
+
+```sh
+cd bench/web_eval && npm install && npx playwright install chromium
+pip install -r requirements.txt
+```
+
+Run a full evaluation with a curated feature file:
+
+```sh
+python3 -m bench.web_eval \
+  --project anserini-evaluator/gpt-workspace \
+  --features anserini-evaluator/features.yaml \
+  --prd anserini-evaluator/PRD-anserini-evaluator.md \
+  --label gpt-evaluator
+```
+
+Or generate the feature file from the PRD at evaluation time:
+
+```sh
+python3 -m bench.web_eval \
+  --project anserini-evaluator/gpt-workspace \
+  --prd anserini-evaluator/PRD-anserini-evaluator.md \
+  --label gpt-evaluator-generated
+```
+
+Before starting the app, the evaluator builds setup context from the PRD, implementation README files, manifests, and any repo-local skills referenced there. The judge model can propose concrete setup commands from that context. The runner then executes only general allowlisted setup commands, such as package installs, project-local setup scripts, explicit environment assignments, downloads with project-local output paths, and smoke-check commands. There are no task-specific installers in `web_eval`; skipped commands are recorded with a reason.
+
+For each feature, the browser layer first runs the scripted evidence steps, captures page text, ARIA, screenshots, errors, and visible interactive elements, then optionally asks the judge model for a short follow-up browser plan. This lightweight agentic pass helps avoid false negatives when the UI uses different labels or layouts. The final verdict receives the collected browser evidence plus setup context/results, but it must still judge from evidence rather than assume success.
+
+Useful options:
+
+- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
+- `--dry-run` to skip LLM calls for judging/planning/generation where possible
+- `--judge-model` or env `WEB_EVAL_JUDGE_MODEL`
+- `--setup never` to skip README setup commands
+- `--no-agentic-evidence` to use only scripted Playwright steps
+- `--max-generated-features 8` to cap PRD-generated feature checks
+
+Artifacts are written to `evals/<eval_id>/`:
+
+- `summary.json`, `report.md`, `run.json`, `setup.json`, `setup-context.json`
+- `generated-features.yaml` when `--features` is omitted
+- `evidence/<feature>.json` plus raw scripted/agentic browser packets
+- `judgments/<feature>.json`
+- `screenshots/` and `jobs/` (browser layer)
+
+Correctness is `passed / total * 100`; **uncertain** counts as not passed.
+
 ## CLI
 
 Run one prompt against multiple model workspaces:

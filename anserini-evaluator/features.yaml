@@ -1,0 +1,64 @@
+# PRD-driven feature checks for Anserini Prebuilt Index Evaluator.
+# Steps use generic browser actions; the LLM judge assesses behavior from evidence.
+
+app:
+  url: http://127.0.0.1:3000
+  start_command: npm start
+  cwd: .
+  env:
+    PORT: "3000"
+  ready_url: http://127.0.0.1:3000/
+  ready_timeout_seconds: 120
+
+features:
+  - id: catalog-loads
+    title: Prebuilt index catalog is visible
+    description: The app discovers and displays multiple prebuilt Lucene indexes from Anserini registries.
+    acceptance: >
+      After load, the UI shows a catalog or list with multiple indexes (not a single hardcoded stub),
+      and indicates the data comes from Anserini registry discovery rather than mocked fixtures.
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 2000
+      - action: snapshot
+      - action: screenshot
+        name: catalog
+
+  - id: cacam-evaluable
+    title: CACM is available for evaluation
+    description: CACM appears as an evaluable index with topics/qrels pairing surfaced in the UI.
+    acceptance: >
+      CACM is visible in the catalog or selection UI and the interface indicates it can be evaluated
+      (topics/qrels or ready-for-evaluation state), matching PRD CACM requirements.
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 2000
+      - action: visible_text
+        key: body
+      - action: snapshot
+
+  - id: run-evaluation-score
+    title: Run Evaluation produces a numeric score
+    description: User can trigger retrieval+evaluation and see a numeric metric score with run metadata.
+    acceptance: >
+      After choosing a supported metric and running evaluation, the UI shows a numeric evaluation score
+      and metadata such as index/topics/metric or artifact paths — indicating real execution, not mocked output.
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 3000
+      - action: click
+        text: Run Evaluation
+      - action: wait_settle
+        ms: 5000
+      - action: wait_for_text
+        text: completed
+        timeout: 180000
+      - action: snapshot
+      - action: screenshot
+        name: evaluation-result

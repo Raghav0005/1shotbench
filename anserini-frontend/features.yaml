@@ -1,0 +1,62 @@
+# PRD-driven feature checks for MS MARCO Passage Search App.
+# Frontend-only checks assume the app is reachable at base_url (start backend separately if needed).
+
+app:
+  url: http://127.0.0.1:3000
+  # Next.js dev server; set FRONTEND_PORT if needed. Backend (Anserini REST) must be running separately.
+  start_command: npm run dev
+  cwd: .
+  env:
+    FRONTEND_PORT: "3000"
+    PORT: "3000"
+  ready_url: http://127.0.0.1:3000/
+  ready_timeout_seconds: 180
+
+features:
+  - id: search-ui-loads
+    title: Search UI loads with input
+    description: The homepage exposes a query entry point for MS MARCO passage search.
+    acceptance: >
+      The page shows a search input (or equivalent query field) for entering passage queries.
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 1500
+      - action: snapshot
+      - action: screenshot
+        name: homepage
+
+  - id: sample-queries-visible
+    title: Sample queries visible on load
+    description: Random MS MARCO dev sample queries are shown when the page loads.
+    acceptance: >
+      Several sample or example queries are visible without typing; they look like realistic query strings.
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 1500
+      - action: visible_text
+        key: body
+      - action: snapshot
+
+  - id: submit-query-results
+    title: Submitting a query shows ranked results
+    description: User can run a search and see ranked passage results or a clear empty/error state.
+    acceptance: >
+      After submitting a non-empty query, the UI shows ranked search results with passages/text,
+      or a clear no-results or backend-error message (not a silent failure).
+    steps:
+      - action: open
+        path: /
+      - action: wait_settle
+        ms: 1500
+      - action: fill
+        text: "what is machine learning"
+      - action: submit
+      - action: wait_settle
+        ms: 5000
+      - action: snapshot
+      - action: screenshot
+        name: search-results
