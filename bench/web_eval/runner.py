@@ -21,6 +21,7 @@ from bench.web_eval.setup import collect_setup_context, run_project_setup
 EVALS_DIR = ROOT_DIR / "evals"
 WEB_EVAL_DIR = Path(__file__).resolve().parent
 BROWSER_SCRIPT = WEB_EVAL_DIR / "browser.mjs"
+BROWSER_EVIDENCE_TIMEOUT_SECONDS = 180
 
 
 @dataclass
@@ -352,14 +353,23 @@ class WebEvalRunner:
         job_path.write_text(json.dumps(job, indent=2) + "\n", encoding="utf-8")
 
         env = load_project_env()
-        proc = subprocess.run(
-            ["node", str(BROWSER_SCRIPT), "--job", str(job_path), "--output", str(evidence_path)],
-            cwd=str(WEB_EVAL_DIR),
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                ["node", str(BROWSER_SCRIPT), "--job", str(job_path), "--output", str(evidence_path)],
+                cwd=str(WEB_EVAL_DIR),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=BROWSER_EVIDENCE_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            output = _timeout_output_to_text(exc.stderr) or _timeout_output_to_text(exc.stdout)
+            suffix = f": {output.strip()}" if output and output.strip() else ""
+            return EvidencePacket(
+                feature_id=feature.id,
+                error=f"browser layer timed out after {BROWSER_EVIDENCE_TIMEOUT_SECONDS}s{suffix}",
+            )
         if evidence_path.exists():
             raw = json.loads(evidence_path.read_text(encoding="utf-8"))
             return _evidence_from_raw(raw)
@@ -414,6 +424,14 @@ def _merge_evidence(scripted: EvidencePacket, planned: EvidencePacket, planned_s
 def _make_eval_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     return f"{stamp}-{uuid.uuid4().hex[:8]}"
+
+
+def _timeout_output_to_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def _startup_failure_results(

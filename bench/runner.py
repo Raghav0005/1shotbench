@@ -613,7 +613,11 @@ class BenchmarkRunner:
                     stdout_bytes, stderr_bytes = await proc.communicate()
             except asyncio.TimeoutError:
                 self._terminate_process_group(proc)
-                stdout_bytes, stderr_bytes = await proc.communicate()
+                try:
+                    stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=10)
+                except asyncio.TimeoutError:
+                    self._kill_process_group(proc)
+                    stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=10)
                 error = f"Task file rewrite timed out after {timeout_seconds}s"
             stdout = stdout_bytes.decode("utf-8", errors="replace")
             stderr = stderr_bytes.decode("utf-8", errors="replace")
@@ -722,6 +726,19 @@ class BenchmarkRunner:
         except OSError:
             with contextlib.suppress(ProcessLookupError):
                 proc.terminate()
+
+    def _kill_process_group(self, proc: asyncio.subprocess.Process) -> None:
+        if proc.pid is None:
+            return
+        if proc.returncode is not None:
+            return
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        except OSError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
 
     async def _settle_stream_tasks(
         self,

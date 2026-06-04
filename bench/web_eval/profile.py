@@ -4,9 +4,10 @@ import json
 import os
 import socket
 import subprocess
+import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import urlopen
@@ -231,6 +232,7 @@ class AppServer:
         self.profile = profile
         self.project_path = project_path
         self.process: subprocess.Popen[str] | None = None
+        self.output_file: TextIO | None = None
 
     def start(self) -> None:
         if not self.profile.start_command:
@@ -238,11 +240,12 @@ class AppServer:
         cwd = _profile_cwd(self.project_path, self.profile)
         env = os.environ.copy()
         env.update(self.profile.env)
+        self.output_file = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
         self.process = subprocess.Popen(
             self.profile.start_command,
             cwd=str(cwd),
             env=env,
-            stdout=subprocess.PIPE,
+            stdout=self.output_file,
             stderr=subprocess.STDOUT,
             text=True,
         )
@@ -251,6 +254,7 @@ class AppServer:
             ready,
             timeout_seconds=self.profile.ready_timeout_seconds,
             process=self.process,
+            output_file=self.output_file,
         )
 
     def stop(self) -> None:
@@ -261,14 +265,31 @@ class AppServer:
             self.process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.process.kill()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
         self.process = None
+        if self.output_file:
+            self.output_file.close()
+            self.output_file = None
 
 
-def _process_exit_detail(process: subprocess.Popen[str] | None) -> str | None:
+def _process_exit_detail(
+    process: subprocess.Popen[str] | None,
+    output_file: TextIO | None = None,
+) -> str | None:
     if not process or process.poll() is None:
         return None
     output = ""
-    if process.stdout:
+    if output_file:
+        try:
+            output_file.flush()
+            output_file.seek(0)
+            output = output_file.read() or ""
+        except Exception:
+            output = ""
+    elif process.stdout:
         try:
             output = process.stdout.read() or ""
         except Exception:
@@ -285,11 +306,12 @@ def _wait_for_url(
     timeout_seconds: int,
     *,
     process: subprocess.Popen[str] | None = None,
+    output_file: TextIO | None = None,
 ) -> None:
     deadline = time.time() + timeout_seconds
     last_error: str | None = None
     while time.time() < deadline:
-        exit_detail = _process_exit_detail(process)
+        exit_detail = _process_exit_detail(process, output_file)
         if exit_detail:
             raise RuntimeError(
                 f"App process failed before becoming ready at {url}. {exit_detail}"
@@ -298,7 +320,7 @@ def _wait_for_url(
             with urlopen(url, timeout=3) as response:
                 if response.status < 500:
                     time.sleep(0.25)
-                    exit_detail = _process_exit_detail(process)
+                    exit_detail = _process_exit_detail(process, output_file)
                     if exit_detail:
                         raise RuntimeError(
                             f"App process exited while checking readiness at {url}. {exit_detail}"
@@ -307,7 +329,7 @@ def _wait_for_url(
         except URLError as exc:
             last_error = str(exc)
         time.sleep(1)
-    exit_detail = _process_exit_detail(process)
+    exit_detail = _process_exit_detail(process, output_file)
     if exit_detail:
         raise RuntimeError(
             f"App process failed before becoming ready at {url}. {exit_detail}"

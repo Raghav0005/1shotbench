@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from bench.config import ROOT_DIR, load_workspace_configs
+from bench.deploy import deploy_run
 from bench.runner import BenchmarkRunner, RunnerOptions
 
 
@@ -31,6 +32,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=600,
         help="Per-model timeout for the task file rewrite step.",
+    )
+    parser.add_argument(
+        "--deploy",
+        choices=["none", "render"],
+        default="none",
+        help="Deploy run outputs after the benchmark completes.",
     )
     return parser
 
@@ -72,6 +79,9 @@ async def main_async(args: argparse.Namespace) -> int:
         print(f"[{kind}] {model}: {status}")
 
     summary = await runner.run(options=options, event_callback=on_event)
+    if args.deploy == "render":
+        deployments = deploy_run(summary.run_id, provider="render")
+        print(json.dumps({"deployments": [deployment.to_dict() for deployment in deployments]}, indent=2))
     print(json.dumps(summary.to_dict(), indent=2))
     return 0
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +15,7 @@ from bench.web_eval.profile import resolve_app_profile
 from bench.web_eval.report import render_markdown
 from bench.web_eval.runner import WebEvalOptions, WebEvalRunner
 from bench.web_eval.setup import PlannedSetupCommand, collect_setup_context, discover_readme_setup_commands, run_project_setup
-from bench.web_eval.schemas import EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
+from bench.web_eval.schemas import AppProfile, EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
 
 
 class WebEvalSchemaTests(unittest.TestCase):
@@ -65,6 +66,25 @@ class WebEvalSchemaTests(unittest.TestCase):
             write_features(path, [FeatureCheck("f1", "Title", "desc", "accept")])
             loaded = load_features(path)
             self.assertEqual(loaded[0].id, "f1")
+
+    def test_browser_evidence_timeout_returns_error_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = WebEvalRunner()
+            feature = FeatureCheck("f1", "Title", "desc", "accept")
+            profile = AppProfile(base_url="http://127.0.0.1:3000")
+            with mock.patch(
+                "bench.web_eval.runner.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["node", "browser.mjs"], timeout=180, stderr="stuck"),
+            ):
+                evidence = runner._collect_evidence(
+                    feature=feature,
+                    profile=profile,
+                    output_dir=Path(tmp),
+                )
+
+            self.assertEqual(evidence.feature_id, "f1")
+            self.assertIn("browser layer timed out", evidence.error or "")
+            self.assertIn("stuck", evidence.error or "")
 
     def test_discover_readme_setup_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

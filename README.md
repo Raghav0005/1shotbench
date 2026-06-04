@@ -257,6 +257,7 @@ Useful options:
 - `--label e2e-bench-1`
 - `--no-task-rewrite` to skip the default per-model task file rewrite
 - `--rewrite-timeout-seconds 600`
+- `--deploy render` to deploy demos as Render image-backed web services after the benchmark run
 
 The CLI flow is:
 
@@ -307,6 +308,10 @@ Each run includes:
 - `<model>/result.json`: status, timing, command, paths, attempts, and token metrics for that model
 - `<model>/workspace.sb`: generated macOS sandbox profile (when using `sandbox-exec`)
 - `<model>/workspace.bwrap.json`: generated Linux sandbox command metadata (when using `bwrap`)
+- `<model>/deployment.json`: status, preview URL, source paths, Docker image URL, and redacted command metadata for Render deployment
+- `<model>/deployment.stdout.log` and `<model>/deployment.stderr.log`: Docker and Render deploy-hook output with GHCR tokens and deploy-hook secrets redacted
+- `deployments.json`: aggregate deployment results for every attempted model
+- `deploy-staging/`: copied workspaces used for Docker builds; agent workspaces are not edited
 - `summary.json`: full machine-readable benchmark summary
 - `summary.csv`: compact table for spreadsheets
 - `summary.md`: compact Markdown summary
@@ -314,6 +319,43 @@ Each run includes:
 Statuses are process-level statuses. `completed` means Pi exited with code `0`; `failed` means a non-zero exit; `timeout` means the process exceeded `--timeout-seconds`. `--retries` reruns only failed or timed-out model subprocesses, and the final artifact files contain the last attempt's logs.
 
 `--warmup` performs a short, unreported pre-run for each selected model before the measured run. Warmup logs are saved as `warmup.*` files inside each model artifact directory, but the benchmark summary uses the measured run.
+
+## Render Docker Deployments
+
+Deploy benchmark demos after a run with:
+
+```sh
+python -m bench.deploy --run-id <run_id> --provider render
+```
+
+Or deploy automatically after a CLI benchmark:
+
+```sh
+python -m bench.cli --task-dir anserini-frontend --prompt-file anserini-frontend/PRD.md --models gpt claude --deploy render
+```
+
+Pi Bench deploys demos as Docker images for Render image-backed web services. For each attempted model, the harness stages the workspace under `runs/<run_id>/deploy-staging/`, uses an existing Dockerfile when present, or generates a generic Dockerfile for runnable Node/Next/Express or Python `server.py` apps. Unsupported or failed deployments still get `<model>/deployment.json` so the public demo table can show what happened.
+
+One-time Render setup:
+
+1. Create a Render web service for each task/model demo as an image-backed service.
+2. Attach a GitHub Container Registry credential in Render so it can pull GHCR images.
+3. Copy each service's deploy hook URL into `.codex-private/render.env`.
+
+Configure GHCR and Render secrets outside the agent environment:
+
+```sh
+mkdir -p .codex-private
+cat > .codex-private/render.env <<'EOF'
+GHCR_USERNAME=...
+GHCR_TOKEN=...
+GHCR_OWNER=...
+RENDER_DEPLOY_HOOK_ANSERINI_FRONTEND_GPT=https://api.render.com/deploy/srv-...
+RENDER_SERVICE_URL_ANSERINI_FRONTEND_GPT=https://your-demo.onrender.com
+EOF
+```
+
+Do not put `GHCR_TOKEN` or Render deploy hooks in this repo's `.env`; `.env` is passed to benchmark agents. The deploy harness also accepts these values from the shell environment. It builds Docker images for `linux/amd64`, pushes them to `ghcr.io/<owner>/pi-bench-<task>-<model>:<run_id>`, and triggers each Render deploy hook with `imgURL=<encoded-image-url>`. Render web services must bind to `0.0.0.0` and the expected `$PORT`; generated Dockerfiles set sensible defaults, but agent-built apps still need to honor `PORT` for live demos. See Render's docs for [Docker](https://render.com/docs/docker), [prebuilt image deploys](https://render.com/docs/deploying-an-image), [deploy hooks](https://render.com/docs/deploy-hooks), and [web services](https://render.com/docs/web-services).
 
 ## Web UI
 

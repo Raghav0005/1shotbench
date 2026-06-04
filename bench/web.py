@@ -153,6 +153,8 @@ async def history() -> list[dict[str, Any]]:
         if not summary_path.exists():
             continue
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        deployments_path = run_dir / "deployments.json"
+        deployments = json.loads(deployments_path.read_text(encoding="utf-8")) if deployments_path.exists() else None
         items.append(
             {
                 "run_id": summary.get("run_id"),
@@ -160,6 +162,7 @@ async def history() -> list[dict[str, Any]]:
                 "started_at": summary.get("started_at"),
                 "duration_ms": summary.get("duration_ms"),
                 "mode": summary.get("mode"),
+                "deployments": deployments,
             }
         )
     return items[:50]
@@ -171,6 +174,8 @@ async def run_details(run_id: str) -> dict[str, Any]:
     if not summary_path.exists():
         raise HTTPException(status_code=404, detail="Run not found")
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    deployments_path = RUNS_DIR / run_id / "deployments.json"
+    deployments = json.loads(deployments_path.read_text(encoding="utf-8")) if deployments_path.exists() else None
     prompt_path = RUNS_DIR / run_id / "prompt.txt"
     prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else ""
 
@@ -185,4 +190,4 @@ async def run_details(run_id: str) -> dict[str, Any]:
             "stdout": stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else "",
             "stderr": stderr_path.read_text(encoding="utf-8") if stderr_path.exists() else "",
         }
-    return {"summary": summary, "prompt": prompt, "outputs": outputs}
+    return {"summary": summary, "prompt": prompt, "outputs": outputs, "deployments": deployments}

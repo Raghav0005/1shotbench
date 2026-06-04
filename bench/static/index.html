@@ -295,6 +295,7 @@
                   <th>Total</th>
                   <th>Cost</th>
                   <th>Requests</th>
+                  <th>Demo</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -385,9 +386,12 @@
       async function loadHistory() {
         const res = await fetch("/api/history");
         const rows = await res.json();
-        historyDiv.innerHTML = rows.map((r) =>
-          `<div class="history-item" data-run-id="${r.run_id}">${r.run_id} | ${r.label} | ${r.mode} | ${r.duration_ms}ms | ${r.started_at}</div>`
-        ).join("") || "No runs yet.";
+        historyDiv.innerHTML = rows.map((r) => {
+          const deployments = (r.deployments || {}).deployments || [];
+          const previewCount = deployments.filter((d) => d.preview_url).length;
+          const deployText = deployments.length ? ` | ${previewCount}/${deployments.length} demos` : "";
+          return `<div class="history-item" data-run-id="${r.run_id}">${r.run_id} | ${r.label} | ${r.mode} | ${r.duration_ms}ms${deployText} | ${r.started_at}</div>`;
+        }).join("") || "No runs yet.";
         historyDiv.querySelectorAll(".history-item").forEach((item) => {
           item.onclick = () => loadRunDetails(item.dataset.runId);
         });
@@ -438,18 +442,36 @@
         }
       }
 
-      function fillStats(summary) {
+      function deploymentsByModel(deployments) {
+        const map = {};
+        for (const item of (deployments || {}).deployments || []) {
+          map[item.model_key] = item;
+        }
+        return map;
+      }
+
+      function deploymentCell(deployment) {
+        if (!deployment) return "—";
+        if (deployment.preview_url) {
+          return `<a href="${deployment.preview_url}" target="_blank" rel="noopener">preview</a>`;
+        }
+        return deployment.status || "—";
+      }
+
+      function fillStats(summary, deployments = null) {
         currentSummary = summary;
+        const deployMap = deploymentsByModel(deployments);
         statsBody.innerHTML = "";
         for (const r of summary.results || []) {
           const m = r.metrics || {};
+          const demo = deploymentCell(deployMap[r.model_key]);
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${r.model_key}</td><td>${r.status}</td><td>${r.duration_ms}</td>
             <td>${m.input_tokens || 0}</td><td>${m.output_tokens || 0}</td>
             <td>${m.reasoning_tokens || 0}</td><td>${m.cache_read_tokens || 0}</td>
             <td>${m.total_tokens || 0}</td><td>${(m.cost_usd || 0).toFixed(4)}</td>
-            <td>${m.requests || 0}</td>`;
+            <td>${m.requests || 0}</td><td>${demo}</td>`;
           statsBody.appendChild(tr);
         }
       }
@@ -475,7 +497,7 @@
           appendOutput(model, (outputs[model] || {}).stdout || "", "stdout");
           appendOutput(model, (outputs[model] || {}).stderr || "", "stderr");
         }
-        fillStats(summary);
+        fillStats(summary, data.deployments || null);
         statusDiv.textContent = `Loaded run: ${runId}`;
         liveHint.textContent = `${(summary.results || []).length} loaded workspace${(summary.results || []).length === 1 ? "" : "s"}`;
       }
