@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+      <p class="subtitle">
+        Active dataset: <strong data-testid="active-dataset">NFCorpus</strong>
+        &middot; Backend: Anserini (BM25 baseline, BEIR v1.0.0 prebuilt index)
+      </p>
+    </div>
+    <div class="phase-pill" data-testid="phase-pill">
+      <span class="dot"></span>
+      <span data-testid="phase-label">starting…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" data-testid="readiness-panel">
+      <h2>Readiness</h2>
+      <div class="readiness-grid">
+        <div class="status-card" data-testid="status-java">
+          <h3>Java</h3>
+          <p class="value" data-testid="status-java-value">…</p>
+          <p class="detail" data-testid="status-java-detail"></p>
+        </div>
+        <div class="status-card" data-testid="status-fatjar">
+          <h3>Anserini fatjar</h3>
+          <p class="value" data-testid="status-fatjar-value">…</p>
+          <p class="detail" data-testid="status-fatjar-detail"></p>
+        </div>
+        <div class="status-card" data-testid="status-nfcorpus">
+          <h3>NFCorpus index</h3>
+          <p class="value" data-testid="status-nfcorpus-value">…</p>
+          <p class="detail" data-testid="status-nfcorpus-detail"></p>
+        </div>
+        <div class="status-card" data-testid="status-reproduction">
+          <h3>Reproduction discovery</h3>
+          <p class="value" data-testid="status-reproduction-value">…</p>
+          <p class="detail" data-testid="status-reproduction-detail"></p>
+        </div>
+        <div class="status-card" data-testid="status-search">
+          <h3>Live search</h3>
+          <p class="value" data-testid="status-search-value">…</p>
+          <p class="detail" data-testid="status-search-detail"></p>
+        </div>
+        <div class="status-card" data-testid="status-evaluation">
+          <h3>BM25 evaluation</h3>
+          <p class="value" data-testid="status-evaluation-value">…</p>
+          <p class="detail" data-testid="status-evaluation-detail"></p>
+        </div>
+      </div>
+      <details class="log-block">
+        <summary>Setup log</summary>
+        <pre data-testid="setup-log"></pre>
+      </details>
+      <div class="error-block" data-testid="errors" hidden></div>
+    </section>
+
+    <section class="panel" data-testid="search-panel">
+      <h2>Live NFCorpus search</h2>
+      <p class="hint">
+        Queries are executed by <code>io.anserini.api.RestServer</code> against
+        the <code>beir-v1.0.0-nfcorpus.flat</code> prebuilt index. No mocks.
+      </p>
+      <form id="search-form" class="search-row">
+        <input
+          type="text"
+          id="search-input"
+          name="q"
+          placeholder="e.g. diabetes diet"
+          autocomplete="off"
+          data-testid="search-input"
+        />
+        <input
+          type="number"
+          id="hits-input"
+          min="1"
+          max="50"
+          value="10"
+          data-testid="hits-input"
+        />
+        <button type="submit" data-testid="search-submit">Search</button>
+      </form>
+      <div class="samples">
+        <span class="sample-label">Sample NFCorpus topics:</span>
+        <span data-testid="sample-queries" class="sample-list"></span>
+      </div>
+      <div class="search-meta" data-testid="search-meta"></div>
+      <ol class="results" data-testid="search-results"></ol>
+    </section>
+
+    <section class="panel" data-testid="evaluation-panel">
+      <h2>BM25 evaluation: observed vs expected</h2>
+      <p class="hint">
+        Evaluation runs <code>io.anserini.search.SearchCollection</code> then
+        <code>io.anserini.eval.TrecEval</code> using the qrels key reported by
+        the reproduction discovery step.
+      </p>
+      <div class="eval-summary">
+        <div class="eval-card">
+          <h3>Status</h3>
+          <p class="value" data-testid="eval-status">pending</p>
+        </div>
+        <div class="eval-card">
+          <h3>Elapsed</h3>
+          <p class="value" data-testid="eval-elapsed">—</p>
+        </div>
+        <div class="eval-card">
+          <h3>Source</h3>
+          <p class="value" data-testid="eval-source">cached startup pass</p>
+        </div>
+        <div class="eval-card">
+          <h3>Rerun count</h3>
+          <p class="value" data-testid="eval-rerun-count">0</p>
+        </div>
+      </div>
+      <table class="metrics-table" data-testid="metrics-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>trec_eval key</th>
+            <th>Expected</th>
+            <th>Observed</th>
+            <th>Δ</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody data-testid="metrics-table-body"></tbody>
+      </table>
+      <div class="actions">
+        <button id="rerun-btn" data-testid="rerun-button">Rerun evaluation (fresh)</button>
+      </div>
+      <p class="artifact-line">
+        Run file:
+        <code data-testid="eval-run-path">—</code>
+        &middot; Eval file:
+        <code data-testid="eval-eval-path">—</code>
+      </p>
+    </section>
+
+    <section class="panel" data-testid="commands-panel">
+      <h2>Commands &amp; artifacts</h2>
+      <p class="hint">
+        Exact <code>java -cp $ANSERINI_JAR ...</code> invocations recorded for
+        every setup, search, and evaluation step.
+      </p>
+      <div data-testid="commands-list"></div>
+    </section>
+
+    <section class="panel" data-testid="deployment-panel">
+      <h2>Docker / Render readiness contract</h2>
+      <ul data-testid="deployment-list">
+        <li>Container binds <code>0.0.0.0</code> on <code data-testid="deployment-port">PORT</code>.</li>
+        <li>Default <code>PORT</code> when unset: <code>10000</code> (Render convention).</li>
+        <li>Health endpoint: <code>/health</code> returns JSON with anserini, nfcorpus, search and evaluation flags.</li>
+        <li>Cache directory: <code data-testid="deployment-cache">cache/</code>. Persistent disk should mount here on Render.</li>
+        <li>No interactive setup after container start; setup runs in a background thread.</li>
+        <li>No whole-BEIR or MS MARCO downloads &mdash; only the ~7&nbsp;MB NFCorpus prebuilt index is fetched.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

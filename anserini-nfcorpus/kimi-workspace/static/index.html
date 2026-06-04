@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --panel: #ffffff;
+      --text: #212529;
+      --muted: #6c757d;
+      --border: #dee2e6;
+      --primary: #0d6efd;
+      --success: #198754;
+      --warning: #ffc107;
+      --danger: #dc3545;
+      --info: #0dcaf0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .status-row:last-child { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-success { background: #d1e7dd; color: #0f5132; }
+    .badge-warning { background: #fff3cd; color: #664d03; }
+    .badge-danger { background: #f8d7da; color: #842029; }
+    .badge-info { background: #cff4fc; color: #055160; }
+    .badge-muted { background: #e9ecef; color: #495057; }
+    .search-box {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--primary);
+      background: var(--primary);
+      color: #fff;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .samples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .sample-chip {
+      background: #e9ecef;
+      border: 1px solid var(--border);
+      padding: 0.25rem 0.5rem;
+      border-radius: 1rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .sample-chip:hover { background: #dee2e6; }
+    .result-item {
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 0;
+    }
+    .result-item:last-child { border-bottom: none; }
+    .result-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .result-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .result-text {
+      font-size: 0.9rem;
+      color: var(--text);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 500; }
+    .metric-pass { color: var(--success); font-weight: 600; }
+    .metric-close { color: var(--warning); font-weight: 600; }
+    .metric-fail { color: var(--danger); font-weight: 600; }
+    .commands pre {
+      background: #f1f3f5;
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      margin: 0.5rem 0 1rem;
+    }
+    .commands h4 {
+      margin: 0.75rem 0 0.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .artifact-path {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .log-box {
+      background: #212529;
+      color: #d4d4d4;
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      max-height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box {
+      background: #f8d7da;
+      color: #842029;
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container" style="padding:0 1.5rem;">
+      <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+      <!-- Status Panel -->
+      <div class="panel" id="status-panel">
+        <h2>Readiness</h2>
+        <div id="status-content">
+          <div class="status-row"><span>App Status</span><span class="badge badge-muted" id="app-status">Loading...</span></div>
+          <div class="status-row"><span>Java</span><span class="badge badge-muted" id="java-status">Checking...</span></div>
+          <div class="status-row"><span>Anserini Fatjar</span><span class="badge badge-muted" id="fatjar-status">Checking...</span></div>
+          <div class="status-row"><span>NFCorpus Corpus</span><span class="badge badge-muted" id="corpus-status">Checking...</span></div>
+          <div class="status-row"><span>NFCorpus Index</span><span class="badge badge-muted" id="index-status">Checking...</span></div>
+          <div class="status-row"><span>Search</span><span class="badge badge-muted" id="search-status">Checking...</span></div>
+          <div class="status-row"><span>Evaluation</span><span class="badge badge-muted" id="eval-status">Checking...</span></div>
+        </div>
+        <div id="setup-error" style="display:none;" class="error-box"></div>
+        <h3 style="font-size:0.9rem;margin-top:1rem;">Setup Log</h3>
+        <div class="log-box" id="setup-log">Initializing...</div>
+      </div>
+
+      <!-- Search Panel -->
+      <div class="panel">
+        <h2>Live Search</h2>
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Type a query or choose a sample below..." disabled>
+          <button id="search-btn" disabled>Search</button>
+        </div>
+        <div class="samples" id="sample-queries">
+          <span style="color:var(--muted);font-size:0.8rem;">Loading sample queries...</span>
+        </div>
+        <div id="search-results"></div>
+      </div>
+
+      <!-- Evaluation Panel -->
+      <div class="panel">
+        <h2>BM25 Evaluation</h2>
+        <div id="eval-content">
+          <p style="color:var(--muted);">Evaluation will appear once setup completes.</p>
+        </div>
+        <div style="margin-top:0.75rem;">
+          <button id="rerun-btn" disabled>Verify / Rerun Evaluation</button>
+        </div>
+      </div>
+
+      <!-- Commands & Artifacts Panel -->
+      <div class="panel">
+        <h2>Commands & Artifacts</h2>
+        <div class="commands" id="commands-content">
+          <p style="color:var(--muted);">Commands and artifacts will appear once setup completes.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:1.5rem;color:var(--muted);font-size:0.8rem;">
+      <strong>Dataset:</strong> NFCorpus (BEIR v1.0.0) &middot; 
+      <strong>Engine:</strong> Anserini <span id="anserini-version"></span> &middot; 
+      <strong>Render Docker Ready:</strong> Binds to <code>0.0.0.0</code> using <code>PORT</code> env var (default 10000).
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

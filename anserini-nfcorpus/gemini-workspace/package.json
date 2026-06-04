@@ -1,0 +1,16 @@
+{
+  "name": "nfcorpus-diagnostics",
+  "version": "1.0.0",
+  "description": "NFCorpus Live Retrieval Diagnostics Workbench",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.1"
+  }
+}

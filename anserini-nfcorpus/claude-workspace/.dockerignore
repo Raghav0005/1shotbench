@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+cache/
+runs/
+tests/
+*.jar
+.pi-bench-rewrites/
+node_modules/

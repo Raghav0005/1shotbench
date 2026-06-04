@@ -1,0 +1,1 @@
+{"name":"nfcorpus-live-retrieval-diagnostics","version":"1.0.0","description":"Dockerized NFCorpus Anserini diagnostics workbench","type":"module","scripts":{"start":"node src/server.js","test":"playwright test","test:unit":"node --test"},"dependencies":{"express":"^4.19.2","js-yaml":"^4.1.0"},"devDependencies":{"@playwright/test":"^1.44.1"},"engines":{"node":">=18"}}

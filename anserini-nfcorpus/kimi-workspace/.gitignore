@@ -1,0 +1,15 @@
+.cache/
+data/
+indexes/
+runs/
+*.log
+*.pid
+app.log
+app.pid
+prebuilt.txt
+run.cacm.bm25.txt
+eval.cacm.bm25.txt
+qrels.nfcorpus.test.txt
+__pycache__/
+.pytest_cache/
+node_modules/
