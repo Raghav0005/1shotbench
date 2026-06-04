@@ -1,18 +1,99 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import stat
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from bench.runner import BenchmarkRunner
+from bench.runner import BenchmarkRunner, RunnerOptions
 from bench.schemas import WorkspaceConfig
 
 
 class RunnerLoggingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_rewrites_task_file_before_implementation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_dir = root / "bin"
+            task_dir = root / "task"
+            workspace_dir = task_dir / "fake-workspace"
+            runs_dir = root / "runs"
+            bin_dir.mkdir()
+            workspace_dir.mkdir(parents=True)
+            runs_dir.mkdir()
+            (task_dir / "PRD.md").write_text("original prd\n", encoding="utf-8")
+
+            fake_pi = bin_dir / "pi"
+            fake_pi.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env python3",
+                        "import json, pathlib, sys",
+                        "prompt = sys.argv[-1]",
+                        "if 'Before the benchmark implementation task' in prompt:",
+                        "    pathlib.Path('.pi-bench-rewrites/PRD.md').write_text('rewritten prd\\n', encoding='utf-8')",
+                        "    delta = 'rewrite complete\\n'",
+                        "else:",
+                        "    pathlib.Path('implementation-prompt.txt').write_text(prompt, encoding='utf-8')",
+                        "    delta = 'implementation complete\\n'",
+                        "event = {",
+                        "    'type': 'message_update',",
+                        "    'assistantMessageEvent': {'type': 'text_delta', 'delta': delta},",
+                        "}",
+                        "print(json.dumps(event), flush=True)",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            fake_pi.chmod(fake_pi.stat().st_mode | stat.S_IXUSR)
+
+            old_path = os.environ.get("PATH", "")
+            os.environ["PATH"] = f"{bin_dir}{os.pathsep}{old_path}"
+            try:
+                workspace = WorkspaceConfig(
+                    key="fake",
+                    name="Fake",
+                    path=str(workspace_dir),
+                    model="fake-model",
+                    provider="fake-provider",
+                )
+                runner = BenchmarkRunner(root, {"fake": workspace})
+                runner._apply_workspace_sandbox = lambda command, workspace, model_dir: command
+                options = RunnerOptions(
+                    prompt="Please read PRD.md and complete the task.",
+                    selected_models=["fake"],
+                    mode="sequential",
+                    run_id="rewrite-test",
+                )
+                with mock.patch("bench.runner.RUNS_DIR", runs_dir):
+                    summary = await runner.run(options)
+            finally:
+                os.environ["PATH"] = old_path
+
+            self.assertEqual(summary.results[0].status, "completed")
+            self.assertFalse((workspace_dir / "PRD.md").is_symlink())
+            self.assertEqual((workspace_dir / "PRD.md").read_text(encoding="utf-8"), "rewritten prd\n")
+            self.assertEqual(
+                (workspace_dir / "implementation-prompt.txt").read_text(encoding="utf-8"),
+                "Please read PRD.md and complete the task.",
+            )
+            rewrite_path = Path(summary.results[0].task_rewrite_path or "")
+            self.assertTrue(rewrite_path.is_file())
+            rewrite_artifact = json.loads(rewrite_path.read_text(encoding="utf-8"))
+            self.assertEqual(rewrite_artifact["status"], "completed")
+            self.assertEqual(
+                (runs_dir / "rewrite-test" / "fake" / "rewritten-task-files" / "PRD.md").read_text(encoding="utf-8"),
+                "rewritten prd\n",
+            )
+            runner.sync_shared_task_files()
+            self.assertTrue((workspace_dir / "PRD.md").is_symlink())
+            self.assertEqual((workspace_dir / "PRD.md").read_text(encoding="utf-8"), "original prd\n")
+
     async def test_timeout_preserves_live_stdout_and_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -36,7 +36,21 @@ class RunnerOptions:
     retries: int = 0
     label: str = "benchmark"
     warmup: bool = False
+    rewrite_task_files: bool = True
+    rewrite_timeout_seconds: int = 600
     run_id: str | None = None
+
+
+@dataclass
+class TaskRewriteResult:
+    status: str
+    artifact_path: Path
+    stdout_path: Path
+    stderr_path: Path
+    events_path: Path
+    command: list[str]
+    exit_code: int | None = None
+    error: str | None = None
 
 
 def _now() -> datetime:
@@ -133,7 +147,9 @@ class BenchmarkRunner:
                         link_path.symlink_to(target)
                     continue
                 if link_path.exists():
-                    continue
+                    if link_path.is_dir():
+                        continue
+                    link_path.unlink()
                 link_path.symlink_to(target)
 
     def _task_dir(self) -> Path | None:
@@ -174,6 +190,8 @@ class BenchmarkRunner:
                     retries=0,
                     event_callback=None,
                     warmup=True,
+                    rewrite_task_files=False,
+                    rewrite_timeout_seconds=options.rewrite_timeout_seconds,
                 )
 
         if options.mode == "sequential":
@@ -188,6 +206,8 @@ class BenchmarkRunner:
                     retries=options.retries,
                     event_callback=event_callback,
                     warmup=False,
+                    rewrite_task_files=options.rewrite_task_files,
+                    rewrite_timeout_seconds=options.rewrite_timeout_seconds,
                 )
                 results.append(result)
         else:
@@ -204,6 +224,8 @@ class BenchmarkRunner:
                         retries=options.retries,
                         event_callback=event_callback,
                         warmup=False,
+                        rewrite_task_files=options.rewrite_task_files,
+                        rewrite_timeout_seconds=options.rewrite_timeout_seconds,
                     )
                 )
                 for workspace in selected
@@ -251,6 +273,8 @@ class BenchmarkRunner:
         retries: int,
         event_callback: EventCallback | None,
         warmup: bool,
+        rewrite_task_files: bool = True,
+        rewrite_timeout_seconds: int = 600,
     ) -> RunJobResult:
         model_dir = run_dir / workspace.key
         model_dir.mkdir(parents=True, exist_ok=True)
@@ -273,6 +297,57 @@ class BenchmarkRunner:
         final_stderr = ""
         final_events = ""
         metrics = TokenMetrics()
+        task_rewrite: TaskRewriteResult | None = None
+
+        if rewrite_task_files and not warmup:
+            task_rewrite = await self._rewrite_task_files(
+                workspace=workspace,
+                model_dir=model_dir,
+                timeout_seconds=rewrite_timeout_seconds,
+                event_callback=event_callback,
+            )
+            if task_rewrite.status != "completed":
+                run_ended = _now()
+                result = RunJobResult(
+                    model_key=workspace.key,
+                    workspace_path=workspace.path,
+                    model_name=workspace.model,
+                    provider=workspace.provider,
+                    status="failed",
+                    exit_code=task_rewrite.exit_code,
+                    started_at=_iso(run_started),
+                    ended_at=_iso(run_ended),
+                    duration_ms=int((run_ended - run_started).total_seconds() * 1000),
+                    prompt_hash=prompt_hash,
+                    stdout_path=str(stdout_path),
+                    stderr_path=str(stderr_path),
+                    result_path=str(result_path),
+                    command=workspace.pi_args() + ["<prompt>"],
+                    events_path=str(events_path),
+                    task_rewrite_path=str(task_rewrite.artifact_path),
+                    attempts=0,
+                    error=task_rewrite.error or "Task file rewrite failed",
+                    metrics=metrics,
+                )
+                stdout_path.write_text("", encoding="utf-8")
+                stderr_path.write_text(task_rewrite.error or "", encoding="utf-8")
+                events_path.write_text("", encoding="utf-8")
+                result_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+                await self._emit(
+                    event_callback,
+                    {
+                        "type": "complete",
+                        "model": workspace.key,
+                        "status": result.status,
+                        "exit_code": result.exit_code,
+                        "duration_ms": result.duration_ms,
+                        "metrics": result.metrics.__dict__,
+                        "stdout_tail": "",
+                        "stderr_tail": result.error or "",
+                    },
+                )
+                return result
+
         command = workspace.pi_args() + [prompt]
         displayed_command = workspace.pi_args() + ["<prompt>"]
         env = load_project_env()
@@ -447,6 +522,7 @@ class BenchmarkRunner:
             result_path=str(result_path),
             command=displayed_command,
             events_path=str(events_path),
+            task_rewrite_path=str(task_rewrite.artifact_path) if task_rewrite else None,
             attempts=attempts,
             error=final_error,
             metrics=metrics,
@@ -467,6 +543,168 @@ class BenchmarkRunner:
             },
         )
         return result
+
+    async def _rewrite_task_files(
+        self,
+        workspace: WorkspaceConfig,
+        model_dir: Path,
+        timeout_seconds: int,
+        event_callback: EventCallback | None,
+    ) -> TaskRewriteResult:
+        artifact_path = model_dir / "task-rewrite.json"
+        stdout_path = model_dir / "task-rewrite.stdout.log"
+        stderr_path = model_dir / "task-rewrite.stderr.log"
+        events_path = model_dir / "task-rewrite.events.jsonl"
+        rewritten_artifact_dir = model_dir / "rewritten-task-files"
+        rewrite_dir = Path(workspace.path) / ".pi-bench-rewrites"
+        rewritten_artifact_dir.mkdir(parents=True, exist_ok=True)
+        rewrite_dir.mkdir(parents=True, exist_ok=True)
+
+        task_files = discover_shared_task_files(self._task_dir())
+        displayed_command = workspace.pi_args() + ["<task-rewrite-prompt>"]
+        if not task_files:
+            artifact = {
+                "status": "completed",
+                "reason": "no shared task files discovered",
+                "task_files": [],
+                "rewritten_files": [],
+                "command": displayed_command,
+            }
+            artifact_path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+            stdout_path.write_text("", encoding="utf-8")
+            stderr_path.write_text("", encoding="utf-8")
+            events_path.write_text("", encoding="utf-8")
+            return TaskRewriteResult("completed", artifact_path, stdout_path, stderr_path, events_path, displayed_command)
+
+        await self._emit(
+            event_callback,
+            {"type": "status", "model": workspace.key, "status": "rewriting_task_files"},
+        )
+
+        prompt = self._task_rewrite_prompt(task_files, rewrite_dir)
+        command = workspace.pi_args() + [prompt]
+        exec_command = self._apply_workspace_sandbox(
+            command=command,
+            workspace=workspace,
+            model_dir=model_dir,
+        )
+        proc: asyncio.subprocess.Process | None = None
+        stdout = ""
+        stderr = ""
+        exit_code: int | None = None
+        error: str | None = None
+        status = "failed"
+        rewritten_files: list[dict[str, str]] = []
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *exec_command,
+                cwd=workspace.path,
+                env=load_project_env(),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=SUBPROCESS_STREAM_LIMIT_BYTES,
+                start_new_session=True,
+            )
+            try:
+                if timeout_seconds > 0:
+                    stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
+                else:
+                    stdout_bytes, stderr_bytes = await proc.communicate()
+            except asyncio.TimeoutError:
+                self._terminate_process_group(proc)
+                stdout_bytes, stderr_bytes = await proc.communicate()
+                error = f"Task file rewrite timed out after {timeout_seconds}s"
+            stdout = stdout_bytes.decode("utf-8", errors="replace")
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
+            exit_code = proc.returncode
+            if error is None and exit_code != 0:
+                error = f"Task file rewrite exited with code {exit_code}"
+            if error is None:
+                rewritten_files = self._install_rewritten_task_files(task_files, workspace, rewrite_dir, rewritten_artifact_dir)
+                status = "completed"
+        except Exception as exc:
+            error = str(exc)
+
+        stdout_path.write_text(stdout, encoding="utf-8")
+        stderr_path.write_text(stderr, encoding="utf-8")
+        events_path.write_text(stdout, encoding="utf-8")
+        artifact = {
+            "status": status,
+            "error": error,
+            "task_files": [str(path) for path in task_files],
+            "rewrite_dir": str(rewrite_dir),
+            "rewritten_files": rewritten_files,
+            "command": displayed_command,
+            "exit_code": exit_code,
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "events_path": str(events_path),
+        }
+        artifact_path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+        return TaskRewriteResult(
+            status=status,
+            artifact_path=artifact_path,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            events_path=events_path,
+            command=displayed_command,
+            exit_code=exit_code,
+            error=error,
+        )
+
+    def _task_rewrite_prompt(self, task_files: list[Path], rewrite_dir: Path) -> str:
+        mappings = "\n".join(
+            f"- Read `./{path.name}` and write the rewritten version to `./{rewrite_dir.name}/{path.name}`."
+            for path in task_files
+        )
+        return (
+            "Before the benchmark implementation task, rewrite the task document(s) for yourself so the "
+            "implementation step uses your own neutral restatement rather than the original wording.\n\n"
+            "Requirements for the rewrite:\n"
+            "- Preserve every requirement, acceptance criterion, constraint, file name, command, dependency, and setup instruction.\n"
+            "- Keep the task scope identical; do not add features, remove features, simplify requirements, or solve the task.\n"
+            "- Use your own wording and organization where helpful, but retain precise technical details.\n"
+            "- Write only the rewritten task file(s) to the requested destination path(s).\n"
+            "- Do not implement the product or edit any source files for the task yet.\n\n"
+            f"{mappings}\n\n"
+            "When all rewritten files are saved, stop."
+        )
+
+    def _install_rewritten_task_files(
+        self,
+        task_files: list[Path],
+        workspace: WorkspaceConfig,
+        rewrite_dir: Path,
+        artifact_dir: Path,
+    ) -> list[dict[str, str]]:
+        rewritten_files: list[dict[str, str]] = []
+        workspace_path = Path(workspace.path)
+        for task_file in task_files:
+            generated = rewrite_dir / task_file.name
+            if not generated.is_file():
+                raise FileNotFoundError(f"rewritten task file was not created: {generated}")
+            text = generated.read_text(encoding="utf-8")
+            if not text.strip():
+                raise ValueError(f"rewritten task file is empty: {generated}")
+
+            artifact_copy = artifact_dir / task_file.name
+            artifact_copy.write_text(text, encoding="utf-8")
+
+            workspace_copy = workspace_path / task_file.name
+            if workspace_copy.is_symlink() or workspace_copy.exists():
+                if workspace_copy.is_dir():
+                    raise IsADirectoryError(f"workspace task path is a directory: {workspace_copy}")
+                workspace_copy.unlink()
+            workspace_copy.write_text(text, encoding="utf-8")
+            rewritten_files.append(
+                {
+                    "source": str(task_file),
+                    "workspace_path": str(workspace_copy),
+                    "artifact_path": str(artifact_copy),
+                }
+            )
+        return rewritten_files
 
     def _terminate_process_group(
         self,

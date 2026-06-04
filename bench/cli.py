@@ -21,6 +21,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--retries", type=int, default=0)
     parser.add_argument("--label", default="benchmark")
     parser.add_argument("--warmup", action="store_true")
+    parser.add_argument(
+        "--no-task-rewrite",
+        action="store_true",
+        help="Skip the default per-model task file rewrite step.",
+    )
+    parser.add_argument(
+        "--rewrite-timeout-seconds",
+        type=int,
+        default=600,
+        help="Per-model timeout for the task file rewrite step.",
+    )
     return parser
 
 
@@ -50,6 +61,8 @@ async def main_async(args: argparse.Namespace) -> int:
         retries=args.retries,
         label=args.label,
         warmup=args.warmup,
+        rewrite_task_files=not args.no_task_rewrite,
+        rewrite_timeout_seconds=args.rewrite_timeout_seconds,
     )
 
     async def on_event(event: dict) -> None:

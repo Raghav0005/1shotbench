@@ -33,6 +33,8 @@ class StartRunRequest(BaseModel):
     retries: int = 0
     label: str = "benchmark"
     warmup: bool = False
+    rewrite_task_files: bool = True
+    rewrite_timeout_seconds: int = 600
 
 
 @app.get("/")
@@ -83,6 +85,8 @@ async def start_run(req: StartRunRequest) -> dict[str, Any]:
         retries=req.retries,
         label=req.label,
         warmup=req.warmup,
+        rewrite_task_files=req.rewrite_task_files,
+        rewrite_timeout_seconds=req.rewrite_timeout_seconds,
     )
 
     run_id = f"run-{len(active_runs) + 1}-{asyncio.get_running_loop().time():.0f}"

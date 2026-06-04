@@ -255,6 +255,8 @@ Useful options:
 - `--retries 1`
 - `--warmup`
 - `--label e2e-bench-1`
+- `--no-task-rewrite` to skip the default per-model task file rewrite
+- `--rewrite-timeout-seconds 600`
 
 The CLI flow is:
 
@@ -263,8 +265,9 @@ The CLI flow is:
 3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, a sandbox backend (`sandbox-exec` or `bwrap`), and any declared `required_skills`.
 4. It symlinks task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
 5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
-6. It starts one Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
-7. It writes per-model logs and a combined summary when the run finishes.
+6. For each selected model, it first asks that same model to rewrite the shared task file(s) into a neutral equivalent restatement. The runner validates those rewritten files, stores copies under the run artifacts, and replaces the workspace-local task files before implementation starts. This keeps the implementation run from using wording that may advantage the model that originally authored the PRD.
+7. It starts one implementation Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
+8. It writes per-model logs and a combined summary when the run finishes.
 
 For each selected model, `bench.toml` is converted into Pi CLI flags. This config:
 
@@ -297,6 +300,10 @@ Each run includes:
 - `<model>/stdout.log`: readable assistant output and tool markers
 - `<model>/stderr.log`: Pi stderr
 - `<model>/events.jsonl`: raw Pi JSON events
+- `<model>/task-rewrite.json`: status, command metadata, and paths for the per-model task rewrite
+- `<model>/task-rewrite.stdout.log`: raw Pi JSON output from the rewrite step
+- `<model>/task-rewrite.stderr.log`: Pi stderr from the rewrite step
+- `<model>/rewritten-task-files/`: copies of the rewritten task files used by the implementation step
 - `<model>/result.json`: status, timing, command, paths, attempts, and token metrics for that model
 - `<model>/workspace.sb`: generated macOS sandbox profile (when using `sandbox-exec`)
 - `<model>/workspace.bwrap.json`: generated Linux sandbox command metadata (when using `bwrap`)

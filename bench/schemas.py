@@ -73,6 +73,7 @@ class RunJobResult:
     result_path: str
     command: list[str]
     events_path: str | None = None
+    task_rewrite_path: str | None = None
     attempts: int = 1
     error: str | None = None
     metrics: TokenMetrics = field(default_factory=TokenMetrics)

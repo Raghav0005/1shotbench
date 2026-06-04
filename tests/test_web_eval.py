@@ -240,7 +240,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             nested.mkdir()
             (nested / "package.json").write_text('{"scripts":{"start":"node server.js"}}', encoding="utf-8")
             commands = commands_from_json([{"command": "npm install", "cwd": str(root)}], root)
-            self.assertEqual(Path(commands[0].cwd), nested)
+            self.assertEqual(Path(commands[0].cwd).resolve(), nested.resolve())
 
     def test_setup_rejects_java_usage_only_success(self) -> None:
         from bench.web_eval.setup import _looks_like_usage_only_success
