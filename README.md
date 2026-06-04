@@ -274,7 +274,7 @@ For each selected model, `bench.toml` is converted into Pi CLI flags. This confi
 
 ```toml
 provider = "anthropic"
-model = "claude-sonnet-4-6"
+model = "claude-opus-4-7"
 thinking = "high"
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 ```
@@ -282,7 +282,7 @@ tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 becomes:
 
 ```text
-pi --mode json --print --no-session --provider anthropic --model claude-sonnet-4-6 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
+pi --mode json --print --no-session --provider anthropic --model claude-opus-4-7 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
 ```
 
 The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-anserini-evaluator.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.

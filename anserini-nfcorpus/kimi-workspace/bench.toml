@@ -1,0 +1,6 @@
+name = "Kimi workspace"
+provider = "moonshotai"
+model = "kimi-k2.6"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]

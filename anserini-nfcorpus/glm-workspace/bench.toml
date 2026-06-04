@@ -1,0 +1,6 @@
+name = "GLM workspace"
+provider = "zai"
+model = "glm-5.1"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]

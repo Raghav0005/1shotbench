@@ -46,7 +46,7 @@ class WorkspaceSpec:
 
 WORKSPACES = [
     WorkspaceSpec("gpt", "GPT workspace", "openai-codex", "gpt-5.5"),
-    WorkspaceSpec("claude", "Claude workspace", "anthropic", "claude-sonnet-4-6"),
+    WorkspaceSpec("claude", "Claude workspace", "anthropic", "claude-opus-4-7"),
     WorkspaceSpec("gemini", "Gemini workspace", "google", "gemini-3.1-pro-preview"),
     WorkspaceSpec("glm", "GLM workspace", "zai", "glm-5.1"),
     WorkspaceSpec("kimi", "Kimi workspace", "moonshotai", "kimi-k2.6"),
