@@ -1,4 +1,4 @@
-# Anserini Evaluator Clean Rerun
+# Benchmark `20260523-032002-d5f3fc6f`
 
 Run id: `20260523-032002-d5f3fc6f`
 Label: `anserini-evaluator-clean-rerun`
@@ -25,6 +25,8 @@ Kimi did not show the prior runner hang signature. The runner continued receivin
 
 - `*/result.json`: completed per-model benchmark result files for the five successful runs.
 - `*/stdout.log`: rendered progress logs for each model, including Kimi's partial run.
+- `*/events.jsonl.gz`: compressed raw event streams.
+- `screenshots/*.png`: UI screenshots captured after the run.
 - `prompt.txt`: prompt captured by the benchmark runner.
 
-The full raw `events.jsonl` files were intentionally not committed because the clean run's event traces are about 576 MB. The full raw run remains locally at `runs/20260523-032002-d5f3fc6f` if deeper forensic inspection is needed.
+The uncompressed raw `events.jsonl` files are intentionally not committed because the clean run's event traces are about 576 MB.
