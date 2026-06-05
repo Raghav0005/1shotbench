@@ -45,3 +45,15 @@ When a web eval result looks wrong, inspect artifacts before changing code:
 6. screenshots and app logs if available
 
 If an implementation appears broken, report that directly. If the implementation works manually but the judge reports failure, fix the harness only at the general mechanism that caused the false negative.
+
+## Screenshot and Visual Artifacts
+
+When producing screenshots for comparison, reports, or user-facing artifacts, make the source captures sharp enough before composing them. Prefer real PNG captures from a browser/runtime that can control viewport and device scale; avoid relying on screenshot APIs that silently return JPEG-compressed image data.
+
+For multi-app comparison grids:
+
+- Use a laptop-shaped viewport such as 1440x900 when the goal is to inspect the whole app surface.
+- Capture at high device scale, for example 2x, so each source image is 2880x1800 or similarly detailed.
+- Keep the raw high-resolution screenshots as artifacts alongside any contact sheet or PDF.
+- Build overview grids from the high-resolution sources, but do not treat the grid preview as the only inspectable artifact.
+- For readability, also provide a PDF or separate per-app images when a contact sheet would shrink text too much.

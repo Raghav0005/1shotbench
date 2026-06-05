@@ -2,6 +2,7 @@
 .codex-private/
 __pycache__/
 runs/
+artifacts/
 evals/*
 !evals/.gitkeep
 node_modules/
