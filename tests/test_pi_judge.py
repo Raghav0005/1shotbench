@@ -89,6 +89,9 @@ class PiJudgeTests(unittest.TestCase):
             self.assertIn("Do not mutate files outside `./app`, `./work`, and `./artifacts`", prompt)
             self.assertIn("MUST use the Playwright helper", prompt)
             self.assertIn("Do not print full evidence JSON", prompt)
+            self.assertIn("do not evaluate the unrelated existing listener", prompt)
+            self.assertIn("alternate free local port", prompt)
+            self.assertIn("documented nested app directory", prompt)
 
     def test_report_title_uses_pi_judge_model_prefix(self) -> None:
         summary = WebEvalSummary(

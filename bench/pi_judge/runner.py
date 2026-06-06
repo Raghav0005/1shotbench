@@ -346,6 +346,8 @@ class PiJudgeRunner(CodexJudgeRunner):
             - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation. Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
             - If the browser helper records an error but the captured visible text already proves the behavior, use that evidence instead of repeating the same action.
             - Start app servers in the background only if they remain reachable after the startup command exits. Write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load.
+            - If the default or feature-file port is already occupied, do not evaluate the unrelated existing listener. Start the delivered app on an alternate free local port using documented environment variables such as `PORT`, then use that URL in evidence and final `base_url`.
+            - If a workspace root has no runnable manifest but a README or manifest in a nested app directory documents startup such as `cd app && npm start`, run from that documented nested app directory.
             - If a background server command is cleaned up when the shell command finishes, do not treat that as an app failure yet: run the documented server command as a long-lived foreground command, leave that command running, and gather browser evidence from a separate command.
             - For negative/error-path tests, use a bounded setup variation such as an invalid environment variable or unsupported UI option when available. Do not spend more than one short follow-up pass trying to force an error state.
 
