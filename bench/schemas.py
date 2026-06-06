@@ -88,6 +88,7 @@ class RunJobResult:
 class BenchmarkSummary:
     run_id: str
     label: str
+    task_dir: str | None
     started_at: str
     ended_at: str
     duration_ms: int
@@ -105,6 +106,7 @@ class BenchmarkSummary:
         return {
             "run_id": self.run_id,
             "label": self.label,
+            "task_dir": self.task_dir,
             "started_at": self.started_at,
             "ended_at": self.ended_at,
             "duration_ms": self.duration_ms,

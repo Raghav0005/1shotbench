@@ -62,6 +62,7 @@ async def main_async(args: argparse.Namespace) -> int:
     options = RunnerOptions(
         prompt=prompt,
         selected_models=args.models,
+        task_dir=args.task_dir,
         mode=args.mode,
         max_concurrency=args.max_concurrency,
         timeout_seconds=args.timeout_seconds,

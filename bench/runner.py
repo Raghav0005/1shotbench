@@ -30,6 +30,7 @@ SUBPROCESS_STREAM_LIMIT_BYTES = 8 * 1024 * 1024
 class RunnerOptions:
     prompt: str
     selected_models: list[str]
+    task_dir: str | None = None
     mode: str = "parallel"
     max_concurrency: int = 2
     timeout_seconds: int = 1800
@@ -79,9 +80,10 @@ def _git_commit(root: Path) -> str | None:
 
 
 class BenchmarkRunner:
-    def __init__(self, root_dir: Path, workspaces: dict[str, WorkspaceConfig]):
+    def __init__(self, root_dir: Path, workspaces: dict[str, WorkspaceConfig], task_dir: str | Path | None = None):
         self.root_dir = root_dir
         self.workspaces = workspaces
+        self.task_dir = Path(task_dir).resolve() if task_dir else None
 
     def preflight(self, selected_models: list[str]) -> list[str]:
         errors: list[str] = []
@@ -147,6 +149,8 @@ class BenchmarkRunner:
                 workspace_task_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _task_dir(self) -> Path | None:
+        if self.task_dir is not None:
+            return self.task_dir
         parents = {
             Path(workspace.path).resolve().parent
             for workspace in self.workspaces.values()
@@ -230,6 +234,7 @@ class BenchmarkRunner:
         summary = BenchmarkSummary(
             run_id=run_id,
             label=options.label,
+            task_dir=options.task_dir or (str(self._task_dir().name) if self._task_dir() else None),
             started_at=_iso(run_started),
             ended_at=_iso(run_ended),
             duration_ms=int((run_ended - run_started).total_seconds() * 1000),

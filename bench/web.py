@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from bench.config import ROOT_DIR, RUNS_DIR, discover_shared_task_files, load_workspace_configs, resolve_workspaces_dir
 from bench.runner import BenchmarkRunner, RunnerOptions
+from scripts.create_agent_workspaces import create_workspaces
 
 
 app = FastAPI(title="Pi Agent Bench")
@@ -36,6 +37,11 @@ class StartRunRequest(BaseModel):
     rewrite_timeout_seconds: int = 600
 
 
+class InitWorkspacesRequest(BaseModel):
+    task_dir: str | None = None
+    force: bool = False
+
+
 def _relative_task_dir(task_dir: str | Path | None = None) -> str:
     path = resolve_workspaces_dir(task_dir).resolve()
     try:
@@ -55,6 +61,12 @@ def _load_workspaces(task_dir: str | Path | None = None):
     if not workspaces:
         raise HTTPException(status_code=404, detail=f"No workspaces found in {relative}")
     return relative, workspaces
+
+
+def _task_dir_path(task_dir: str | Path | None = None) -> tuple[str, Path]:
+    relative = _relative_task_dir(task_dir)
+    path = (ROOT_DIR / relative).resolve()
+    return relative, path
 
 
 def _discover_experiments() -> list[dict[str, Any]]:
@@ -135,15 +147,30 @@ async def task_files(task_dir: str | None = Query(default=None)) -> list[dict[st
     ]
 
 
+@app.post("/api/workspaces/init")
+async def init_workspaces(req: InitWorkspacesRequest) -> dict[str, Any]:
+    task_dir, task_path = _task_dir_path(req.task_dir)
+    actions = create_workspaces(task_path, force=req.force)
+    workspaces = load_workspace_configs(task_dir)
+    task_files = discover_shared_task_files(task_dir)
+    return {
+        "task_dir": task_dir,
+        "model_count": len(workspaces),
+        "task_file_count": len(task_files),
+        "actions": actions,
+    }
+
+
 @app.post("/api/runs")
 async def start_run(req: StartRunRequest) -> dict[str, Any]:
     task_dir, workspaces = _load_workspaces(req.task_dir)
-    runner = BenchmarkRunner(ROOT_DIR, workspaces)
+    runner = BenchmarkRunner(ROOT_DIR, workspaces, task_dir=ROOT_DIR / task_dir)
     errors = runner.preflight(req.models)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
     options = RunnerOptions(
+        task_dir=task_dir,
         prompt=req.prompt,
         selected_models=req.models,
         mode=req.mode,

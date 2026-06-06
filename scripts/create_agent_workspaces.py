@@ -76,9 +76,10 @@ def discover_task_files(task_dir: Path) -> list[Path]:
     return [files[name] for name in sorted(files)]
 
 
-def create_workspaces(task_dir: Path, force: bool) -> None:
+def create_workspaces(task_dir: Path, force: bool) -> list[str]:
     task_dir.mkdir(parents=True, exist_ok=True)
     task_files = discover_task_files(task_dir)
+    actions: list[str] = []
 
     for spec in WORKSPACES:
         workspace_dir = task_dir / spec.directory_name
@@ -87,19 +88,20 @@ def create_workspaces(task_dir: Path, force: bool) -> None:
         config_path = workspace_dir / "bench.toml"
         if force or not config_path.exists():
             config_path.write_text(spec.to_toml(), encoding="utf-8")
-            print(f"wrote {_display_path(config_path)}")
+            actions.append(f"wrote {_display_path(config_path)}")
         else:
-            print(f"kept  {_display_path(config_path)}")
+            actions.append(f"kept  {_display_path(config_path)}")
 
         for task_file in task_files:
             copy_path = workspace_dir / task_file.name
             if copy_path.exists() or copy_path.is_symlink():
                 if copy_path.is_dir():
-                    print(f"skip  {_display_path(copy_path)} is a directory")
+                    actions.append(f"skip  {_display_path(copy_path)} is a directory")
                     continue
                 copy_path.unlink()
             copy_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
-            print(f"copy  {_display_path(copy_path)}")
+            actions.append(f"copy  {_display_path(copy_path)}")
+    return actions
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -125,7 +127,8 @@ def main() -> int:
     task_dir = Path(args.task_dir)
     if not task_dir.is_absolute():
         task_dir = ROOT_DIR / task_dir
-    create_workspaces(task_dir=task_dir, force=args.force)
+    for action in create_workspaces(task_dir=task_dir, force=args.force):
+        print(action)
     return 0
 
 
