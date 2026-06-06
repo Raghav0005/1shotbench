@@ -163,9 +163,11 @@ By default, the script creates:
 - `gpt-workspace`
 - `claude-workspace`
 - `gemini-workspace`
+- `deepseek-workspace`
 - `glm-workspace`
 - `kimi-workspace`
 - `minimax-workspace`
+- `mimo-workspace`
 
 It writes missing `bench.toml` files using the current benchmark defaults and copies task-local files such as `PRD.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
 
@@ -181,21 +183,21 @@ The web server opens on `experiments/frontend` by default, and the dashboard let
 PI_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010
 ```
 
-## Web app feature evaluation
+## LLM Judge
 
 Judge agent-built web apps with PRD-derived feature checks, Playwright evidence, and an LLM judge. The evaluator can either read a checked-in `features.yaml` or ask the judge model to generate feature checks from the PRD before running the browser layer.
 
 One-time setup for the browser layer:
 
 ```sh
-cd bench/web_eval && npm install && npx playwright install chromium
+cd bench/llm_judge && npm install && npx playwright install chromium
 pip install -r requirements.txt
 ```
 
 Run a full evaluation with a curated feature file:
 
 ```sh
-python3 -m bench.web_eval \
+python3 -m bench.llm_judge \
   --project experiments/evaluator/gpt-workspace \
   --features experiments/evaluator/features.yaml \
   --prd experiments/evaluator/PRD.md \
@@ -205,13 +207,13 @@ python3 -m bench.web_eval \
 Or generate the feature file from the PRD at evaluation time:
 
 ```sh
-python3 -m bench.web_eval \
+python3 -m bench.llm_judge \
   --project experiments/evaluator/gpt-workspace \
   --prd experiments/evaluator/PRD.md \
   --label gpt-evaluator-generated
 ```
 
-Before starting the app, the evaluator builds setup context from the PRD, implementation README files, manifests, and any repo-local skills referenced there. The judge model can propose concrete setup commands from that context. The runner then executes only general allowlisted setup commands, such as package installs, project-local setup scripts, explicit environment assignments, downloads with project-local output paths, and smoke-check commands. There are no task-specific installers in `web_eval`; skipped commands are recorded with a reason.
+Before starting the app, the evaluator builds setup context from the PRD, implementation README files, manifests, and any repo-local skills referenced there. The judge model can propose concrete setup commands from that context. The runner then executes only general allowlisted setup commands, such as package installs, project-local setup scripts, explicit environment assignments, downloads with project-local output paths, and smoke-check commands. There are no task-specific installers in `llm_judge`; skipped commands are recorded with a reason.
 
 For each feature, the browser layer first runs the scripted evidence steps, captures page text, ARIA, screenshots, errors, and visible interactive elements, then optionally asks the judge model for a short follow-up browser plan. This lightweight agentic pass helps avoid false negatives when the UI uses different labels or layouts. The final verdict receives the collected browser evidence plus setup context/results, but it must still judge from evidence rather than assume success.
 
