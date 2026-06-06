@@ -21,6 +21,8 @@ from bench.llm_judge.schemas import EvidencePacket, FeatureCheck, FeatureJudgmen
 EVALS_DIR = ROOT_DIR / "evals"
 CODEX_SKILL_DIR = ROOT_DIR / "judge_skills" / "web_judge"
 BROWSER_HELPER = ROOT_DIR / "bench" / "llm_judge" / "browser.mjs"
+DEFAULT_CODEX_MODEL = "gpt-5.4-mini"
+DEFAULT_CODEX_REASONING_EFFORT = "low"
 MUTATION_IGNORED_DIRS = {
     ".venv",
     "venv",
@@ -71,9 +73,9 @@ class CodexJudgeOptions:
     no_start: bool = False
     label: str = "codex-judge"
     eval_id: str | None = None
-    codex_model: str | None = None
+    codex_model: str | None = DEFAULT_CODEX_MODEL
     codex_command: str = "codex"
-    judge_timeout_seconds: int = 1800
+    judge_timeout_seconds: int = 900
     keep_judge_workspace: bool = False
     judge_workspace_root: Path | None = None
     codex_sandbox: str = "danger-full-access"
@@ -363,19 +365,33 @@ class CodexJudgeRunner:
             - Do not infer correctness from source files or implementation intent.
             - Do not inspect source code to determine whether a feature passes. Use browser/runtime evidence instead.
             - You may read README files, package manifests, config needed to run the app, PRD files, feature files, and the judging skill.
+            - Do not read app tests, e2e tests, or source files except as a last resort to find a documented runtime command when README/manifests are insufficient.
             - You may read repo-local skill instructions under `{self.root_dir / ".agents" / "skills"}` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
+            - Do not read or use user Codex plugin skills, including the Browser/in-app-browser skill. This CLI judge must use the browser helper named below.
             - Do not read, inspect, compare, or mention any other coding-agent workspace. In particular, ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside `./app`.
             - Do not mutate files outside `./app`, `./work`, and `./artifacts`.
             - Inside `./app`, you may install dependencies, create virtual environments, download jars, and allow the app to write documented runtime outputs such as run/evaluation artifacts in its configured output directories.
             - Prefer `./work` and `./artifacts` for judge-created evidence and temporary files that are not app runtime outputs.
             - Do not edit source-like app files to make the app run. In particular, do not modify package manifests, requirements files, source code, tests, configs, or README files inside `./app`.
             - If the app fails because it is not actually runnable as delivered, record that as an evaluation failure rather than repairing it.
-            - Use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, interactive elements, and screenshots.
+            - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, interactive elements, and screenshots.
+            - Do not write ad-hoc Python or Node Playwright scripts unless the helper itself fails to launch. If the helper fails, do at most one small fallback attempt and keep waits under 30s.
+            - Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
+            - Keep command output concise. Do not print full evidence JSON, full app logs, full catalog dumps, or long file contents into the Codex transcript. Store full artifacts on disk and print only small summaries.
 
             Inputs:
             - {feature_line}
             - {prd_line}
             - {app_line}
+
+            Fast bounded workflow guidance:
+            - If generating features from a PRD, generate at most 5 high-value externally observable features.
+            - Prefer one setup pass, one initial browser snapshot, one focused interaction/evaluation pass, and at most one small follow-up pass.
+            - Do not rerun a successful end-to-end evaluation just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
+            - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation. Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
+            - If the browser helper records an error but the captured visible text already proves the behavior, use that evidence instead of repeating the same action.
+            - Start app servers in the background, write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load instead of leaving a foreground server command open.
+            - For negative/error-path tests, use a bounded setup variation such as an invalid environment variable or unsupported UI option when available. Do not spend more than one short follow-up pass trying to force an error state.
 
             Evidence collection guidance:
             - For each feature, gather browser evidence and then decide pass/fail/uncertain from evidence only.
@@ -488,6 +504,9 @@ def _build_codex_exec_command(
             "exec",
             "--ephemeral",
             "--skip-git-repo-check",
+            "--ignore-user-config",
+            "-c",
+            f'model_reasoning_effort="{DEFAULT_CODEX_REASONING_EFFORT}"',
             "--sandbox",
             options.codex_sandbox,
             "-C",

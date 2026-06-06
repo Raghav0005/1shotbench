@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from bench.codex_judge.runner import CodexJudgeOptions, CodexJudgeRunner
+from bench.codex_judge.runner import DEFAULT_CODEX_MODEL, CodexJudgeOptions, CodexJudgeRunner
 from bench.config import ROOT_DIR
 
 
@@ -23,9 +23,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-start", action="store_true", help="Do not ask Codex to start the app")
     parser.add_argument("--label", default="codex-judge", help="Label for this evaluation run")
     parser.add_argument("--eval-id", help="Override output directory name under evals/")
-    parser.add_argument("--model", help="Optional Codex model override")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_CODEX_MODEL,
+        help=f"Codex model to use for judging. Defaults to the lightest configured model: {DEFAULT_CODEX_MODEL}",
+    )
     parser.add_argument("--codex-command", default="codex", help="Codex CLI executable")
-    parser.add_argument("--judge-timeout-seconds", type=int, default=1800, help="Timeout for the Codex judge run")
+    parser.add_argument("--judge-timeout-seconds", type=int, default=900, help="Timeout for the Codex judge run")
     parser.add_argument("--keep-judge-workspace", action="store_true", help="Keep the disposable judge workspace after the run")
     parser.add_argument("--judge-workspace-root", help="Optional parent directory for the disposable judge workspace")
     parser.add_argument(

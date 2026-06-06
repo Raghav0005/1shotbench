@@ -18,7 +18,7 @@ Each feature must have: id, title, description, acceptance, steps.
 Use 3 to 8 high-value features unless asked otherwise.
 Prefer functional outcomes over exact UI structure.
 Steps should be generic evidence-gathering actions, not brittle CSS selectors.
-Allowed actions: open, click, fill, press, select, wait_settle, wait_for_text, visible_text, snapshot, screenshot.
+Allowed actions: open, click, fill, press, select, wait_settle, wait_for_text, wait_for_any_text, visible_text, snapshot, screenshot.
 Always start each feature with open / and a short wait_settle unless a route is explicit in the PRD.
 Use visible_text, snapshot, and screenshot to gather evidence.
 Only include click/fill steps when the PRD clearly requires a user action.
@@ -154,6 +154,7 @@ class JudgeClient:
                 "select": ["selector", "value", "label", "option"],
                 "wait_settle": ["ms"],
                 "wait_for_text": ["text", "selector", "timeout", "exact"],
+                "wait_for_any_text": ["text", "texts", "selector", "timeout", "exact"],
                 "visible_text": ["key", "selector", "max_chars"],
                 "snapshot": [],
                 "screenshot": ["name", "fullPage"],
@@ -311,6 +312,7 @@ def _actions_from_json(raw_steps: Any, *, max_steps: int) -> list[BrowserAction]
         "select",
         "wait_settle",
         "wait_for_text",
+        "wait_for_any_text",
         "visible_text",
         "snapshot",
         "screenshot",

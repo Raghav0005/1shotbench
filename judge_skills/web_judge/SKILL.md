@@ -17,7 +17,9 @@ You are acting as an evaluator for a benchmarked web application, not as a progr
 - Do not infer correctness from reading source files or implementation intent.
 - Do not inspect source code to decide whether a feature passes. Use browser/runtime evidence instead.
 - You may read README files, package manifests, config needed to run the app, the PRD, and feature definitions to understand how to run the app and what behavior is required.
+- Do not read app tests, e2e tests, or source files except as a last resort to find a documented runtime command when README/manifests are insufficient.
 - You may read repo-local skill instructions under `.agents/skills` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
+- Do not read or use user Codex plugin skills, including Browser/in-app-browser instructions. Use the provided Playwright helper for browser evidence.
 - Do not read, inspect, compare, or mention any other coding-agent workspace. Ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside the app copy.
 - Do not mutate files outside the provided app copy, temporary work directory, and temporary artifacts directory.
 
@@ -48,6 +50,21 @@ For each feature:
 2. Prefer visible text, snapshots, page title, URL, console errors, network errors, interactive elements, and screenshots.
 3. If the first pass is insufficient, do a small bounded follow-up evidence pass.
 4. Decide `pass`, `fail`, or `uncertain` from evidence only.
+
+## Speed And Token Discipline
+
+- Keep command output concise. Do not paste full evidence JSON, full app logs, full catalog dumps, or long file contents into the transcript.
+- Store complete artifacts on disk and inspect or print only compact summaries.
+- If generating features from a PRD, generate at most 5 high-value externally observable features.
+- Prefer one setup pass, one initial browser snapshot, one focused interaction/evaluation pass, and at most one small follow-up pass.
+- Do not rerun a successful end-to-end workflow just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
+- Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation.
+- Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
+- Do not write ad-hoc Python or Node Playwright scripts unless the helper itself fails to launch. If the helper fails, do at most one small fallback attempt and keep waits under 30s.
+- Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
+- Start app servers in the background only if they remain reachable after the startup command exits. Write logs/PIDs under the temporary work directory or app runtime output directories.
+- In Codex `exec`, background children may be cleaned up when the shell command finishes. If the log says the server started but the next command gets connection refused, do not treat that as an app failure yet: run the documented server command as a long-lived foreground exec command, leave that command running, and gather browser evidence from a separate command.
+- For negative/error-path tests, use one bounded setup variation when available. If no browser-observable failure path is easy to trigger, mark the feature `uncertain` rather than spending repeated attempts.
 
 ## Verdict Guidance
 

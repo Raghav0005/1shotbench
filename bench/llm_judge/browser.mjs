@@ -26,6 +26,17 @@ const baseURL = job.baseURL;
 const steps = job.steps || [];
 const outputDir = job.outputDir;
 const featureId = job.featureId;
+const limits = {
+  visibleText: job.maxVisibleTextChars ?? 1800,
+  bodyTail: job.maxBodyTailChars ?? 1800,
+  ariaSnapshot: job.maxAriaSnapshotChars ?? 2500,
+  resultLikeText: job.maxResultLikeTextChars ?? 2500,
+  interactiveElements: job.maxInteractiveElements ?? 60,
+  waitTimeout: job.maxWaitTimeoutMs ?? 30000,
+  actionTimeout: job.maxActionTimeoutMs ?? 10000,
+  fillTimeout: job.maxFillTimeoutMs ?? 5000,
+  networkIdleTimeout: job.maxNetworkIdleTimeoutMs ?? 2000,
+};
 
 fs.mkdirSync(outputDir, { recursive: true });
 const screenshotDir = path.join(outputDir, 'screenshots');
@@ -66,10 +77,15 @@ async function settle(page, ms = 500) {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(ms);
   try {
-    await page.waitForLoadState('networkidle', { timeout: 5000 });
+    await page.waitForLoadState('networkidle', { timeout: limits.networkIdleTimeout });
   } catch {
     // SPA apps may never reach networkidle.
   }
+}
+
+function boundedTimeout(value, fallback, max = limits.actionTimeout) {
+  const timeout = Number.isFinite(value) ? value : fallback;
+  return Math.max(0, Math.min(timeout, max));
 }
 
 async function captureState(page) {
@@ -77,14 +93,14 @@ async function captureState(page) {
   evidence.page_title = await page.title();
   const bodyText = await page.locator('body').innerText().catch(() => '');
   const normalizedBody = bodyText.replace(/\s+/g, ' ').trim();
-  evidence.visible_text = truncate(normalizedBody, 4000);
-  evidence.checks.body_text_tail = tail(normalizedBody, 4000);
+  evidence.visible_text = truncate(normalizedBody, limits.visibleText);
+  evidence.checks.body_text_tail = tail(normalizedBody, limits.bodyTail);
   evidence.checks.result_like_text = await collectResultLikeText(page);
   evidence.checks.numeric_candidates = collectNumericCandidates(normalizedBody);
   evidence.interactive_elements = await collectInteractiveElements(page);
   try {
     const snapshot = await page.locator('body').ariaSnapshot();
-    evidence.aria_snapshot = truncate(snapshot, 6000);
+    evidence.aria_snapshot = truncate(snapshot, limits.ariaSnapshot);
   } catch (err) {
     evidence.action_log.push(`aria_snapshot_failed: ${err.message}`);
   }
@@ -93,8 +109,8 @@ async function captureState(page) {
 async function collectInteractiveElements(page) {
   return await page
     .locator('button, a, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"]')
-    .evaluateAll((nodes) =>
-      nodes.slice(0, 120).map((node, index) => {
+    .evaluateAll((nodes, maxElements) =>
+      nodes.slice(0, maxElements).map((node, index) => {
         const el = node;
         const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
         const attrs = {};
@@ -110,14 +126,31 @@ async function collectInteractiveElements(page) {
           disabled: Boolean(el.disabled || el.getAttribute?.('aria-disabled') === 'true'),
         };
       })
-    )
+    , limits.interactiveElements)
     .catch(() => []);
+}
+
+async function firstVisibleLocator(locator, timeout) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const count = Math.min(await locator.count().catch(() => 0), 50);
+    for (let i = 0; i < count; i += 1) {
+      const candidate = locator.nth(i);
+      if (await candidate.isVisible({ timeout: 100 }).catch(() => false)) {
+        return candidate;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const first = locator.first();
+  await first.waitFor({ state: 'visible', timeout: 1 });
+  return first;
 }
 
 async function clickByText(page, step) {
   const text = step.text;
   const exact = !!step.exact;
-  const timeout = step.timeout ?? 15000;
+  const timeout = boundedTimeout(step.timeout, limits.actionTimeout);
   const roleCandidates = [
     page.getByRole('button', { name: text, exact }),
     page.getByRole('link', { name: text, exact }),
@@ -179,7 +212,7 @@ async function collectResultLikeText(page) {
       chunks.push(`${node.tagName ? node.tagName.toLowerCase() : 'node'}${attrs.length ? ` [${attrs.join(' ')}]` : ''}: ${text}`);
     }
     return chunks.join('\n');
-  }).then((text) => truncate(text, 6000)).catch(() => '');
+  }).then((text) => truncate(text, limits.resultLikeText)).catch(() => '');
 }
 
 function collectNumericCandidates(text) {
@@ -235,11 +268,11 @@ async function run() {
             await page
               .locator('button, a, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"]')
               .nth(step.index)
-              .click({ timeout: step.timeout ?? 15000 });
+              .click({ timeout: boundedTimeout(step.timeout, limits.actionTimeout) });
           } else if (step.selector) {
-            await page.locator(step.selector).first().click({ timeout: step.timeout ?? 15000 });
+            await page.locator(step.selector).first().click({ timeout: boundedTimeout(step.timeout, limits.actionTimeout) });
           } else if (step.role && step.name) {
-            await page.getByRole(step.role, { name: step.name }).click({ timeout: step.timeout ?? 15000 });
+            await page.getByRole(step.role, { name: step.name }).click({ timeout: boundedTimeout(step.timeout, limits.actionTimeout) });
           } else if (step.text) {
             await clickByText(page, step);
           } else {
@@ -254,7 +287,7 @@ async function run() {
           else if (step.placeholder) locator = page.getByPlaceholder(step.placeholder).first();
           else if (step.label) locator = page.getByLabel(step.label).first();
           else locator = page.locator('input, textarea').first();
-          await locator.fill(step.text ?? '', { timeout: step.timeout ?? 15000 });
+          await locator.fill(step.text ?? '', { timeout: boundedTimeout(step.timeout, limits.fillTimeout, limits.fillTimeout) });
           break;
         }
         case 'press': {
@@ -283,11 +316,40 @@ async function run() {
           const locator = step.selector
             ? page.locator(step.selector)
             : page.getByText(step.text, { exact: !!step.exact });
-          const matched = locator.first();
-          await matched.waitFor({ state: 'visible', timeout: step.timeout ?? 30000 });
+          const matched = await firstVisibleLocator(locator, boundedTimeout(step.timeout, 15000, limits.waitTimeout));
           evidence.checks[`wait_for_text:${step.text || step.selector}`] = true;
           evidence.checks[`wait_for_text:${step.text || step.selector}:matched_text`] = truncate(
             (await matched.innerText().catch(() => '')).replace(/\s+/g, ' ').trim(),
+            1200
+          );
+          await captureState(page);
+          break;
+        }
+        case 'wait_for_any_text': {
+          const texts = Array.isArray(step.texts) ? step.texts : [step.text].filter(Boolean);
+          if (!texts.length) throw new Error('wait_for_any_text requires text or texts');
+          const timeout = boundedTimeout(step.timeout, 15000, limits.waitTimeout);
+          const deadline = Date.now() + timeout;
+          let matchedText = null;
+          let matchedLocator = null;
+          while (Date.now() < deadline && !matchedLocator) {
+            for (const text of texts) {
+              const locator = step.selector
+                ? page.locator(step.selector).getByText(text, { exact: !!step.exact })
+                : page.getByText(text, { exact: !!step.exact });
+              const candidate = await firstVisibleLocator(locator, 250).catch(() => null);
+              if (candidate) {
+                matchedText = text;
+                matchedLocator = candidate;
+                break;
+              }
+            }
+            if (!matchedLocator) await page.waitForTimeout(250);
+          }
+          if (!matchedLocator) throw new Error(`Timed out waiting for any text: ${texts.join(' | ')}`);
+          evidence.checks[`wait_for_any_text:${texts.join('|')}`] = matchedText;
+          evidence.checks[`wait_for_any_text:${texts.join('|')}:matched_text`] = truncate(
+            (await matchedLocator.innerText().catch(() => '')).replace(/\s+/g, ' ').trim(),
             1200
           );
           await captureState(page);

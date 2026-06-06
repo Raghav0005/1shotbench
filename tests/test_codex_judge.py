@@ -7,6 +7,8 @@ from pathlib import Path
 from bench.codex_judge.runner import (
     CodexJudgeOptions,
     CodexJudgeRunner,
+    DEFAULT_CODEX_MODEL,
+    DEFAULT_CODEX_REASONING_EFFORT,
     _build_codex_exec_command,
     _codex_result_schema,
     _detect_forbidden_mutations,
@@ -72,8 +74,30 @@ class CodexJudgeMutationTests(unittest.TestCase):
             )
             self.assertEqual(command[:5], ["codex", "-a", "never", "--search", "exec"])
             self.assertNotIn("--ask-for-approval", command)
+            self.assertIn("--ignore-user-config", command)
+            self.assertIn("-c", command)
+            self.assertIn(f'model_reasoning_effort="{DEFAULT_CODEX_REASONING_EFFORT}"', command)
             self.assertIn("--sandbox", command)
             self.assertEqual(command[command.index("--sandbox") + 1], "danger-full-access")
+
+    def test_build_codex_command_uses_light_default_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            options = CodexJudgeOptions(
+                project_path=root / "app",
+                prd_path=root / "PRD.md",
+                codex_command="codex",
+            )
+            command = _build_codex_exec_command(
+                options=options,
+                judge_workspace=root / "judge",
+                root_dir=root,
+                schema_path=root / "schema.json",
+                final_path=root / "final.json",
+                prompt="judge this app",
+            )
+            self.assertIn("--model", command)
+            self.assertEqual(command[command.index("--model") + 1], DEFAULT_CODEX_MODEL)
 
     def test_keep_workspace_defaults_inside_eval_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,3 +152,13 @@ class CodexJudgeMutationTests(unittest.TestCase):
             self.assertIn(".agents/skills", prompt)
             self.assertIn("only to understand documented setup/runtime commands", prompt)
             self.assertIn("Do not inspect source code to determine whether a feature passes", prompt)
+            self.assertIn("Do not read app tests, e2e tests, or source files", prompt)
+            self.assertIn("Do not read or use user Codex plugin skills", prompt)
+            self.assertIn("MUST use the Playwright helper", prompt)
+            self.assertIn("Do not write ad-hoc Python or Node Playwright scripts", prompt)
+            self.assertIn("Do not run separate backend/evaluator smoke commands", prompt)
+            self.assertIn("generate at most 5", prompt)
+            self.assertIn("Do not rerun a successful end-to-end evaluation", prompt)
+            self.assertIn("Do not print full evidence JSON", prompt)
+            self.assertIn("at most 30s", prompt)
+            self.assertIn("wait_for_any_text", prompt)
