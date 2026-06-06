@@ -234,6 +234,48 @@ Artifacts are written to `evals/<eval_id>/`:
 
 Correctness is `passed / total * 100`; **uncertain** counts as not passed.
 
+## Codex Judge
+
+Pi Bench also supports a separate Codex-based judge. This path uses Codex CLI as the evaluator, runs it in a disposable copied workspace, and gives it a dedicated judging skill stored under `judge_skills/web_judge/`.
+
+Before using the Codex judge, make sure Codex CLI is installed and logged in:
+
+```sh
+codex login
+```
+
+If you are using a ChatGPT subscription-backed Codex login rather than API keys, this login step is required before `bench.codex_judge` can run successfully.
+
+Run the Codex judge with:
+
+```sh
+python3 -m bench.codex_judge \
+  --project experiments/evaluator/gpt-workspace \
+  --features experiments/evaluator/features.yaml \
+  --prd experiments/evaluator/PRD.md \
+  --label gpt-codex-judge
+```
+
+Or ask Codex to generate the features from the PRD:
+
+```sh
+python3 -m bench.codex_judge \
+  --project experiments/evaluator/gpt-workspace \
+  --prd experiments/evaluator/PRD.md \
+  --label gpt-codex-judge-generated
+```
+
+The Codex judge copies the coding agent workspace into a disposable judge workspace, uses the separate judging skill in `judge_skills/web_judge/`, and must act as an evaluator rather than a programmer. It may install dependencies and create temporary runtime artifacts inside the disposable copy, but it must not modify source-like app files to make the app pass.
+
+Useful options:
+
+- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
+- `--keep-judge-workspace` to preserve the disposable copy at `evals/<eval_id>/judge-workspace/`
+- `--judge-workspace-root path/to/root` to control where the disposable copy lives instead
+- `--codex-sandbox workspace-write` to override the default sandbox, though this may prevent local servers or Chromium from running
+- `--model <codex-model>` to choose the Codex model
+- `--search` to enable live web search for the judge if you explicitly want that mode
+
 ## CLI
 
 Run one prompt against multiple model workspaces:

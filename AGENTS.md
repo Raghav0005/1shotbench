@@ -28,7 +28,7 @@ Good patterns:
 Bad patterns:
 
 - modifying an agent workspace to satisfy a test
-- adding one-off code in `bench/web_eval` for a specific implementation
+- adding one-off code in `bench/llm_judge` or `bench/codex_judge` for a specific implementation
 - assuming one UI layout, port, filename, or dependency version unless documented by the PRD/README/manifest/skill context
 
 The ideal direction is a lightweight agentic judge loop that can discover how to run and evaluate an app from project-visible evidence while staying bounded in cost. Until then, balance flexibility with deterministic allowlists and clear artifacts.
