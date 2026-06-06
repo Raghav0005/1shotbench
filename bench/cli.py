@@ -14,7 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Pi agent benchmark runner")
     parser.add_argument("--prompt", help="Prompt text to run")
     parser.add_argument("--prompt-file", help="Read prompt from file path")
-    parser.add_argument("--task-dir", default=None, help="Task workspace directory, e.g. anserini-frontend")
+    parser.add_argument("--task-dir", default=None, help="Task workspace directory, e.g. experiments/frontend")
     parser.add_argument("--models", nargs="+", required=True, help="Model keys to run")
     parser.add_argument("--mode", choices=["sequential", "parallel"], default="parallel")
     parser.add_argument("--max-concurrency", type=int, default=2)

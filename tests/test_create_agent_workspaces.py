@@ -29,7 +29,10 @@ class CreateAgentWorkspacesTests(unittest.TestCase):
             text = bench_toml.read_text(encoding="utf-8")
             self.assertIn('provider = "deepseek"', text)
             self.assertIn('model = "deepseek-v4-pro"', text)
-            self.assertTrue((task_dir / "deepseek-workspace" / "PRD.md").is_symlink())
+            prd_copy = task_dir / "deepseek-workspace" / "PRD.md"
+            self.assertTrue(prd_copy.is_file())
+            self.assertFalse(prd_copy.is_symlink())
+            self.assertEqual(prd_copy.read_text(encoding="utf-8"), "Build the app.\n")
 
 
 if __name__ == "__main__":

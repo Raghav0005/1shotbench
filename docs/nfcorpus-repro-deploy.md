@@ -58,12 +58,12 @@ Keep this token private.
 Create one Render Web Service per model:
 
 ```text
-pi-bench-anserini-nfcorpus-gpt
-pi-bench-anserini-nfcorpus-claude
-pi-bench-anserini-nfcorpus-gemini
-pi-bench-anserini-nfcorpus-glm
-pi-bench-anserini-nfcorpus-kimi
-pi-bench-anserini-nfcorpus-minimax
+pi-bench-nfcorpus-repro-gpt
+pi-bench-nfcorpus-repro-claude
+pi-bench-nfcorpus-repro-gemini
+pi-bench-nfcorpus-repro-glm
+pi-bench-nfcorpus-repro-kimi
+pi-bench-nfcorpus-repro-minimax
 ```
 
 Use Render image-backed web services, not Git-backed services.
@@ -81,12 +81,12 @@ hooks after pushing images.
 The deployed NFCorpus services used the following public URLs:
 
 ```text
-https://pi-bench-anserini-nfcorpus-gpt.onrender.com
-https://pi-bench-anserini-nfcorpus-claude.onrender.com
-https://pi-bench-anserini-nfcorpus-gemini.onrender.com
-https://pi-bench-anserini-nfcorpus-glm.onrender.com
-https://pi-bench-anserini-nfcorpus-kimi.onrender.com
-https://pi-bench-anserini-nfcorpus-minimax.onrender.com
+https://pi-bench-nfcorpus-repro-gpt.onrender.com
+https://pi-bench-nfcorpus-repro-claude.onrender.com
+https://pi-bench-nfcorpus-repro-gemini.onrender.com
+https://pi-bench-nfcorpus-repro-glm.onrender.com
+https://pi-bench-nfcorpus-repro-kimi.onrender.com
+https://pi-bench-nfcorpus-repro-minimax.onrender.com
 ```
 
 For this run, moving the services from Render's starter/free-ish instance type
@@ -115,19 +115,19 @@ GHCR_USERNAME=YOUR_GITHUB_USERNAME
 GHCR_TOKEN=YOUR_GHCR_TOKEN
 GHCR_OWNER=YOUR_GITHUB_ORG_OR_USERNAME
 
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_GPT=https://api.render.com/deploy/srv-...
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_CLAUDE=https://api.render.com/deploy/srv-...
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_GEMINI=https://api.render.com/deploy/srv-...
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_GLM=https://api.render.com/deploy/srv-...
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_KIMI=https://api.render.com/deploy/srv-...
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_MINIMAX=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_GPT=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_CLAUDE=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_GEMINI=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_GLM=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_KIMI=https://api.render.com/deploy/srv-...
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_MINIMAX=https://api.render.com/deploy/srv-...
 
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_GPT=https://pi-bench-anserini-nfcorpus-gpt.onrender.com
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_CLAUDE=https://pi-bench-anserini-nfcorpus-claude.onrender.com
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_GEMINI=https://pi-bench-anserini-nfcorpus-gemini.onrender.com
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_GLM=https://pi-bench-anserini-nfcorpus-glm.onrender.com
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_KIMI=https://pi-bench-anserini-nfcorpus-kimi.onrender.com
-RENDER_SERVICE_URL_ANSERINI_NFCORPUS_MINIMAX=https://pi-bench-anserini-nfcorpus-minimax.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_GPT=https://pi-bench-nfcorpus-repro-gpt.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_CLAUDE=https://pi-bench-nfcorpus-repro-claude.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_GEMINI=https://pi-bench-nfcorpus-repro-gemini.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_GLM=https://pi-bench-nfcorpus-repro-glm.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_KIMI=https://pi-bench-nfcorpus-repro-kimi.onrender.com
+RENDER_SERVICE_URL_NFCORPUS_REPRO_MINIMAX=https://pi-bench-nfcorpus-repro-minimax.onrender.com
 EOF
 ```
 
@@ -156,11 +156,11 @@ python -m bench.deploy \
 This builds and pushes images like:
 
 ```text
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-claude:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-gemini:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-glm:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-kimi:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-minimax:20260604-195631-698d5dac
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-gemini:20260604-195631-698d5dac
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-glm:20260604-195631-698d5dac
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-kimi:20260604-195631-698d5dac
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac
 ```
 
 The harness may also build a GPT image for this run because it deploys every
@@ -178,7 +178,7 @@ python -m bench.deploy \
 This pushes the successful GPT image:
 
 ```text
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-gpt:20260604-202345-c2acbb5c
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-gpt:20260604-202345-c2acbb5c
 ```
 
 It also triggers the GPT Render deploy hook with that image URL.
@@ -233,8 +233,8 @@ service can report `/health` as ready while its internal Anserini RestServer is
 stuck. Example probe:
 
 ```sh
-curl -sS "https://pi-bench-anserini-nfcorpus-claude.onrender.com/api/search?q=diet&hits=10" | jq .
-curl -sS "https://pi-bench-anserini-nfcorpus-claude.onrender.com/api/search?q=Are%20Avocados%20Good%20for%20You%3F&hits=10" | jq .
+curl -sS "https://pi-bench-nfcorpus-repro-claude.onrender.com/api/search?q=diet&hits=10" | jq .
+curl -sS "https://pi-bench-nfcorpus-repro-claude.onrender.com/api/search?q=Are%20Avocados%20Good%20for%20You%3F&hits=10" | jq .
 ```
 
 Use a bounded client timeout when probing from scripts so one wedged service
@@ -261,7 +261,7 @@ Check that `GHCR_USERNAME` matches the token owner and that `GHCR_TOKEN` has
 The variable name must match the task and model:
 
 ```text
-RENDER_DEPLOY_HOOK_ANSERINI_NFCORPUS_<MODEL>
+RENDER_DEPLOY_HOOK_NFCORPUS_REPRO_<MODEL>
 ```
 
 where `<MODEL>` is one of:
@@ -280,7 +280,7 @@ MINIMAX
 Open the corresponding deployment stderr log. The build context is staged under:
 
 ```text
-runs/<run-id>/deploy-staging/pi-bench-anserini-nfcorpus-<model>/
+runs/<run-id>/deploy-staging/pi-bench-nfcorpus-repro-<model>/
 ```
 
 You can rerun the printed Docker build command manually from the repo root.
@@ -295,7 +295,7 @@ docker run --rm -p 18100:10000 \
   -e PORT=10000 \
   -e APP_CACHE_DIR=/data \
   -e ANSERINI_REST_PORT=18083 \
-  ghcr.io/<owner>/pi-bench-anserini-nfcorpus-claude:20260604-195631-698d5dac
+  ghcr.io/<owner>/pi-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
 
 curl -sS "http://127.0.0.1:18100/api/search?q=diet&hits=10" | jq .
 ```
@@ -329,7 +329,7 @@ benchmark workspace was not patched; the fix was applied in deployment staging
 and pushed as:
 
 ```text
-ghcr.io/<owner>/pi-bench-anserini-nfcorpus-minimax:20260604-195631-698d5dac-renderfix
+ghcr.io/<owner>/pi-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac-renderfix
 ```
 
 Even with that renderfix image, MiniMax still did not satisfy the full Anserini

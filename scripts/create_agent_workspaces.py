@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_TASK_DIR = "anserini-frontend"
+DEFAULT_TASK_DIR = "experiments/frontend"
 TASK_FILE_PATTERNS = ("PRD*.md", "TASK*.md", "task*.md", "prompt*.md")
 REQUIRED_SKILLS = [
     "install-anserini-fatjar",
@@ -91,19 +91,14 @@ def create_workspaces(task_dir: Path, force: bool) -> None:
             print(f"kept  {_display_path(config_path)}")
 
         for task_file in task_files:
-            link_path = workspace_dir / task_file.name
-            target = Path("..") / task_file.name
-            if link_path.is_symlink():
-                if link_path.readlink() != target:
-                    link_path.unlink()
-                    link_path.symlink_to(target)
-                    print(f"fixed {_display_path(link_path)} -> {target}")
-                continue
-            if link_path.exists():
-                print(f"skip  {_display_path(link_path)} exists")
-                continue
-            link_path.symlink_to(target)
-            print(f"link  {_display_path(link_path)} -> {target}")
+            copy_path = workspace_dir / task_file.name
+            if copy_path.exists() or copy_path.is_symlink():
+                if copy_path.is_dir():
+                    print(f"skip  {_display_path(copy_path)} is a directory")
+                    continue
+                copy_path.unlink()
+            copy_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"copy  {_display_path(copy_path)}")
 
 
 def build_parser() -> argparse.ArgumentParser:

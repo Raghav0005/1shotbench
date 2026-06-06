@@ -8,7 +8,7 @@ from bench.schemas import WorkspaceConfig
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_TASK_DIR_NAME = "anserini-frontend"
+DEFAULT_TASK_DIR_NAME = "experiments/frontend"
 RUNS_DIR = ROOT_DIR / "runs"
 WORKSPACE_CONFIG_NAME = "bench.toml"
 SHARED_TASK_GLOBS = ("PRD*.md", "TASK*.md", "task*.md", "prompt*.md")

@@ -24,10 +24,10 @@ from bench.deploy import (
 
 class DeployHarnessTests(unittest.TestCase):
     def test_slug_and_image_names_are_stable_and_safe(self) -> None:
-        self.assertEqual(project_slug_for("Anserini Frontend", "GPT++"), "pi-bench-anserini-frontend-gpt")
+        self.assertEqual(project_slug_for("frontend", "GPT++"), "pi-bench-frontend-gpt")
         self.assertEqual(
-            image_url_for("LilyJGE", "Anserini Frontend", "GPT++", "run 1"),
-            "ghcr.io/lilyjge/pi-bench-anserini-frontend-gpt:run-1",
+            image_url_for("LilyJGE", "frontend", "GPT++", "run 1"),
+            "ghcr.io/lilyjge/pi-bench-frontend-gpt:run-1",
         )
 
     def test_detects_nested_node_app_and_skips_generated_dirs(self) -> None:

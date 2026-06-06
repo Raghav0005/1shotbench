@@ -9,23 +9,26 @@ The old Codex proxy path has been removed. Each model now runs through the `pi` 
 Task workspaces live in task-specific directories. The current task is:
 
 ```text
-anserini-frontend/
-  PRDv2.md
-  gpt-workspace/
-    PRDv2.md -> ../PRDv2.md
-    bench.toml
-  claude-workspace/
-    PRDv2.md -> ../PRDv2.md
-    bench.toml
-  gemini-workspace/
-    PRDv2.md -> ../PRDv2.md
-    bench.toml
+experiments/
+  frontend/
+    PRD.md
+    gpt-workspace/
+      bench.toml
+    claude-workspace/
+      bench.toml
+    gemini-workspace/
+      bench.toml
 
-anserini-evaluator/
-  PRD-anserini-evaluator.md
-  gpt-workspace/
-    PRD-anserini-evaluator.md -> ../PRD-anserini-evaluator.md
-    bench.toml
+  evaluator/
+    PRD.md
+    features.yaml
+    gpt-workspace/
+      bench.toml
+
+  nfcorpus-repro/
+    PRD.md
+    gpt-workspace/
+      bench.toml
 ```
 
 Future benchmark tasks can live as sibling directories with the same `*-workspace/bench.toml` structure.
@@ -51,7 +54,7 @@ The runner executes Pi from the workspace directory with:
 pi --mode json --print --no-session --provider <provider> --model <model> [prompt]
 ```
 
-Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should live in the task directory, not the repo root. They are symlinked into every model workspace before each run. For example, `anserini-frontend/PRDv2.md` is available to every Anserini frontend agent as `./PRDv2.md` from inside its workspace.
+Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should live in the task directory, not the repo root. They are refreshed into every model workspace before each run. For example, `experiments/frontend/PRD.md` is available to every frontend agent as `./PRD.md` from inside its workspace.
 
 ## Workspace Isolation
 
@@ -65,7 +68,7 @@ This is workspace isolation, not a full container. Agents can still use allowed 
 
 Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated sandbox profile as a denied read/write path.
 
-Do not put benchmark instructions for Pi agents there. Use task-local files such as `anserini-frontend/PRDv2.md` for agent-visible task prompts.
+Do not put benchmark instructions for Pi agents there. Use task-local files such as `experiments/frontend/PRD.md` for agent-visible task prompts.
 
 ## Pi Auth And Keys
 
@@ -152,7 +155,7 @@ Preflight fails if any declared `required_skills` are missing from `.agents/skil
 Create or refresh the standard model workspace folders for a task with:
 
 ```sh
-python scripts/create_agent_workspaces.py anserini-frontend
+python scripts/create_agent_workspaces.py experiments/frontend
 ```
 
 By default, the script creates:
@@ -164,18 +167,18 @@ By default, the script creates:
 - `kimi-workspace`
 - `minimax-workspace`
 
-It writes missing `bench.toml` files using the current benchmark defaults and symlinks task-local files such as `PRDv2.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
+It writes missing `bench.toml` files using the current benchmark defaults and copies task-local files such as `PRD.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
 
 Run a non-default task directory with:
 
 ```sh
-python -m bench.cli --task-dir anserini-frontend --prompt "..." --models gpt claude
+python -m bench.cli --task-dir experiments/frontend --prompt "..." --models gpt claude
 ```
 
-The web server uses `anserini-frontend` by default. To point it at another sibling task directory:
+The web server uses `experiments/frontend` by default. To point it at another sibling task directory:
 
 ```sh
-PI_BENCH_TASK_DIR=other-task uvicorn bench.web:app --port 4010
+PI_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010
 ```
 
 ## Web app feature evaluation
@@ -193,9 +196,9 @@ Run a full evaluation with a curated feature file:
 
 ```sh
 python3 -m bench.web_eval \
-  --project anserini-evaluator/gpt-workspace \
-  --features anserini-evaluator/features.yaml \
-  --prd anserini-evaluator/PRD-anserini-evaluator.md \
+  --project experiments/evaluator/gpt-workspace \
+  --features experiments/evaluator/features.yaml \
+  --prd experiments/evaluator/PRD.md \
   --label gpt-evaluator
 ```
 
@@ -203,8 +206,8 @@ Or generate the feature file from the PRD at evaluation time:
 
 ```sh
 python3 -m bench.web_eval \
-  --project anserini-evaluator/gpt-workspace \
-  --prd anserini-evaluator/PRD-anserini-evaluator.md \
+  --project experiments/evaluator/gpt-workspace \
+  --prd experiments/evaluator/PRD.md \
   --label gpt-evaluator-generated
 ```
 
@@ -242,12 +245,12 @@ python -m bench.cli --prompt "Your task prompt" --models gpt claude gemini
 Or read the prompt from a file:
 
 ```sh
-python -m bench.cli --task-dir anserini-frontend --prompt-file anserini-frontend/PRDv2.md --models gpt claude gemini glm kimi minimax
+python -m bench.cli --task-dir experiments/frontend --prompt-file experiments/frontend/PRD.md --models gpt claude gemini glm kimi minimax
 ```
 
 Useful options:
 
-- `--task-dir anserini-frontend`
+- `--task-dir experiments/frontend`
 - `--prompt-file path/to/prompt.txt`
 - `--mode sequential|parallel`
 - `--max-concurrency 2`
@@ -262,9 +265,9 @@ Useful options:
 The CLI flow is:
 
 1. It reads the prompt from `--prompt` or `--prompt-file`.
-2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `anserini-frontend`.
+2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `experiments/frontend`.
 3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, a sandbox backend (`sandbox-exec` or `bwrap`), and any declared `required_skills`.
-4. It symlinks task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
+4. It refreshes task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
 5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
 6. For each selected model, it first asks that same model to rewrite the shared task file(s) into a neutral equivalent restatement. The runner validates those rewritten files, stores copies under the run artifacts, and replaces the workspace-local task files before implementation starts. This keeps the implementation run from using wording that may advantage the model that originally authored the PRD.
 7. It starts one implementation Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
@@ -285,7 +288,7 @@ becomes:
 pi --mode json --print --no-session --provider anthropic --model claude-opus-4-7 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
 ```
 
-The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRDv2.md` or `./PRD-anserini-evaluator.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
+The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRD.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
 
 On macOS, each subprocess is wrapped with `sandbox-exec`. On Linux, each subprocess is wrapped with `bwrap`. The generated sandbox profile denies reads and writes to the other configured model workspaces plus `.codex-private/`.
 
@@ -331,7 +334,7 @@ python -m bench.deploy --run-id <run_id> --provider render
 Or deploy automatically after a CLI benchmark:
 
 ```sh
-python -m bench.cli --task-dir anserini-frontend --prompt-file anserini-frontend/PRD.md --models gpt claude --deploy render
+python -m bench.cli --task-dir experiments/frontend --prompt-file experiments/frontend/PRD.md --models gpt claude --deploy render
 ```
 
 Pi Bench deploys demos as Docker images for Render image-backed web services. For each attempted model, the harness stages the workspace under `runs/<run_id>/deploy-staging/`, uses an existing Dockerfile when present, or generates a generic Dockerfile for runnable Node/Next/Express or Python `server.py` apps. Unsupported or failed deployments still get `<model>/deployment.json` so the public demo table can show what happened.
@@ -350,8 +353,8 @@ cat > .codex-private/render.env <<'EOF'
 GHCR_USERNAME=...
 GHCR_TOKEN=...
 GHCR_OWNER=...
-RENDER_DEPLOY_HOOK_ANSERINI_FRONTEND_GPT=https://api.render.com/deploy/srv-...
-RENDER_SERVICE_URL_ANSERINI_FRONTEND_GPT=https://your-demo.onrender.com
+RENDER_DEPLOY_HOOK_FRONTEND_GPT=https://api.render.com/deploy/srv-...
+RENDER_SERVICE_URL_FRONTEND_GPT=https://your-demo.onrender.com
 EOF
 ```
 

@@ -1,2 +1,0 @@
-SLF4J(I): Connected with provider of type [org.apache.logging.slf4j.SLF4JServiceProvider]
-Error: Port already in use. Make sure no other process is using port 8080 and try again.

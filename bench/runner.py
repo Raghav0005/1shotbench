@@ -139,12 +139,12 @@ class BenchmarkRunner:
             if not workspace_path.exists():
                 continue
             for task_file in task_files:
-                link_path = workspace_path / task_file.name
-                if link_path.exists():
-                    if link_path.is_dir():
+                workspace_task_path = workspace_path / task_file.name
+                if workspace_task_path.exists():
+                    if workspace_task_path.is_dir():
                         continue
-                    link_path.unlink()
-                link_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
+                    workspace_task_path.unlink()
+                workspace_task_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _task_dir(self) -> Path | None:
         parents = {
