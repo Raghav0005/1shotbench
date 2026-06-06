@@ -2,442 +2,32 @@
 
 1ShotBench runs the same task prompt through multiple Pi agent workspaces so you can compare how different models behave under the same harness.
 
-The old Codex proxy path has been removed. Each model now runs through the `pi` CLI directly, using a small `bench.toml` file inside its workspace.
+The old Codex proxy path has been removed. Implementation agents now run through the `pi` CLI directly, using a small `bench.toml` file inside each model workspace.
 
-## Workspace Layout
+## Quick Start
 
-Task workspaces live in task-specific directories. The current task is:
-
-```text
-experiments/
-  frontend/
-    PRD.md
-    gpt-workspace/
-      bench.toml
-    claude-workspace/
-      bench.toml
-    gemini-workspace/
-      bench.toml
-
-  evaluator/
-    PRD.md
-    features.yaml
-    gpt-workspace/
-      bench.toml
-
-  nfcorpus-repro/
-    PRD.md
-    gpt-workspace/
-      bench.toml
-```
-
-Future benchmark tasks can live as sibling directories with the same `*-workspace/bench.toml` structure.
-
-Each workspace config supports:
-
-```toml
-name = "GPT workspace"
-provider = "openai-codex"
-model = "gpt-5.5"
-thinking = "high"
-tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
-required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]
-
-# Optional:
-# system_prompt = "Custom system prompt"
-# append_system_prompt = ["extra instructions", "path/to/file.md"]
-```
-
-The runner executes Pi from the workspace directory with:
-
-```text
-pi --mode json --print --no-session --provider <provider> --model <model> [prompt]
-```
-
-Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should live in the task directory, not the repo root. They are refreshed into every model workspace before each run. For example, `experiments/frontend/PRD.md` is available to every frontend agent as `./PRD.md` from inside its workspace.
-
-## Workspace Isolation
-
-1ShotBench runs each model from its own workspace directory and wraps each Pi subprocess in a platform sandbox. On macOS it uses `sandbox-exec`; on Linux it uses `bwrap` (bubblewrap). The sandbox allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
-
-That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces for the same task. Preflight fails if neither `sandbox-exec` nor a functional `bwrap` is available, because that isolation cannot be enforced.
-
-This is workspace isolation, not a full container. Agents can still use allowed tools and the network according to the host environment and Pi configuration.
-
-## Codex-Private Notes
-
-Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and 1ShotBench adds it to every generated sandbox profile as a denied read/write path.
-
-Do not put benchmark instructions for Pi agents there. Use task-local files such as `experiments/frontend/PRD.md` for agent-visible task prompts.
-
-## Pi Auth And Keys
-
-Pi supports subscription logins and API-key providers.
-
-For subscriptions, run Pi interactively and use `/login`:
+Install the Python dependencies:
 
 ```sh
-pi
-# then type /login and choose ChatGPT Plus/Pro (Codex), Claude Pro/Max, or GitHub Copilot
+pip install -r requirements.txt
 ```
 
-Pi stores login credentials in:
-
-```text
-~/.pi/agent/auth.json
-```
-
-For API keys, either use Pi's `/login` flow and choose the provider, edit `~/.pi/agent/auth.json`, export environment variables in your shell, or put them in this project's gitignored `.env` file. 1ShotBench loads `.env` before starting each agent process.
-
-Common `.env` entries:
-
-```sh
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-ZAI_API_KEY=...
-MINIMAX_API_KEY=...
-MOONSHOT_API_KEY=...
-KIMI_API_KEY=...
-```
-
-Auth file example:
-
-```json
-{
-  "anthropic": { "type": "api_key", "key": "sk-ant-..." },
-  "openai": { "type": "api_key", "key": "sk-..." },
-  "google": { "type": "api_key", "key": "..." },
-  "zai": { "type": "api_key", "key": "..." },
-  "minimax": { "type": "api_key", "key": "..." },
-  "moonshotai": { "type": "api_key", "key": "..." }
-}
-```
-
-Pi resolves credentials from `~/.pi/agent/auth.json` before environment variables. The `key` value in `auth.json` can also name an environment variable or start with `!` to run a shell command such as a password-manager lookup.
-
-## Skills And Web Access
-
-Pi's built-in tools are coding tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, and `ls`. The Pi CLI help for version `0.75.1` does not list a built-in web-search tool. Agents can still use `bash` for commands and skill installers when network access is available, and Pi supports installing packages with:
-
-```sh
-pi install <source>
-```
-
-The Anserini task PRDs ask the agent to use the public `anserini-fatjar` skill and to install it automatically if it is missing and the source is reachable. For fully reproducible runs, preinstall the same skill for every model before benchmarking, or include the exact install source in the task prompt.
-
-Preinstalling skills is usually the fairer benchmark setup. It removes skill discovery, installation time, network variability, and “who found the right package first?” from the model comparison. Letting agents install missing skills is useful for testing agent autonomy, but it changes the benchmark from task implementation to task implementation plus environment bootstrap.
-
-## Benchmark Tracks
-
-The default track is a prepared-environment benchmark. Required task skills and docs are installed before the run, and preflight fails if they are missing. This keeps the comparison focused on whether each model can use the same resources to complete the same implementation task.
-
-A future bootstrap/autonomy track should evaluate skill discovery separately. In that mode, agents would start without the Anserini skills, receive the same web-search or package-discovery capability, and be scored on whether they can find, install, and correctly use the relevant skills before implementing the app.
-
-Keep these tracks separate in run labels and result tables. Mixing them would confound implementation quality with web search, network reliability, package installation, and documentation discovery.
-
-For the current Anserini PRD, preinstall the Anserini skill set into the project before running:
-
-```sh
-scripts/install_anserini_skills.sh
-```
-
-This copies Anserini's `.agents/skills` directory into this repo's `.agents/skills`. Pi discovers `.agents/skills` from the current workspace and ancestor directories, so every model workspace sees the same local copies. The workspace configs declare these required skills:
-
-- `install-anserini-fatjar`
-- `anserini-cli`
-- `anserini-reproduction`
-
-Preflight fails if any declared `required_skills` are missing from `.agents/skills`, `.pi/skills`, `~/.pi/agent/skills`, or `~/.agents/skills`.
-
-## Creating Workspaces
-
-Create or refresh the standard model workspace folders for a task with:
+Create or refresh model workspaces for a task:
 
 ```sh
 python scripts/create_agent_workspaces.py experiments/frontend
 ```
 
-By default, the script creates:
-
-- `gpt-workspace`
-- `claude-workspace`
-- `gemini-workspace`
-- `deepseek-workspace`
-- `glm-workspace`
-- `kimi-workspace`
-- `minimax-workspace`
-- `mimo-workspace`
-
-It writes missing `bench.toml` files using the current benchmark defaults and copies task-local files such as `PRD.md` into each workspace. It does not overwrite existing `bench.toml` files unless you pass `--force`.
-
-Run a non-default task directory with:
+Run a benchmark:
 
 ```sh
-python -m bench.cli --task-dir experiments/frontend --prompt "..." --models gpt claude
+python -m bench.cli \
+  --task-dir experiments/frontend \
+  --prompt-file experiments/frontend/PRD.md \
+  --models gpt claude gemini
 ```
 
-The web server opens on `experiments/frontend` by default, and the dashboard lets you switch between discovered experiment directories such as `experiments/frontend`, `experiments/evaluator`, and `experiments/nfcorpus-repro` without restarting the server. You can still pin the initial directory from the shell:
-
-```sh
-ONESHOT_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010
-```
-
-## LLM Judge
-
-Judge agent-built web apps with PRD-derived feature checks, Playwright evidence, and an LLM judge. The evaluator can either read a checked-in `features.yaml` or ask the judge model to generate feature checks from the PRD before running the browser layer.
-
-One-time setup for the browser layer:
-
-```sh
-cd bench/llm_judge && npm install && npx playwright install chromium
-pip install -r requirements.txt
-```
-
-Run a full evaluation with a curated feature file:
-
-```sh
-python3 -m bench.llm_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --features experiments/evaluator/features.yaml \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-evaluator
-```
-
-Or generate the feature file from the PRD at evaluation time:
-
-```sh
-python3 -m bench.llm_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-evaluator-generated
-```
-
-Before starting the app, the evaluator builds setup context from the PRD, implementation README files, manifests, and any repo-local skills referenced there. The judge model can propose concrete setup commands from that context. The runner then executes only general allowlisted setup commands, such as package installs, project-local setup scripts, explicit environment assignments, downloads with project-local output paths, and smoke-check commands. There are no task-specific installers in `llm_judge`; skipped commands are recorded with a reason.
-
-For each feature, the browser layer first runs the scripted evidence steps, captures page text, ARIA, screenshots, errors, and visible interactive elements, then optionally asks the judge model for a short follow-up browser plan. This lightweight agentic pass helps avoid false negatives when the UI uses different labels or layouts. The final verdict receives the collected browser evidence plus setup context/results, but it must still judge from evidence rather than assume success.
-
-Useful options:
-
-- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
-- `--dry-run` to skip LLM calls for judging/planning/generation where possible
-- `--judge-model` or env `WEB_EVAL_JUDGE_MODEL`
-- `--setup never` to skip README setup commands
-- `--no-agentic-evidence` to use only scripted Playwright steps
-- `--max-generated-features 8` to cap PRD-generated feature checks
-
-Artifacts are written to `evals/<eval_id>/`:
-
-- `summary.json`, `report.md`, `run.json`, `setup.json`, `setup-context.json`
-- `generated-features.yaml` when `--features` is omitted
-- `evidence/<feature>.json` plus raw scripted/agentic browser packets
-- `judgments/<feature>.json`
-- `screenshots/` and `jobs/` (browser layer)
-
-Correctness is `passed / total * 100`; **uncertain** counts as not passed.
-
-## Codex Judge
-
-1ShotBench also supports a separate Codex-based judge. This path uses Codex CLI as the evaluator, runs it in a disposable copied workspace, and gives it a dedicated judging skill stored under `judge_skills/web_judge/`.
-
-Before using the Codex judge, make sure Codex CLI is installed and logged in:
-
-```sh
-codex login
-```
-
-If you are using a ChatGPT subscription-backed Codex login rather than API keys, this login step is required before `bench.codex_judge` can run successfully.
-
-Run the Codex judge with:
-
-```sh
-python3 -m bench.codex_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --features experiments/evaluator/features.yaml \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-codex-judge
-```
-
-Or ask Codex to generate the features from the PRD:
-
-```sh
-python3 -m bench.codex_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-codex-judge-generated
-```
-
-The Codex judge copies the coding agent workspace into a disposable judge workspace, uses the separate judging skill in `judge_skills/web_judge/`, and must act as an evaluator rather than a programmer. It may install dependencies and create temporary runtime artifacts inside the disposable copy, but it must not modify source-like app files to make the app pass.
-
-Useful options:
-
-- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
-- `--keep-judge-workspace` to preserve the disposable copy at `evals/<eval_id>/judge-workspace/`
-- `--judge-workspace-root path/to/root` to control where the disposable copy lives instead
-- `--codex-sandbox workspace-write` to override the default sandbox, though this may prevent local servers or Chromium from running
-- `--model <codex-model>` to choose the Codex model
-- `--search` to enable live web search for the judge if you explicitly want that mode
-
-## Pi Judge
-
-1ShotBench also supports a Pi-based judge. This path mirrors the Codex judge flow: it copies the coding agent workspace into a disposable judge workspace, gives Pi the dedicated judging skill in `judge_skills/web_judge/`, and writes the same `evals/<eval_id>/` artifacts.
-
-Run the Pi judge with:
-
-```sh
-python3 -m bench.pi_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --features experiments/evaluator/features.yaml \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-pi-judge
-```
-
-Or ask Pi to generate the features from the PRD:
-
-```sh
-python3 -m bench.pi_judge \
-  --project experiments/evaluator/gpt-workspace \
-  --prd experiments/evaluator/PRD.md \
-  --label gpt-pi-judge-generated
-```
-
-Useful options:
-
-- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
-- `--keep-judge-workspace` to preserve the disposable copy at `evals/<eval_id>/judge-workspace/`
-- `--judge-workspace-root path/to/root` to control where the disposable copy lives instead
-- `--provider <pi-provider>` and `--model <pi-model>` to choose the Pi judge backend
-- `--thinking <level>`, `--system-prompt`, `--append-system-prompt`, and `--tools read,bash,edit,write,grep,find,ls` to control Pi CLI options
-
-## CLI
-
-Run one prompt against multiple model workspaces:
-
-```sh
-python -m bench.cli --prompt "Your task prompt" --models gpt claude gemini
-```
-
-Or read the prompt from a file:
-
-```sh
-python -m bench.cli --task-dir experiments/frontend --prompt-file experiments/frontend/PRD.md --models gpt claude gemini glm kimi minimax
-```
-
-Useful options:
-
-- `--task-dir experiments/frontend`
-- `--prompt-file path/to/prompt.txt`
-- `--mode sequential|parallel`
-- `--max-concurrency 2`
-- `--timeout-seconds 1800` or `--timeout-seconds 0` for no per-model timeout
-- `--retries 1`
-- `--warmup`
-- `--label e2e-bench-1`
-- `--no-task-rewrite` to skip the default per-model task file rewrite
-- `--rewrite-timeout-seconds 600`
-- `--deploy render` to deploy demos as Render image-backed web services after the benchmark run
-
-The CLI flow is:
-
-1. It reads the prompt from `--prompt` or `--prompt-file`.
-2. It loads `*-workspace/bench.toml` files from `--task-dir`, `ONESHOT_BENCH_TASK_DIR`, or the default `experiments/frontend`.
-3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, a sandbox backend (`sandbox-exec` or `bwrap`), and any declared `required_skills`.
-4. It refreshes task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
-5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
-6. For each selected model, it first asks that same model to rewrite the shared task file(s) into a neutral equivalent restatement. The runner validates those rewritten files, stores copies under the run artifacts, and replaces the workspace-local task files before implementation starts. This keeps the implementation run from using wording that may advantage the model that originally authored the PRD.
-7. It starts one implementation Pi subprocess per selected workspace, either sequentially or in parallel with `--max-concurrency`.
-8. It writes per-model logs and a combined summary when the run finishes.
-
-For each selected model, `bench.toml` is converted into Pi CLI flags. This config:
-
-```toml
-provider = "anthropic"
-model = "claude-opus-4-7"
-thinking = "high"
-tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
-```
-
-becomes:
-
-```text
-pi --mode json --print --no-session --provider anthropic --model claude-opus-4-7 --thinking high --tools read,bash,edit,write,grep,find,ls <prompt>
-```
-
-The runner sets the subprocess working directory to that model's workspace, so task files such as `./PRD.md` and any files the agent creates are local to that model. It also loads this project's `.env` into the subprocess environment before launching Pi.
-
-On macOS, each subprocess is wrapped with `sandbox-exec`. On Linux, each subprocess is wrapped with `bwrap`. The generated sandbox profile denies reads and writes to the other configured model workspaces plus `.codex-private/`.
-
-Artifacts are written to:
-
-```text
-runs/<run_id>/
-```
-
-Each run includes:
-
-- `prompt.txt`: the prompt used for the run
-- `<model>/stdout.log`: readable assistant output and tool markers
-- `<model>/stderr.log`: Pi stderr
-- `<model>/events.jsonl`: raw Pi JSON events
-- `<model>/task-rewrite.json`: status, command metadata, and paths for the per-model task rewrite
-- `<model>/task-rewrite.stdout.log`: raw Pi JSON output from the rewrite step
-- `<model>/task-rewrite.stderr.log`: Pi stderr from the rewrite step
-- `<model>/rewritten-task-files/`: copies of the rewritten task files used by the implementation step
-- `<model>/result.json`: status, timing, command, paths, attempts, and token metrics for that model
-- `<model>/workspace.sb`: generated macOS sandbox profile (when using `sandbox-exec`)
-- `<model>/workspace.bwrap.json`: generated Linux sandbox command metadata (when using `bwrap`)
-- `<model>/deployment.json`: status, preview URL, source paths, Docker image URL, and redacted command metadata for Render deployment
-- `<model>/deployment.stdout.log` and `<model>/deployment.stderr.log`: Docker and Render deploy-hook output with GHCR tokens and deploy-hook secrets redacted
-- `deployments.json`: aggregate deployment results for every attempted model
-- `deploy-staging/`: copied workspaces used for Docker builds; agent workspaces are not edited
-- `summary.json`: full machine-readable benchmark summary
-- `summary.csv`: compact table for spreadsheets
-- `summary.md`: compact Markdown summary
-
-Statuses are process-level statuses. `completed` means Pi exited with code `0`; `failed` means a non-zero exit; `timeout` means the process exceeded `--timeout-seconds`. `--retries` reruns only failed or timed-out model subprocesses, and the final artifact files contain the last attempt's logs.
-
-`--warmup` performs a short, unreported pre-run for each selected model before the measured run. Warmup logs are saved as `warmup.*` files inside each model artifact directory, but the benchmark summary uses the measured run.
-
-## Render Docker Deployments
-
-Deploy benchmark demos after a run with:
-
-```sh
-python -m bench.deploy --run-id <run_id> --provider render
-```
-
-Or deploy automatically after a CLI benchmark:
-
-```sh
-python -m bench.cli --task-dir experiments/frontend --prompt-file experiments/frontend/PRD.md --models gpt claude --deploy render
-```
-
-1ShotBench deploys demos as Docker images for Render image-backed web services. For each attempted model, the harness stages the workspace under `runs/<run_id>/deploy-staging/`, uses an existing Dockerfile when present, or generates a generic Dockerfile for runnable Node/Next/Express or Python `server.py` apps. Unsupported or failed deployments still get `<model>/deployment.json` so the public demo table can show what happened.
-
-One-time Render setup:
-
-1. Create a Render web service for each task/model demo as an image-backed service.
-2. Attach a GitHub Container Registry credential in Render so it can pull GHCR images.
-3. Copy each service's deploy hook URL into `.codex-private/render.env`.
-
-Configure GHCR and Render secrets outside the agent environment:
-
-```sh
-mkdir -p .codex-private
-cat > .codex-private/render.env <<'EOF'
-GHCR_USERNAME=...
-GHCR_TOKEN=...
-GHCR_OWNER=...
-RENDER_DEPLOY_HOOK_FRONTEND_GPT=https://api.render.com/deploy/srv-...
-RENDER_SERVICE_URL_FRONTEND_GPT=https://your-demo.onrender.com
-EOF
-```
-
-Do not put `GHCR_TOKEN` or Render deploy hooks in this repo's `.env`; `.env` is passed to benchmark agents. The deploy harness also accepts these values from the shell environment. It builds Docker images for `linux/amd64`, pushes them to `ghcr.io/<owner>/1shot-bench-<task>-<model>:<run_id>`, and triggers each Render deploy hook with `imgURL=<encoded-image-url>`. Render web services must bind to `0.0.0.0` and the expected `$PORT`; generated Dockerfiles set sensible defaults, but agent-built apps still need to honor `PORT` for live demos. See Render's docs for [Docker](https://render.com/docs/docker), [prebuilt image deploys](https://render.com/docs/deploying-an-image), [deploy hooks](https://render.com/docs/deploy-hooks), and [web services](https://render.com/docs/web-services).
-
-## Web UI
-
-Start the GUI server:
+Start the local dashboard:
 
 ```sh
 uvicorn bench.web:app --port 4010
@@ -449,30 +39,51 @@ Open:
 http://127.0.0.1:4010
 ```
 
-The UI can:
+## Current Layout
 
-- pick configured model workspaces
-- run models sequentially or in parallel
-- stream stdout/stderr side by side
-- show final duration and any parsed token metrics
-- load recent run history
+Task workspaces live under `experiments/`:
 
-## Metrics
+```text
+experiments/
+  frontend/
+    PRD.md
+    features.yaml
+    gpt-workspace/
+      bench.toml
+    claude-workspace/
+      bench.toml
+    gemini-workspace/
+      bench.toml
 
-1ShotBench records wall-clock duration and process status for every model. New runs execute Pi in JSON event mode and parse final assistant `usage` fields from `message_end` events. Raw Pi events are saved per model as `events.jsonl`, while readable output remains in `stdout.log`.
+  evaluator/
+    PRD.md
+    features.yaml
 
-Older runs made before JSON event parsing may show zero token and cost fields because they were run with `--no-session` and text output did not include usage.
-
-## Requirements
-
-- Python 3.11+
-- Pi coding agent available on `PATH`
-- workspace sandbox support: `sandbox-exec` on macOS or `bwrap` (bubblewrap) on Linux
-- provider API keys configured for the models you run
-- any task-specific Pi skills installed or installable by the agent. The current Anserini PRDs ask agents to use an `anserini-fatjar` skill.
-
-Install Python server dependencies:
-
-```sh
-pip install -r requirements.txt
+  nfcorpus-repro/
+    PRD.md
 ```
+
+Future benchmark tasks can live as sibling directories with the same `*-workspace/bench.toml` structure.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md): requirements, Pi auth, API keys, and task skills.
+- [Workspaces](docs/workspaces.md): workspace layout, `bench.toml`, task files, isolation, and workspace creation.
+- [Running Benchmarks](docs/running-benchmarks.md): CLI usage, dashboard, run flow, artifacts, and metrics.
+- [Judging Runs](docs/judging.md): LLM judge, Codex judge, Pi judge, feature generation, and evaluation artifacts.
+- [Deployments](docs/deployments.md): generic Render/GHCR deployment flow for benchmark demos.
+- [NFCorpus Render Runbook](docs/nfcorpus-repro-deploy.md): task-specific deployment notes for the NFCorpus reproduction demos.
+
+## Important Project Rules
+
+Directories named `*-workspace/` contain one-shot benchmark implementations. Treat them as benchmark specimens. Do not patch agent implementation files after a run unless you explicitly intend to modify that workspace.
+
+For judging and evaluation, prefer general harness improvements over app-specific fixes. If an implementation works manually but a judge reports failure, inspect the evaluation artifacts before changing code.
+
+Useful artifact paths:
+
+```text
+runs/<run_id>/
+evals/<eval_id>/
+```
+

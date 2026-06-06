@@ -64,6 +64,10 @@ For each feature:
 - Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
 - Start app servers in the background only if they remain reachable after the startup command exits. Write logs/PIDs under the temporary work directory or app runtime output directories.
 - In Codex `exec`, background children may be cleaned up when the shell command finishes. If the log says the server started but the next command gets connection refused, do not treat that as an app failure yet: run the documented server command as a long-lived foreground exec command, leave that command running, and gather browser evidence from a separate command.
+- If the default or feature-file port is occupied, do not evaluate the unrelated existing listener. Start the delivered app on an alternate free local port using documented environment variables such as `PORT`, then use that URL in evidence and final `base_url`.
+- After switching ports, verify that the delivered app actually bound to the alternate port, for example by checking its startup log/PID and page identity. A successful `curl` to an alternate port is not enough if there is no evidence that listener belongs to the app under `./app`.
+- If the workspace root has no runnable manifest but a README or manifest in a nested app directory documents startup such as `cd app && npm start`, run from that documented nested app directory.
+- If a required runtime artifact such as a jar was downloaded but the app still reports it missing, try the documented or conventional app-local artifact location before failing. Prefer symlinking or copying the downloaded artifact into `./app` over changing source files.
 - For negative/error-path tests, use one bounded setup variation when available. If no browser-observable failure path is easy to trigger, mark the feature `uncertain` rather than spending repeated attempts.
 
 ## Verdict Guidance
