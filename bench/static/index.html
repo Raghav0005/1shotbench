@@ -511,6 +511,10 @@
               <span id="experimentHint">Loading</span>
             </div>
             <div class="experiment-tabs" id="experiments"></div>
+            <div class="button-row">
+              <button class="secondary" id="initWorkspaces" type="button">Initialize Workspaces</button>
+              <span class="run-note" id="workspaceHint"></span>
+            </div>
           </section>
 
           <section class="fieldset">
@@ -635,6 +639,8 @@
       const historyDiv = el("history");
       const liveHint = el("liveHint");
       const taskFileSelect = el("taskFile");
+      const initWorkspacesButton = el("initWorkspaces");
+      const workspaceHint = el("workspaceHint");
       const metricExperiment = el("metricExperiment");
       const metricModels = el("metricModels");
       const metricCompleted = el("metricCompleted");
@@ -752,10 +758,21 @@
         const exp = experiments.find((item) => item.path === taskDir) || { name: taskDir, path: taskDir };
         metricExperiment.textContent = experimentLabel(exp);
         el("experimentHint").textContent = exp.path || taskDir;
+        workspaceHint.textContent = `${exp.model_count || 0} models, ${exp.task_file_count || 0} task files`;
         renderExperiments();
         await loadModels();
         await loadTaskFiles(shouldReset);
         if (shouldReset) resetLive();
+      }
+
+      async function refreshExperiments(selectedTaskDir = currentTaskDir) {
+        const res = await fetch("/api/experiments");
+        experiments = await res.json();
+        currentTaskDir = experiments.some((exp) => exp.path === selectedTaskDir)
+          ? selectedTaskDir
+          : ((experiments.find((exp) => exp.is_default) || experiments[0] || {}).path || "experiments/frontend");
+        renderExperiments();
+        await changeExperiment(currentTaskDir, false);
       }
 
       async function loadModels() {
@@ -945,6 +962,26 @@
       };
 
       el("refreshHistory").onclick = loadHistory;
+      initWorkspacesButton.onclick = async () => {
+        if (!currentTaskDir) return;
+        initWorkspacesButton.disabled = true;
+        workspaceHint.textContent = `Initializing ${currentTaskDir}`;
+        const res = await fetch("/api/workspaces/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_dir: currentTaskDir })
+        });
+        if (!res.ok) {
+          setStatus("Workspace initialization failed", "failed");
+          workspaceHint.textContent = await res.text();
+          initWorkspacesButton.disabled = false;
+          return;
+        }
+        const data = await res.json();
+        await refreshExperiments(data.task_dir);
+        workspaceHint.textContent = `Initialized ${data.model_count} models, ${data.task_file_count} task files`;
+        initWorkspacesButton.disabled = false;
+      };
       window.addEventListener("resize", applyGridColumns);
 
       el("start").onclick = async () => {
