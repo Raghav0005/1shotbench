@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bench.web_eval.schemas import EvidencePacket, FeatureJudgment, WebEvalSummary
+from bench.llm_judge.schemas import EvidencePacket, FeatureJudgment, WebEvalSummary
 
 
 def write_artifacts(
@@ -36,8 +36,9 @@ def write_artifacts(
 
 
 def render_markdown(summary: WebEvalSummary, output_dir: Path) -> str:
+    title = "Codex Judge Report" if (summary.judge_model or "").startswith("codex:") else "LLM Judge Report"
     lines = [
-        f"# Web Eval Report: {summary.label}",
+        f"# {title}: {summary.label}",
         "",
         f"- **Eval ID:** `{summary.eval_id}`",
         f"- **Project:** `{summary.project_path}`",

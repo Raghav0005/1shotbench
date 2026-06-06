@@ -6,12 +6,12 @@ import sys
 from pathlib import Path
 
 from bench.config import ROOT_DIR
-from bench.web_eval.runner import WebEvalRunner, WebEvalOptions
+from bench.llm_judge.runner import WebEvalRunner, WebEvalOptions
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Pi-Bench web app feature evaluation (Playwright evidence + LLM judge)"
+        description="Pi-Bench LLM judge for web apps (Playwright evidence + LLM verdicts)"
     )
     parser.add_argument(
         "--project",
@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", help="Optional eval-profile.yaml (overrides features `app` block)")
     parser.add_argument("--base-url", help="App URL when the server is already running")
     parser.add_argument("--no-start", action="store_true", help="Do not start the app; use --base-url or running server")
-    parser.add_argument("--label", default="web-eval", help="Label for this evaluation run")
+    parser.add_argument("--label", default="llm-judge", help="Label for this evaluation run")
     parser.add_argument("--eval-id", help="Override output directory name under evals/")
     parser.add_argument(
         "--dry-run",
@@ -89,7 +89,7 @@ def main() -> int:
     try:
         summary = runner.run(options)
     except Exception as exc:
-        print(f"web-eval failed: {exc}", file=sys.stderr)
+        print(f"llm-judge failed: {exc}", file=sys.stderr)
         return 1
 
     print(json.dumps(summary.to_dict(), indent=2))

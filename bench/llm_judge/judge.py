@@ -8,8 +8,8 @@ import urllib.request
 from typing import Any
 
 from bench.config import load_project_env
-from bench.web_eval.schemas import BrowserAction, EvidencePacket, FeatureCheck, FeatureJudgment, FeatureVerdict
-from bench.web_eval.setup import PlannedSetupCommand, SetupCommandResult, commands_from_json
+from bench.llm_judge.schemas import BrowserAction, EvidencePacket, FeatureCheck, FeatureJudgment, FeatureVerdict
+from bench.llm_judge.setup import PlannedSetupCommand, SetupCommandResult, commands_from_json
 
 
 FEATURE_GENERATOR_SYSTEM = """You convert product requirements into browser-testable feature checks for web apps.

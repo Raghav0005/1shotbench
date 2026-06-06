@@ -8,14 +8,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from bench.web_eval.features import load_features, write_features
-from bench.web_eval.judge import JudgeClient, compute_correctness, _features_from_json, _parse_judge_json
-from bench.web_eval.prd import load_prd_context
-from bench.web_eval.profile import resolve_app_profile
-from bench.web_eval.report import render_markdown
-from bench.web_eval.runner import WebEvalOptions, WebEvalRunner
-from bench.web_eval.setup import PlannedSetupCommand, collect_setup_context, discover_readme_setup_commands, run_project_setup
-from bench.web_eval.schemas import AppProfile, EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
+from bench.llm_judge.features import load_features, write_features
+from bench.llm_judge.judge import JudgeClient, compute_correctness, _features_from_json, _parse_judge_json
+from bench.llm_judge.prd import load_prd_context
+from bench.llm_judge.profile import resolve_app_profile
+from bench.llm_judge.report import render_markdown
+from bench.llm_judge.runner import WebEvalOptions, WebEvalRunner
+from bench.llm_judge.setup import PlannedSetupCommand, collect_setup_context, discover_readme_setup_commands, run_project_setup
+from bench.llm_judge.schemas import AppProfile, EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
 
 
 class WebEvalSchemaTests(unittest.TestCase):
@@ -73,7 +73,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             feature = FeatureCheck("f1", "Title", "desc", "accept")
             profile = AppProfile(base_url="http://127.0.0.1:3000")
             with mock.patch(
-                "bench.web_eval.runner.subprocess.run",
+                "bench.llm_judge.runner.subprocess.run",
                 side_effect=subprocess.TimeoutExpired(["node", "browser.mjs"], timeout=180, stderr="stuck"),
             ):
                 evidence = runner._collect_evidence(
@@ -128,7 +128,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertEqual([result.status for result in results], ["completed", "completed"])
 
     def test_setup_allows_combined_curl_output_flag(self) -> None:
-        from bench.web_eval.setup import _is_allowed_setup_command
+        from bench.llm_judge.setup import _is_allowed_setup_command
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -180,7 +180,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertEqual(results[0].status, "completed")
 
     def test_setup_allows_playwright_browser_install_command(self) -> None:
-        from bench.web_eval.setup import _is_allowed_setup_command
+        from bench.llm_judge.setup import _is_allowed_setup_command
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -192,7 +192,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertTrue(allowed, reason)
 
     def test_setup_normalizes_npx_playwright_install_to_yes(self) -> None:
-        from bench.web_eval.setup import _is_allowed_setup_command, _normalize_setup_argv
+        from bench.llm_judge.setup import _is_allowed_setup_command, _normalize_setup_argv
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -202,7 +202,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertTrue(allowed, reason)
 
     def test_setup_derives_maven_metadata_recovery_plan(self) -> None:
-        from bench.web_eval.setup import _maven_download_recovery_plan, _rewrite_maven_download_argv
+        from bench.llm_judge.setup import _maven_download_recovery_plan, _rewrite_maven_download_argv
 
         argv = [
             "curl",
@@ -223,7 +223,7 @@ class WebEvalSchemaTests(unittest.TestCase):
         self.assertTrue(rewritten[-1].endswith("/2.1.1/anserini-2.1.1-fatjar.jar"))
 
     def test_setup_maven_recovery_updates_only_matching_version_env(self) -> None:
-        from bench.web_eval.setup import _update_version_env_after_recovery
+        from bench.llm_judge.setup import _update_version_env_after_recovery
 
         env = {"ANSERINI_VERSION": "0.37.1", "NODE_VERSION": "20", "OTHER": "0.37.1"}
         _update_version_env_after_recovery(env, "2.1.1", "0.37.1")
@@ -232,7 +232,7 @@ class WebEvalSchemaTests(unittest.TestCase):
         self.assertEqual(env["OTHER"], "0.37.1")
 
     def test_setup_extracts_java_classpath_jar(self) -> None:
-        from bench.web_eval.setup import _java_classpath_jar
+        from bench.llm_judge.setup import _java_classpath_jar
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -252,7 +252,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertTrue(any(path.endswith("/app/package.json") for path in manifest_paths))
 
     def test_setup_repairs_npm_install_cwd_to_nested_manifest(self) -> None:
-        from bench.web_eval.setup import commands_from_json
+        from bench.llm_judge.setup import commands_from_json
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -263,7 +263,7 @@ class WebEvalSchemaTests(unittest.TestCase):
             self.assertEqual(Path(commands[0].cwd).resolve(), nested.resolve())
 
     def test_setup_rejects_java_usage_only_success(self) -> None:
-        from bench.web_eval.setup import _looks_like_usage_only_success
+        from bench.llm_judge.setup import _looks_like_usage_only_success
 
         self.assertTrue(
             _looks_like_usage_only_success(
@@ -281,7 +281,7 @@ class WebEvalSchemaTests(unittest.TestCase):
         )
 
     def test_setup_rejects_java_error_output_success(self) -> None:
-        from bench.web_eval.setup import _post_command_failure_reason
+        from bench.llm_judge.setup import _post_command_failure_reason
 
         reason = _post_command_failure_reason(
             ["java", "-cp", "x.jar", "example.Main", "-output", "missing.txt"],
@@ -438,12 +438,12 @@ class WebEvalSchemaTests(unittest.TestCase):
             )
 
             with mock.patch.object(WebEvalRunner, "preflight", return_value=[]), \
-                mock.patch("bench.web_eval.runner.EVALS_DIR", root / "evals"), \
-                mock.patch("bench.web_eval.runner.collect_setup_context", return_value={}), \
-                mock.patch("bench.web_eval.runner.run_project_setup", return_value=[]), \
-                mock.patch("bench.web_eval.runner.load_project_env", return_value={}), \
-                mock.patch("bench.web_eval.runner.JudgeClient.plan_setup_commands", return_value=[]), \
-                mock.patch("bench.web_eval.runner.AppServer.start", side_effect=RuntimeError(startup_error)):
+                mock.patch("bench.llm_judge.runner.EVALS_DIR", root / "evals"), \
+                mock.patch("bench.llm_judge.runner.collect_setup_context", return_value={}), \
+                mock.patch("bench.llm_judge.runner.run_project_setup", return_value=[]), \
+                mock.patch("bench.llm_judge.runner.load_project_env", return_value={}), \
+                mock.patch("bench.llm_judge.runner.JudgeClient.plan_setup_commands", return_value=[]), \
+                mock.patch("bench.llm_judge.runner.AppServer.start", side_effect=RuntimeError(startup_error)):
                 summary = runner.run(options)
 
             self.assertEqual(summary.correctness_pct, 0.0)

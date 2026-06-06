@@ -12,7 +12,7 @@ from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import urlopen
 
-from bench.web_eval.schemas import AppProfile
+from bench.llm_judge.schemas import AppProfile
 
 
 def resolve_app_profile(

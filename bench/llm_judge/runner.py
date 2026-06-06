@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from bench.config import ROOT_DIR, load_project_env
-from bench.web_eval.features import load_features_file, write_features
-from bench.web_eval.judge import JudgeClient, compute_correctness
-from bench.web_eval.prd import load_prd_context
-from bench.web_eval.profile import AppServer, resolve_app_profile
-from bench.web_eval.report import write_artifacts
-from bench.web_eval.schemas import BrowserAction, EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
-from bench.web_eval.setup import collect_setup_context, run_project_setup
+from bench.llm_judge.features import load_features_file, write_features
+from bench.llm_judge.judge import JudgeClient, compute_correctness
+from bench.llm_judge.prd import load_prd_context
+from bench.llm_judge.profile import AppServer, resolve_app_profile
+from bench.llm_judge.report import write_artifacts
+from bench.llm_judge.schemas import BrowserAction, EvidencePacket, FeatureCheck, FeatureJudgment, WebEvalSummary
+from bench.llm_judge.setup import collect_setup_context, run_project_setup
 
 
 EVALS_DIR = ROOT_DIR / "evals"
@@ -31,7 +31,7 @@ class WebEvalOptions:
     prd_path: Path | None = None
     base_url: str | None = None
     profile_path: Path | None = None
-    label: str = "web-eval"
+    label: str = "llm-judge"
     eval_id: str | None = None
     no_start: bool = False
     dry_run: bool = False

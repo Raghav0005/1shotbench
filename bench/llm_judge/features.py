@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from bench.web_eval.schemas import BrowserAction, FeatureCheck
+from bench.llm_judge.schemas import BrowserAction, FeatureCheck
 
 
 def load_features(path: Path) -> list[FeatureCheck]:

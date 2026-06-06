@@ -1,5 +1,5 @@
 {
-  "name": "pi-bench-web-eval",
+  "name": "pi-bench-llm-judge",
   "private": true,
   "type": "module",
   "dependencies": {
