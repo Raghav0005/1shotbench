@@ -17,6 +17,7 @@ from bench.codex_judge.runner import (
     CodexJudgeRunner,
     _build_summary,
     _codex_result_schema,
+    _cleanup_judge_processes,
     _detect_forbidden_mutations,
     _features_from_codex_result,
     _git_commit,
@@ -255,6 +256,7 @@ class PiJudgeRunner(CodexJudgeRunner):
             )
             return summary
         finally:
+            _cleanup_judge_processes(judge_workspace)
             if cleanup_workspace:
                 shutil.rmtree(judge_workspace, ignore_errors=True)
 
@@ -394,4 +396,3 @@ def _pi_model_label(options: PiJudgeOptions) -> str:
     if options.provider:
         return options.provider
     return "default"
-

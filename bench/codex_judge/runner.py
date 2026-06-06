@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
 import json
 import os
+import signal
 import shutil
 import subprocess
 import tempfile
 import textwrap
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -41,6 +44,9 @@ MUTATION_IGNORED_DIRS = {
     "test-results",
     ".codex",
     ".next",
+}
+TOP_LEVEL_MUTATION_IGNORED_DIRS = {
+    "work",
 }
 MUTATION_IGNORED_NAMES = {
     "package-lock.json",
@@ -305,6 +311,7 @@ class CodexJudgeRunner:
             )
             return summary
         finally:
+            _cleanup_judge_processes(judge_workspace)
             if cleanup_workspace:
                 shutil.rmtree(judge_workspace, ignore_errors=True)
 
@@ -654,6 +661,8 @@ def _snapshot_mutation_manifest(root: Path) -> dict[str, str]:
 
 def _ignore_for_mutation(rel: Path) -> bool:
     parts = rel.parts
+    if parts and parts[0] in TOP_LEVEL_MUTATION_IGNORED_DIRS:
+        return True
     if any(part in MUTATION_IGNORED_DIRS for part in parts):
         return True
     if rel.name in MUTATION_IGNORED_NAMES:
@@ -675,6 +684,50 @@ def _detect_forbidden_mutations(before: dict[str, str], after: dict[str, str]) -
         if before.get(key) != after.get(key):
             changed.append(key)
     return changed
+
+
+def _cleanup_judge_processes(judge_workspace: Path) -> None:
+    pid_files = []
+    for base in (judge_workspace / "work", judge_workspace / "app" / "work"):
+        if base.exists():
+            pid_files.extend(base.rglob("*.pid"))
+
+    pids: list[int] = []
+    for path in pid_files:
+        try:
+            pid = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        if pid > 1 and pid != os.getpid():
+            pids.append(pid)
+
+    for pid in sorted(set(pids)):
+        _terminate_pid(pid, signal.SIGTERM)
+    if pids:
+        time.sleep(0.5)
+    for pid in sorted(set(pids)):
+        if _pid_exists(pid):
+            _terminate_pid(pid, signal.SIGKILL)
+
+
+def _terminate_pid(pid: int, sig: signal.Signals) -> None:
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        pgid = None
+    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+        if pgid and pgid not in {os.getpid(), os.getpgrp()}:
+            os.killpg(pgid, sig)
+            return
+    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+        os.kill(pid, sig)
+
+
+def _pid_exists(pid: int) -> bool:
+    with contextlib.suppress(ProcessLookupError):
+        os.kill(pid, 0)
+        return True
+    return False
 
 
 def _codex_result_schema() -> dict[str, Any]:

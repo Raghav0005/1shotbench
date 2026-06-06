@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import tempfile
+import subprocess
+import time
 import unittest
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from bench.codex_judge.runner import (
     DEFAULT_CODEX_MODEL,
     DEFAULT_CODEX_REASONING_EFFORT,
     _build_codex_exec_command,
+    _cleanup_judge_processes,
     _codex_result_schema,
     _detect_forbidden_mutations,
     _ignore_for_mutation,
@@ -45,6 +48,8 @@ class CodexJudgeMutationTests(unittest.TestCase):
             (root / ".next" / "cache" / "webpack").mkdir(parents=True)
             (root / ".next" / "cache" / "webpack" / "index.pack.gz").write_text("cache\n", encoding="utf-8")
             (root / ".next" / "build-manifest.json").write_text("{}", encoding="utf-8")
+            (root / "work" / "browser-catalog" / "screenshots").mkdir(parents=True)
+            (root / "work" / "browser-catalog" / "screenshots" / "catalog.png").write_text("png\n", encoding="utf-8")
             after = _snapshot_mutation_manifest(root)
             self.assertEqual(_detect_forbidden_mutations(before, after), [])
 
@@ -56,6 +61,8 @@ class CodexJudgeMutationTests(unittest.TestCase):
         self.assertTrue(_ignore_for_mutation(Path("package-lock.json")))
         self.assertTrue(_ignore_for_mutation(Path("server.log")))
         self.assertTrue(_ignore_for_mutation(Path(".next/build-manifest.json")))
+        self.assertTrue(_ignore_for_mutation(Path("work/browser-catalog/screenshots/catalog.png")))
+        self.assertFalse(_ignore_for_mutation(Path("src/work/worker.ts")))
         self.assertFalse(_ignore_for_mutation(Path("src/app/page.tsx")))
 
     def test_build_codex_command_places_approval_before_exec(self) -> None:
@@ -168,3 +175,22 @@ class CodexJudgeMutationTests(unittest.TestCase):
             self.assertIn("Do not print full evidence JSON", prompt)
             self.assertIn("at most 30s", prompt)
             self.assertIn("wait_for_any_text", prompt)
+
+    def test_cleanup_judge_processes_stops_pid_files_under_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "work"
+            work.mkdir()
+            proc = subprocess.Popen(["sleep", "60"], start_new_session=True)
+            try:
+                (work / "server.pid").write_text(str(proc.pid), encoding="utf-8")
+                _cleanup_judge_processes(root)
+                for _ in range(20):
+                    if proc.poll() is not None:
+                        break
+                    time.sleep(0.1)
+                self.assertIsNotNone(proc.poll())
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.wait(timeout=5)
