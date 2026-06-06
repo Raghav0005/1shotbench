@@ -1,282 +1,371 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
-  <style>
-    :root {
-      --bg: #f8f9fa;
-      --panel: #ffffff;
-      --text: #212529;
-      --muted: #6c757d;
-      --border: #dee2e6;
-      --primary: #0d6efd;
-      --success: #198754;
-      --warning: #ffc107;
-      --danger: #dc3545;
-      --info: #0dcaf0;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-    }
-    header {
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 1.5rem;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.25rem;
-    }
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 1.5rem;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-    }
-    @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr; }
-    }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-    }
-    .panel h2 {
-      margin-top: 0;
-      font-size: 1.1rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.5rem;
-    }
-    .status-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .status-row:last-child { border-bottom: none; }
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-    .badge-success { background: #d1e7dd; color: #0f5132; }
-    .badge-warning { background: #fff3cd; color: #664d03; }
-    .badge-danger { background: #f8d7da; color: #842029; }
-    .badge-info { background: #cff4fc; color: #055160; }
-    .badge-muted { background: #e9ecef; color: #495057; }
-    .search-box {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    input[type="text"] {
-      flex: 1;
-      padding: 0.5rem 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 0.375rem;
-      font-size: 1rem;
-    }
-    button {
-      padding: 0.5rem 1rem;
-      border: 1px solid var(--primary);
-      background: var(--primary);
-      color: #fff;
-      border-radius: 0.375rem;
-      cursor: pointer;
-      font-size: 0.95rem;
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .samples {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    .sample-chip {
-      background: #e9ecef;
-      border: 1px solid var(--border);
-      padding: 0.25rem 0.5rem;
-      border-radius: 1rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-    .sample-chip:hover { background: #dee2e6; }
-    .result-item {
-      border-bottom: 1px solid var(--border);
-      padding: 0.75rem 0;
-    }
-    .result-item:last-child { border-bottom: none; }
-    .result-meta {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-bottom: 0.25rem;
-    }
-    .result-title {
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-    }
-    .result-text {
-      font-size: 0.9rem;
-      color: var(--text);
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }
-    th, td {
-      text-align: left;
-      padding: 0.5rem;
-      border-bottom: 1px solid var(--border);
-    }
-    th { color: var(--muted); font-weight: 500; }
-    .metric-pass { color: var(--success); font-weight: 600; }
-    .metric-close { color: var(--warning); font-weight: 600; }
-    .metric-fail { color: var(--danger); font-weight: 600; }
-    .commands pre {
-      background: #f1f3f5;
-      padding: 0.75rem;
-      border-radius: 0.375rem;
-      overflow-x: auto;
-      font-size: 0.8rem;
-      margin: 0.5rem 0 1rem;
-    }
-    .commands h4 {
-      margin: 0.75rem 0 0.25rem;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .artifact-path {
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: var(--muted);
-      word-break: break-all;
-    }
-    .log-box {
-      background: #212529;
-      color: #d4d4d4;
-      padding: 0.75rem;
-      border-radius: 0.375rem;
-      font-family: monospace;
-      font-size: 0.75rem;
-      max-height: 250px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-    }
-    .spinner {
-      display: inline-block;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid var(--border);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-right: 0.5rem;
-      vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .error-box {
-      background: #f8d7da;
-      color: #842029;
-      padding: 0.75rem;
-      border-radius: 0.375rem;
-      margin-top: 0.5rem;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: var(--bg); color: var(--text); line-height:1.45; }
+  header { padding: 1.25rem 1rem; border-bottom: 1px solid #334155; }
+  header h1 { margin:0; font-size: 1.25rem; }
+  header p { margin:.25rem 0 0; color: var(--muted); font-size:.9rem; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+  .grid { display: grid; gap: 1rem; }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--panel); border: 1px solid #334155; border-radius: .5rem; padding: 1rem; }
+  .panel h2 { margin: 0 0 .5rem; font-size: 1rem; color: var(--accent); }
+  .badge { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.75rem; font-weight:600; background:#334155; }
+  .badge.ok { background: rgba(34,197,94,.15); color: var(--ok); }
+  .badge.warn { background: rgba(245,158,11,.15); color: var(--warn); }
+  .badge.err { background: rgba(239,68,68,.15); color: var(--err); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.4rem 0; border-bottom:1px solid #334155; }
+  .row:last-child { border-bottom:none; }
+  .muted { color: var(--muted); font-size:.9rem; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:.85rem; }
+  button { cursor:pointer; border:none; background: var(--accent); color: #0f172a; padding:.5rem .75rem; border-radius:.375rem; font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input[type="text"] { width:100%; padding:.55rem .7rem; border-radius:.375rem; border:1px solid #334155; background:#0f172a; color:var(--text); font-size:1rem; }
+  .samples { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
+  .chip { background:#334155; color:var(--text); padding:.25rem .55rem; border-radius:.25rem; font-size:.8rem; cursor:pointer; border:1px solid #475569; }
+  .chip:hover { border-color: var(--accent); }
+  table { width:100%; border-collapse: collapse; margin-top:.5rem; font-size:.9rem; }
+  th, td { text-align:left; padding:.45rem .35rem; border-bottom:1px solid #334155; }
+  th { color: var(--muted); font-weight:500; }
+  .score { font-variant-numeric: tabular-nums; }
+  .snippet { color: var(--muted); font-size:.85rem; max-width: 420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cmd { background:#0f172a; border:1px solid #334155; border-radius:.375rem; padding:.6rem; font-size:.8rem; overflow-x:auto; white-space:pre-wrap; word-break:break-all; }
+  .metric-big { font-size:1.5rem; font-weight:700; }
+  .delta { font-size:.9rem; }
+  .delta.pos { color: var(--ok); }
+  .delta.neg { color: var(--err); }
+  .delta.zero { color: var(--muted); }
+  .artifact { font-size:.8rem; color: var(--muted); }
+  .hidden { display:none; }
+  .spinner { display:inline-block; width:1rem; height:1rem; border:2px solid #334155; border-top-color: var(--accent); border-radius:50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); padding:.6rem; border-radius:.375rem; color: var(--err); font-size:.85rem; }
+  #toast { position:fixed; bottom:1rem; right:1rem; background: var(--panel); border:1px solid #334155; padding:.6rem .9rem; border-radius:.375rem; }
+</style>
 </head>
 <body>
-  <header>
-    <div class="container" style="padding:0 1.5rem;">
-      <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
-    </div>
-  </header>
-
+<header>
   <div class="container">
-    <div class="grid">
-      <!-- Status Panel -->
-      <div class="panel" id="status-panel">
-        <h2>Readiness</h2>
-        <div id="status-content">
-          <div class="status-row"><span>App Status</span><span class="badge badge-muted" id="app-status">Loading...</span></div>
-          <div class="status-row"><span>Java</span><span class="badge badge-muted" id="java-status">Checking...</span></div>
-          <div class="status-row"><span>Anserini Fatjar</span><span class="badge badge-muted" id="fatjar-status">Checking...</span></div>
-          <div class="status-row"><span>NFCorpus Corpus</span><span class="badge badge-muted" id="corpus-status">Checking...</span></div>
-          <div class="status-row"><span>NFCorpus Index</span><span class="badge badge-muted" id="index-status">Checking...</span></div>
-          <div class="status-row"><span>Search</span><span class="badge badge-muted" id="search-status">Checking...</span></div>
-          <div class="status-row"><span>Evaluation</span><span class="badge badge-muted" id="eval-status">Checking...</span></div>
-        </div>
-        <div id="setup-error" style="display:none;" class="error-box"></div>
-        <h3 style="font-size:0.9rem;margin-top:1rem;">Setup Log</h3>
-        <div class="log-box" id="setup-log">Initializing...</div>
-      </div>
+    <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+    <p>Live search and BM25 evaluation over the BEIR NFCorpus dataset, powered by Anserini.</p>
+  </div>
+</header>
 
-      <!-- Search Panel -->
-      <div class="panel">
-        <h2>Live Search</h2>
-        <div class="search-box">
-          <input type="text" id="search-input" placeholder="Type a query or choose a sample below..." disabled>
-          <button id="search-btn" disabled>Search</button>
-        </div>
-        <div class="samples" id="sample-queries">
-          <span style="color:var(--muted);font-size:0.8rem;">Loading sample queries...</span>
-        </div>
-        <div id="search-results"></div>
+<div class="container">
+  <div class="grid grid-2">
+    <!-- Status Panel -->
+    <div class="panel">
+      <h2>Readiness</h2>
+      <div id="status-content">
+        <div class="row"><span>Application</span><span class="badge" id="app-status">Loading…</span></div>
+        <div class="row"><span>Java</span><span class="badge" id="java-status">Loading…</span></div>
+        <div class="row"><span>Anserini fatjar</span><span class="badge" id="fatjar-status">Loading…</span></div>
+        <div class="row"><span>NFCorpus index</span><span class="badge" id="index-status">Loading…</span></div>
+        <div class="row"><span>Search</span><span class="badge" id="search-status">Loading…</span></div>
+        <div class="row"><span>Evaluation</span><span class="badge" id="eval-status">Loading…</span></div>
+        <div class="row"><span>Reproduction discovery</span><span class="badge" id="discovery-status">Loading…</span></div>
+        <div id="status-errors"></div>
       </div>
-
-      <!-- Evaluation Panel -->
-      <div class="panel">
-        <h2>BM25 Evaluation</h2>
-        <div id="eval-content">
-          <p style="color:var(--muted);">Evaluation will appear once setup completes.</p>
-        </div>
-        <div style="margin-top:0.75rem;">
-          <button id="rerun-btn" disabled>Verify / Rerun Evaluation</button>
-        </div>
-      </div>
-
-      <!-- Commands & Artifacts Panel -->
-      <div class="panel">
-        <h2>Commands & Artifacts</h2>
-        <div class="commands" id="commands-content">
-          <p style="color:var(--muted);">Commands and artifacts will appear once setup completes.</p>
-        </div>
-      </div>
+      <div style="margin-top:.5rem;" class="muted mono" id="dataset-label">Dataset: NFCorpus (BEIR)</div>
     </div>
 
-    <div style="margin-top:1.5rem;color:var(--muted);font-size:0.8rem;">
-      <strong>Dataset:</strong> NFCorpus (BEIR v1.0.0) &middot; 
-      <strong>Engine:</strong> Anserini <span id="anserini-version"></span> &middot; 
-      <strong>Render Docker Ready:</strong> Binds to <code>0.0.0.0</code> using <code>PORT</code> env var (default 10000).
+    <!-- Evaluation Panel -->
+    <div class="panel">
+      <h2>BM25 Evaluation</h2>
+      <div id="eval-content">
+        <div class="row">
+          <span class="muted">Status</span>
+          <span id="eval-run-status" class="badge">Loading…</span>
+        </div>
+        <div class="row">
+          <span class="muted">Run</span>
+          <span class="mono" id="eval-run-count">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Freshness</span>
+          <span class="badge" id="eval-fresh-badge">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Expected nDCG@10</span>
+          <span class="mono metric-big" id="expected-score">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Observed nDCG@10</span>
+          <span class="mono metric-big" id="observed-score">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Delta</span>
+          <span class="mono delta" id="delta-score">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Verdict</span>
+          <span class="badge" id="verdict-badge">—</span>
+        </div>
+        <div class="row">
+          <span class="muted">Elapsed</span>
+          <span class="mono" id="eval-elapsed">—</span>
+        </div>
+        <div style="margin-top:.5rem;">
+          <button id="rerun-btn" disabled>Rerun Evaluation</button>
+          <span id="rerun-spinner" class="spinner hidden" style="vertical-align:middle;margin-left:.4rem;"></span>
+        </div>
+        <div class="artifact" style="margin-top:.5rem;">
+          <div>Run file: <span id="run-file-path" class="mono">—</span></div>
+          <div>Eval file: <span id="eval-file-path" class="mono">—</span></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Search Panel -->
+  <div class="panel" style="margin-top:1rem;">
+    <h2>Live Search</h2>
+    <div style="display:flex;gap:.5rem;">
+      <input type="text" id="search-input" placeholder="Type a query and press Enter…" disabled>
+      <button id="search-btn" disabled>Search</button>
+    </div>
+    <div class="samples" id="sample-topics"></div>
+    <div id="search-meta" style="margin-top:.5rem; color:var(--muted); font-size:.85rem;"></div>
+    <div id="search-results-wrap" style="margin-top:.5rem;"></div>
+  </div>
+
+  <!-- Commands & Artifacts Panel -->
+  <div class="panel" style="margin-top:1rem;">
+    <h2>Commands & Artifacts</h2>
+    <p class="muted" style="margin-top:0;">Exact Anserini commands and artifact paths that produced the visible results.</p>
+    <div id="commands-content">
+      <div style="margin-bottom:.6rem;"><strong>Fatjar verification</strong><div class="cmd" id="cmd-discovery">—</div></div>
+      <div style="margin-bottom:.6rem;"><strong>BM25 retrieval</strong><div class="cmd" id="cmd-searchcollection">—</div></div>
+      <div style="margin-bottom:.6rem;"><strong>Evaluation</strong><div class="cmd" id="cmd-trec-eval">—</div></div>
+      <div style="margin-bottom:.6rem;"><strong>Live search example</strong><div class="cmd" id="cmd-live-search">—</div></div>
+      <div><strong>Artifact paths</strong>
+        <ul class="muted mono" style="margin:.3rem 0 0 1.2rem; padding:0;">
+          <li id="artifact-fatjar">Fatjar: —</li>
+          <li id="artifact-run">Run file: —</li>
+          <li id="artifact-eval">Eval output: —</li>
+          <li id="artifact-cache">Cache directory: —</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Render / Docker docs -->
+  <div class="panel" style="margin-top:1rem;">
+    <h2>Deployment Notes</h2>
+    <p class="muted" style="margin-top:0;">This application is designed as a single Docker web service for Render.</p>
+    <ul class="muted" style="margin:.3rem 0 0 1.2rem; padding:0;">
+      <li>HTTP binds to <code class="mono">0.0.0.0</code> and respects the <code class="mono">PORT</code> environment variable (defaults to <code class="mono">10000</code>).</li>
+      <li>Runtime caches and generated artifacts are stored under <code class="mono">/app/cache</code> inside the container.</li>
+      <li>The container is self-contained: it downloads the Anserini fatjar on first startup and caches the NFCorpus prebuilt index via Anserini’s built-in cache.</li>
+      <li>No interactive setup is required after the container starts.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+function showToast(msg, duration=3000) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), duration);
+}
+
+function setBadge(el, text, type) {
+  el.textContent = text;
+  el.className = 'badge ' + (type || '');
+}
+
+async function fetchStatus() {
+  try {
+    const res = await fetch('/api/status');
+    return await res.json();
+  } catch (e) {
+    return { errors: ['Network error: ' + e.message] };
+  }
+}
+
+async function fetchHealth() {
+  try {
+    const res = await fetch('/health');
+    return await res.json();
+  } catch (e) {
+    return { status: 'unhealthy' };
+  }
+}
+
+function renderStatus(s) {
+  const overall = s.setup_done && s.evaluation_ready ? 'ok' : s.setup_done ? 'warn' : 'err';
+  setBadge($('#app-status'), s.setup_done ? 'Ready' : 'Starting…', overall);
+  setBadge($('#java-status'), s.java_ok ? (s.java_version || 'OK') : 'Missing', s.java_ok ? 'ok' : 'err');
+  setBadge($('#fatjar-status'), s.fatjar_ok ? 'Present' : 'Missing', s.fatjar_ok ? 'ok' : 'err');
+  setBadge($('#index-status'), s.index_ready ? 'Cached' : 'Not ready', s.index_ready ? 'ok' : 'warn');
+  setBadge($('#search-status'), s.search_available ? 'Available' : 'Unavailable', s.search_available ? 'ok' : 'warn');
+  setBadge($('#eval-status'), s.evaluation_ready ? 'Ready' : (s.evaluation_running ? 'Running…' : 'Pending'), s.evaluation_ready ? 'ok' : 'warn');
+  setBadge($('#discovery-status'), s.discovery_ok ? 'Discovered' : 'Unavailable', s.discovery_ok ? 'ok' : 'warn');
+
+  const errBox = $('#status-errors');
+  if (s.errors && s.errors.length) {
+    errBox.innerHTML = '<div class="error-box" style="margin-top:.5rem;">' + s.errors.map(e => `• ${e}`).join('<br>') + '</div>';
+  } else {
+    errBox.innerHTML = '';
+  }
+
+  $('#artifact-fatjar').textContent = 'Fatjar: ' + (s.fatjar_path || '—');
+  $('#artifact-cache').textContent = 'Cache directory: ' + (s.cache_dir || '—');
+  if (s.commands) {
+    if (s.commands.discovery) $('#cmd-discovery').textContent = s.commands.discovery;
+    if (s.commands.searchcollection) $('#cmd-searchcollection').textContent = s.commands.searchcollection;
+    if (s.commands.trec_eval) $('#cmd-trec-eval').textContent = s.commands.trec_eval;
+  }
+}
+
+function renderEval(s) {
+  const r = s.evaluation_result;
+  const running = s.evaluation_running;
+  $('#rerun-btn').disabled = running || !s.fatjar_ok;
+  $('#rerun-spinner').classList.toggle('hidden', !running);
+
+  if (!r) {
+    setBadge($('#eval-run-status'), running ? 'Running…' : 'Not ready', running ? 'warn' : 'err');
+    return;
+  }
+
+  setBadge($('#eval-run-status'), running ? 'Running…' : 'Complete', running ? 'warn' : 'ok');
+  $('#eval-run-count').textContent = (r.run_count !== undefined) ? '#' + r.run_count + ' • ' + (r.timestamp || '') : '—';
+  const freshEl = $('#eval-fresh-badge');
+  if (r.fresh) { setBadge(freshEl, 'Fresh rerun', 'ok'); }
+  else if (r.run_count) { setBadge(freshEl, 'Startup evaluation', 'warn'); }
+  else { setBadge(freshEl, '—', ''); }
+  $('#expected-score').textContent = (r.expected !== null && r.expected !== undefined) ? r.expected.toFixed(4) : '—';
+  $('#observed-score').textContent = (r.observed !== null && r.observed !== undefined) ? r.observed.toFixed(4) : '—';
+
+  const deltaEl = $('#delta-score');
+  if (r.delta !== null && r.delta !== undefined) {
+    const sign = r.delta > 0 ? '+' : '';
+    deltaEl.textContent = sign + r.delta.toFixed(4);
+    deltaEl.className = 'mono delta ' + (r.delta === 0 ? 'zero' : (r.delta > 0 ? 'pos' : 'neg'));
+  } else {
+    deltaEl.textContent = '—';
+    deltaEl.className = 'mono delta';
+  }
+
+  const v = $('#verdict-badge');
+  if (r.status === 'pass') setBadge(v, 'PASS', 'ok');
+  else if (r.status === 'close') setBadge(v, 'CLOSE', 'warn');
+  else if (r.status === 'fail') setBadge(v, 'FAIL', 'err');
+  else setBadge(v, '—', '');
+
+  $('#eval-elapsed').textContent = (r.elapsed_seconds !== null && r.elapsed_seconds !== undefined) ? r.elapsed_seconds + ' s' : '—';
+  $('#run-file-path').textContent = r.run_file || '—';
+  $('#eval-file-path').textContent = r.eval_file || '—';
+  $('#artifact-run').textContent = 'Run file: ' + (r.run_file || '—');
+  $('#artifact-eval').textContent = 'Eval output: ' + (r.eval_file || '—');
+}
+
+async function doSearch(q) {
+  if (!q) return;
+  const wrap = $('#search-results-wrap');
+  wrap.innerHTML = '<div class="muted">Searching…</div>';
+  try {
+    const res = await fetch('/api/search?q=' + encodeURIComponent(q) + '&hits=10');
+    const data = await res.json();
+    if (data.error) {
+      wrap.innerHTML = '<div class="error-box">' + data.error + '</div>';
+      return;
+    }
+    $('#search-meta').textContent = 'Query: ' + (data.query || q) + ' • Hits: ' + (data.results?.candidates?.length || 0);
+    if (data.command) $('#cmd-live-search').textContent = data.command;
+
+    const candidates = data.results?.candidates || [];
+    if (!candidates.length) {
+      wrap.innerHTML = '<div class="muted">No results.</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Rank</th><th>Doc ID</th><th>Score</th><th>Title / Snippet</th></tr></thead><tbody>';
+    candidates.forEach((c, i) => {
+      const title = c.doc?.title || '';
+      const text = (c.doc?.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const snippet = text.length > 180 ? text.slice(0, 180) + '…' : text;
+      html += `<tr>
+        <td class="score">${i + 1}</td>
+        <td class="mono">${c.docid}</td>
+        <td class="score">${c.score?.toFixed(4) || ''}</td>
+        <td><div><strong>${title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</strong></div><div class="snippet">${snippet}</div></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch (e) {
+    wrap.innerHTML = '<div class="error-box">Search failed: ' + e.message + '</div>';
+  }
+}
+
+async function loadSamples() {
+  try {
+    const res = await fetch('/api/topics');
+    const data = await res.json();
+    const box = $('#sample-topics');
+    box.innerHTML = '';
+    data.topics.forEach(t => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = t.title;
+      chip.title = t.id;
+      chip.onclick = () => {
+        $('#search-input').value = t.title;
+        doSearch(t.title);
+      };
+      box.appendChild(chip);
+    });
+  } catch (e) { /* ignore */ }
+}
+
+async function refresh() {
+  const s = await fetchStatus();
+  renderStatus(s);
+  renderEval(s);
+
+  const ready = s.setup_done && s.search_available;
+  $('#search-input').disabled = !ready;
+  $('#search-btn').disabled = !ready;
+}
+
+$('#search-btn').addEventListener('click', () => doSearch($('#search-input').value.trim()));
+$('#search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch($('#search-input').value.trim()); });
+
+$('#rerun-btn').addEventListener('click', async () => {
+  $('#rerun-btn').disabled = true;
+  try {
+    const res = await fetch('/api/evaluate', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'Evaluation started');
+  } catch (e) {
+    showToast('Failed to start evaluation');
+  }
+});
+
+// Poll status every 3 seconds until ready, then every 10 seconds
+let fastPoll = true;
+async function poll() {
+  await refresh();
+  const health = await fetchHealth();
+  if (health.status === 'healthy') fastPoll = false;
+  setTimeout(poll, fastPoll ? 3000 : 10000);
+}
+
+loadSamples();
+poll();
+</script>
 </body>
 </html>

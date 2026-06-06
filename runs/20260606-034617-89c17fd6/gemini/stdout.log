@@ -1,0 +1,158 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have completed the task.
+
+Here's a summary of what was built to satisfy the requirements:
+
+1. **Environment Setup**: Downloaded the requested Anserini 2.1.1 fatjar.
+2. **Local Web App**: Created a `Node.js + Express` application (`evaluator-app`) with a vanilla JS/HTML frontend.
+3. **Anserini Integration**: The backend uses the `child_process` module to directly interact with `java -cp` using the fatjar, fulfilling the "rely strictly on Anserini CLI executions" requirement without any REST APIs or mocks.
+4. **Data Discovery**: 
+   - `GET /api/indexes`: Calls `io.anserini.cli.PrebuiltIndexRegistry --type inverted --list` to fetch the prebuilt inverted indexes catalog dynamically.
+   - `GET /api/topics`: Discovers all topics from `io.anserini.cli.TopicsRegistry --list`.
+5. **Evaluability Mappings**: An internal mapping correlates specific indexes (e.g. `cacm`) with their compatible `topics` and `qrels` sets, establishing which indexes are fully evaluable. The UI clearly displays which options are "Evaluable" vs "Catalog-only".
+6. **Retrieval & Evaluation**: 
+   - When users click "Run Evaluation", the server issues `io.anserini.search.SearchCollection -bm25` sequentially followed by `io.anserini.eval.TrecEval -c -m <metric>`, ensuring real processing instead of mocks.
+   - Run files (`run.cacm.bm25.txt`) and evaluation output files (`eval.cacm.ndcg_cut.10.txt`) are generated, preserved on disk, and paths are displayed in the metadata block.
+   - Users can choose from `nDCG@10`, `Recall@1000`, `MAP`, or `Precision@30` using a drop-down menu that translates nicely to proper CLI parameter IDs (e.g. `ndcg_cut.10`).
+7. **End-to-End Testing**: Implemented `@playwright/test` inside `evaluator-app/tests/e2e.spec.js` asserting all workflow requirements: ensuring the dynamically sourced catalog is visible, asserting CACM defaults/render details, starting the evaluation process, and verifying that numeric scores and metadata are rendered back to the user without hardcoded mocks.
+
+To start the server, you can run `node server.js` inside the `evaluator-app` directory and browse to `http://localhost:3000`. To run the test, use `npx playwright test`.

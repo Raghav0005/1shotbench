@@ -1,1 +1,0 @@
-@PRD-anserini-evaluator.md

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 NFCorpus Retrieval Diagnostics Workbench</h1>
+            <p class="subtitle">Live Anserini-backed search & BM25 evaluation over NFCorpus</p>
+        </header>
+
+        <!-- Readiness Panel -->
+        <section id="readiness-panel" class="panel">
+            <h2>System Readiness</h2>
+            <div id="readiness-content" class="readiness-grid">
+                <div class="status-item" id="status-java">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">Java</span>
+                    <span class="status-value">checking...</span>
+                </div>
+                <div class="status-item" id="status-fatjar">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">Anserini Fatjar</span>
+                    <span class="status-value">checking...</span>
+                </div>
+                <div class="status-item" id="status-nfcorpus">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">NFCorpus Index</span>
+                    <span class="status-value">checking...</span>
+                </div>
+                <div class="status-item" id="status-search">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">Live Search</span>
+                    <span class="status-value">checking...</span>
+                </div>
+                <div class="status-item" id="status-eval">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">Evaluation</span>
+                    <span class="status-value">checking...</span>
+                </div>
+                <div class="status-item" id="status-reproduction">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-label">Reproduction Config</span>
+                    <span class="status-value">checking...</span>
+                </div>
+            </div>
+            <div id="setup-progress" class="progress-bar">
+                <div id="setup-progress-fill" class="progress-fill"></div>
+            </div>
+        </section>
+
+        <!-- Search Panel -->
+        <section id="search-panel" class="panel">
+            <h2>Live NFCorpus Search</h2>
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Enter a biomedical query..." 
+                       disabled>
+                <button id="search-btn" onclick="doSearch()" disabled>Search</button>
+            </div>
+            <div class="sample-queries">
+                <span class="label">Sample queries:</span>
+                <button class="sample-btn" onclick="setQuery('What are the effects of aspirin on heart disease?')">aspirin & heart disease</button>
+                <button class="sample-btn" onclick="setQuery('treating chronic kidney disease')">chronic kidney disease</button>
+                <button class="sample-btn" onclick="setQuery('vitamin D deficiency symptoms')">vitamin D deficiency</button>
+                <button class="sample-btn" onclick="setQuery('diabetes management guidelines')">diabetes management</button>
+            </div>
+            <div id="search-results" class="results-container"></div>
+        </section>
+
+        <!-- Evaluation Panel -->
+        <section id="eval-panel" class="panel">
+            <h2>BM25 Evaluation</h2>
+            <div id="eval-content">
+                <div class="eval-loading">Evaluation data loading...</div>
+            </div>
+            <div class="eval-actions">
+                <button id="eval-rerun-btn" onclick="rerunEvaluation()" disabled>
+                    🔄 Rerun Evaluation
+                </button>
+                <span id="eval-timestamp"></span>
+            </div>
+        </section>
+
+        <!-- Commands/Artifacts Drawer -->
+        <section id="commands-panel" class="panel">
+            <h2 onclick="toggleDrawer('commands')" class="drawer-header">
+                Command Log & Artifacts
+                <span id="commands-toggle" class="toggle-icon">▼</span>
+            </h2>
+            <div id="commands-content" class="drawer-content" style="display:none;">
+                <div id="commands-list"></div>
+                <div id="artifacts-list"></div>
+            </div>
+        </section>
+
+        <!-- Verification Badge -->
+        <section id="verification-panel" class="panel">
+            <h2>Verification</h2>
+            <div id="verification-content">
+                <div class="verification-badge" id="verification-badge">
+                    <span class="badge-icon">⏳</span>
+                    <span class="badge-text">Verification pending...</span>
+                </div>
+                <p class="verification-note">
+                    This workbench uses <strong>real Anserini commands</strong> — no mocked results.
+                    All search results come from Anserini's <code>SearchCollection</code> or <code>cli.Search</code>.
+                    All evaluation metrics come from Anserini's <code>TrecEval</code>.
+                </p>
+            </div>
+        </section>
+
+        <footer>
+            <p>NFCorpus Retrieval Diagnostics Workbench • Powered by <a href="https://github.com/castorini/anserini" target="_blank">Anserini</a></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

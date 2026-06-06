@@ -1,0 +1,10 @@
+# Runtime data — not for source control
+data/
+node_modules/
+test-results/
+playwright-report/
+__pycache__/
+*.pyc
+.anserini*
+anserini-*-fatjar.jar
+runs/

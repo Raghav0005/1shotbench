@@ -1,0 +1,338 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have all the context I need. Let me build the Next.js frontend and supporting scripts.
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+All the pieces are in place and verified end-to-end. Here's a summary of what was built.
+
+## Summary
+
+### Setup (via the repo-local Anserini skills)
+1. **`install-anserini-fatjar`** → Downloaded `anserini-2.1.1-fatjar.jar` (Maven Central, 105 MB) and ran the CACM `SearchCollection` smoke test, which produced `map=0.3123 / P_30=0.1942` — matching the expected metrics.
+2. **`anserini-cli`** → Used `io.anserini.cli.TopicsRegistry --get msmarco-v1-passage.dev` to export the 6980 MS MARCO V1 passage dev queries to `data/msmarco-v1-passage.dev.json`. Inspected the prebuilt index `msmarco-v1-passage` via `PrebuiltIndexRegistry`. Confirmed the REST route shape with a live `io.anserini.api.RestServer` (`GET /v1/{index}/search?query=...&hits=N` returns `{api, index, query, candidates:[{docid, score, rank, doc}]}`).
+
+### Frontend (Next.js 15 App Router + TypeScript)
+- `app/page.tsx` — server component home page.
+- `app/components/SearchApp.tsx` + `SearchApp.module.css` — client UI: search input, 5 random sample queries, results list, recent-query chips, **Shuffle** button.
+- `app/api/sample-queries/route.ts` — `GET /api/sample-queries?count=N&seed=S` returns uniform random dev queries (default 5, max 20, deterministic seeding).
+- `app/api/search/route.ts` — `GET /api/search?query=...&hits=N` proxies to Anserini, returns its JSON verbatim, with friendly errors for empty/whitespace queries, missing query param (400), and backend unreachable (502).
+- `lib/queries.ts` — loads and samples dev queries, builds the backend URL from `BACKEND_HOST` / `BACKEND_PORT`.
+
+### Backend (Anserini REST)
+- Started via `scripts/start-backend.sh` (`io.anserini.api.RestServer --host $BACKEND_HOST --port $BACKEND_PORT`, default 8080). Still running on PID 66199.
+
+### Config / scripts
+- `scripts/start-backend.sh` and `scripts/start-frontend.sh` — both honor env vars and are wired into `npm run dev` via `concurrently`.
+- `.env.example` documents `BACKEND_HOST`, `BACKEND_PORT`, `FRONTEND_PORT`. No prompts to the user.
+- `README.md` walks through install, config, run, smoke test, and architecture.
+- `package.json` pinned to patched Next.js 15.5.19 and React 19.
+
+### Verified end-to-end
+- Home page renders SSR HTML (title, headings, search input, sample-queries panel, results panel) — `HTTP 200, 14 KB`.
+- `GET /api/sample-queries` returns random queries; seeded calls are deterministic.
+- `GET /api/search?query=define%20photosynthesis&hits=2` returns real MS MARCO passage hits (`docid=991497, score=8.3714`, etc.).
+- Empty/whitespace queries → `400 {"error":"Query is required. ..."}`.
+- Backend killed → `502 {"error":"Could not reach Anserini backend at http://localhost:8080: fetch failed"}`; restarted → back to 200.
+- `npx tsc --noEmit` passes; `next build` produces an optimized production bundle.
+- Both servers are still up: Anserini REST on `http://localhost:8080`, Next.js on `http://localhost:3000`.
+
+To run from scratch: `npm install && npm run dev` (uses `.env.example` defaults of backend 8080 / frontend 3000).

@@ -1,0 +1,218 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] ls
+
+[tool start] bash
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Smoke test passes. Now let me inspect the registries and explore CLI further.
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: error
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have enough info. Let me build the app.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+Now the pairing inference module:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now the Express server:
+[tool start] write
+
+[tool end] write: ok
+Now the frontend:
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+Now Playwright test + config:
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now let's install dependencies and verify the server works:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Server works. Let me check the catalog endpoint reports CACM as evaluable with the right pairing, and test the evaluate endpoint:
+[tool start] bash
+
+[tool end] bash: ok
+31 catalog-only entries exist. Test evaluate:
+[tool start] bash
+
+[tool end] bash: ok
+Score is 0.4543 — the canonical Anserini value. Now let me kill the server and run Playwright:
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Playwright test passes end-to-end. Let me also do a quick sanity check that the app cleans up correctly and view the final structure:
+[tool start] bash
+
+[tool end] bash: ok
+Everything is in place and verified. Here's a summary of what was delivered:
+
+## Summary
+
+Built a local web app at `app/` that meets the PRD's requirements end-to-end.
+
+**Setup (PRD: install-anserini-fatjar)**
+- Downloaded `anserini-2.1.1-fatjar.jar` from Maven Central (workspace root).
+- Verified Java 21, ran the CACM `SearchCollection` + `TrecEval` smoke test (MAP `0.3123`, P30 `0.1942`).
+
+**Backend** (`app/server/`)
+- `anserini.js`: spawn-based wrappers around `io.anserini.cli.PrebuiltIndexRegistry`, `io.anserini.cli.TopicsRegistry`, `io.anserini.search.SearchCollection`, and `io.anserini.eval.TrecEval`. No mocking; all data is real CLI output.
+- `pairings.js`: derives `topics` and `qrels` symbols from each prebuilt index name using documented Anserini naming conventions (e.g. `cacm` → `cacm`, `<col>.flat` → `<col>.test`, MS MARCO specials).
+- `metrics.js`: user labels mapped to exact `trec_eval` args: `nDCG@10` → `ndcg_cut.10`, `Recall@1000` → `recall.1000`, `MAP` → `map`, `P@30` → `P.30`.
+- `index.js`: Express server with `/api/health`, `/api/catalog`, `/api/evaluate`. Catalog loads once at startup; 109 prebuilt inverted indexes / 1493 topic symbols / 78 evaluable, 31 catalog-only.
+
+**Frontend** (`app/public/`): vanilla HTML/CSS/JS. Filterable catalog with `Default`/`Evaluable`/`Catalog only` badges; detail panel showing paired topics+qrels, metric selector, Run Evaluation button, score + run/eval artifact paths + `trec_eval` preview.
+
+**Playwright e2e test** (`app/test/e2e.spec.js`): verified passing. Asserts CACM default, catalog > 10 entries, paired topics/qrels, `nDCG@10` + `Recall@1000` available, real catalog-only entries visible, and that the rendered score matches Anserini's canonical CACM BM25 `nDCG@10 = 0.4543` within ±0.01 (a mocked stub would fail).
+
+**Verification**
+- Server boot: 109 indexes / 78 evaluable / 1493 topics.
+- `/api/evaluate` for CACM nDCG@10 → `0.4543` in ~1.5s.
+- `npx playwright test` → `1 passed`.
+
+Run it:
+```bash
+cd app && npm install && npm start          # http://localhost:5173
+npx playwright install chromium && npm run test:e2e
+```

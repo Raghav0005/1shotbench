@@ -1,0 +1,17 @@
+# Anserini REST server runtime
+anserini-rest.log
+anserini-rest.pid
+
+# Test logs
+start.test*.log
+
+# Next.js
+frontend/.next/
+frontend/.swc/
+frontend/out/
+frontend/node_modules/
+frontend/next-env.d.ts.bak
+
+# Editor / OS
+.DS_Store
+*.log

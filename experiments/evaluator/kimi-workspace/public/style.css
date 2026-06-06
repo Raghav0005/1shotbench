@@ -1,0 +1,112 @@
+:root {
+  --bg: #f7f8fa;
+  --card-bg: #fff;
+  --border: #e1e4e8;
+  --text: #24292e;
+  --muted: #586069;
+  --primary: #0366d6;
+  --primary-hover: #0256c7;
+  --success: #28a745;
+  --danger: #d73a49;
+  --radius: 8px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+header { margin-bottom: 24px; }
+header h1 { margin: 0 0 8px; font-size: 1.75rem; }
+.subtitle { margin: 0 0 12px; color: var(--muted); }
+
+.health-status {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: #fff3cd;
+  color: #856404;
+}
+.health-status.ok { background: #d4edda; color: #155724; }
+.health-status.error { background: #f8d7da; color: #721c24; }
+
+section { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.section-header h2 { margin: 0; font-size: 1.25rem; }
+
+#index-search { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); min-width: 240px; font-size: 0.95rem; }
+
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+
+.index-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+  background: #fff;
+}
+.index-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(3,102,214,0.08); }
+.index-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(3,102,214,0.15); }
+.index-card.catalog-only { opacity: 0.65; cursor: default; }
+.index-card.catalog-only:hover { border-color: var(--border); box-shadow: none; }
+
+.index-card .badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+.badge.evaluable { background: #d4edda; color: #155724; }
+.badge.catalog { background: #e1e4e8; color: #586069; }
+
+.index-card h3 { margin: 0 0 6px; font-size: 1rem; word-break: break-all; }
+.index-card p { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.index-card .meta { margin-top: 8px; font-size: 0.8rem; color: var(--muted); }
+
+.evaluation-empty { color: var(--muted); padding: 20px 0; text-align: center; }
+.evaluation-form .form-row { margin-bottom: 14px; }
+.evaluation-form label { display: block; font-weight: 600; font-size: 0.875rem; margin-bottom: 4px; }
+.selected-name { font-size: 0.95rem; padding: 8px 0; }
+.evaluation-form select { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); min-width: 260px; font-size: 0.95rem; }
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.loading { margin-top: 12px; color: var(--muted); font-style: italic; }
+
+.evaluation-result { margin-top: 16px; }
+.score-card { background: #f1f8ff; border: 1px solid #c8e1ff; border-radius: var(--radius); padding: 16px; text-align: center; margin-bottom: 14px; }
+.score-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
+.score-metric { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+
+.metadata { font-size: 0.875rem; color: var(--muted); }
+.metadata div { margin-bottom: 4px; }
+.metadata code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+
+.evaluation-error { margin-top: 12px; padding: 12px; background: #ffeef0; border: 1px solid #ffdce0; border-radius: var(--radius); color: var(--danger); }
+
+.hidden { display: none !important; }
+
+pre { background: #f6f8fa; padding: 12px; border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }

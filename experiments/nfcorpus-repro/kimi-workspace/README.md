@@ -1,112 +1,118 @@
 # NFCorpus Live Retrieval Diagnostics Workbench
 
-A Dockerized, Render-deployable web application for live NFCorpus retrieval diagnostics with Anserini.
+A containerized web application that delivers live NFCorpus retrieval diagnostics powered by [Anserini](https://github.com/castorini/anserini). Deployable as a Docker web service on Render.
 
-## Overview
+## What it does
 
-This app demonstrates a real Anserini-backed IR workflow for the small NFCorpus (BEIR v1.0.0) dataset:
+- **Installs & verifies Anserini** using the published Maven Central fatjar.
+- **Discovers expected metrics** via Anserini’s reproduction workflow (`ReproduceFromPrebuiltIndexes`).
+- **Downloads & caches** the small NFCorpus prebuilt index (~6.5 MB) — no full-BEIR download required.
+- **Runs live BM25 search** against NFCorpus through Anserini’s `Search` CLI.
+- **Executes & verifies** a BM25 evaluation (`SearchCollection` + `TrecEval`) and compares observed vs. expected nDCG@10.
+- **Surfaces everything** in the browser: exact commands, artifact paths, observed/expected metrics, deltas, and pass/close/fail status.
 
-- Downloads and verifies an Anserini fatjar from Maven Central.
-- Downloads the NFCorpus dataset (~2.4 MB).
-- Builds a local Lucene inverted index using `BeirFlatCollection`.
-- Runs BM25 batch retrieval with `SearchCollection` over NFCorpus test topics.
-- Evaluates the run with Anserini's Java `TrecEval` wrapper.
-- Compares observed metrics against the expected reproduction targets.
-- Exposes live query search via the `io.anserini.cli.Search` CLI.
-- Shows exact commands, artifact paths, and output previews in the browser.
+## Stack
 
-## Tech Stack
+- **Backend**: Python 3.11 + Flask + Gunicorn
+- **Frontend**: Vanilla HTML/JS (single page)
+- **IR Engine**: Anserini 2.1.1 fatjar + Java 21
+- **Test**: pytest-playwright (browser end-to-end validation)
 
-- **Backend**: Python 3.11 + Flask
-- **Frontend**: Vanilla HTML/JS
-- **Search Engine**: Anserini (Java 21, fatjar from Maven Central)
-- **Dataset**: NFCorpus (BEIR v1.0.0) — 3,633 documents, 323 test queries
-- **Deployment**: Docker / Render web service
+## Local development
 
-## Running Locally
-
-### Prerequisites
+### Requirements
 
 - Python 3.11+
-- Java 21 (OpenJDK)
+- Java 21
+- curl
 
-### Install Python dependencies
+### Run locally
 
 ```bash
 pip install -r requirements.txt
-```
-
-### Run the app
-
-```bash
 python app.py
 ```
 
-The app will:
-1. Download the Anserini fatjar if not already cached.
-2. Download and extract NFCorpus.
-3. Build the Lucene index.
-4. Run BM25 evaluation.
-5. Start the web server on `http://localhost:10000`.
+Open http://localhost:10000.
 
-### Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `10000` | HTTP server port |
-| `ANSERINI_VERSION` | `2.1.1` | Anserini release to download |
-| `CACHE_DIR` | `.cache` | Directory for the fatjar |
-| `DATA_DIR` | `data` | Directory for corpus and qrels |
-| `INDEX_DIR` | `indexes` | Directory for the Lucene index |
-| `RUNS_DIR` | `runs` | Directory for run files and eval output |
-
-## Running in Docker
+### Run with Docker
 
 ```bash
-docker build -t nfcorpus-workbench .
-docker run -p 10000:10000 nfcorpus-workbench
+docker build -t nfcorpus-diagnostics .
+docker run -p 10000:10000 nfcorpus-diagnostics
 ```
 
-The container binds to `0.0.0.0` and respects the `PORT` environment variable.
+Open http://localhost:10000.
 
-## Deploying to Render
+## End-to-end test
 
-1. Push this directory to a Git repository.
-2. In Render, create a new **Web Service** and choose the repository.
-3. Select **Docker** as the runtime.
-4. Render will use the included `Dockerfile`.
-5. The service will start on the port assigned by Render's `PORT` environment variable.
+The test suite launches the application in a browser and validates the primary workflow. It will **fail** if search results or evaluation output are mocked rather than produced by genuine Anserini commands.
 
-## API Endpoints
+```bash
+# Install test dependencies
+pip install -r requirements.txt
+
+# Start the app in the background
+python app.py &
+
+# Run tests (pytest-playwright)
+pytest tests/test_e2e.py --headed
+
+# Or use the standalone script if pytest has environment issues:
+python tests/test_e2e_standalone.py
+```
+
+## Deployment on Render
+
+1. Create a new **Web Service** on Render.
+2. Choose **Deploy from existing image** or connect this repo and let Render build the Dockerfile.
+3. Set the environment variable `PORT` to `10000` (or leave unset; the app defaults to `10000`).
+4. Render will bind HTTP to `0.0.0.0:PORT` automatically.
+
+The container is self-contained: it downloads the Anserini fatjar on first startup and caches artifacts under `/app/cache`.
+
+### Persistent disk on Render (optional)
+If you want the Anserini fatjar and NFCorpus index to survive container restarts without re-downloading, mount a Render **Disk** to `/app/cache`.
+
+## Health endpoint
+
+`GET /health` returns:
+
+```json
+{
+  "status": "healthy",
+  "anserini_available": true,
+  "nfcorpus_ready": true,
+  "search_available": true,
+  "evaluation_available": true
+}
+```
+
+## API endpoints
 
 | Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | JSON health check with Java, NFCorpus, search, and evaluation readiness |
-| `/api/status` | GET | Detailed setup status, logs, commands, artifacts, and sample queries |
-| `/api/search` | POST | Live BM25 search over NFCorpus; body `{"query": "...", "hits": 10}` |
-| `/api/evaluation` | GET | BM25 evaluation results with observed, expected, deltas, and status |
-| `/api/evaluation/rerun` | POST | Re-run SearchCollection + TrecEval and return fresh results |
-| `/api/commands` | GET | Exact commands and artifact paths used during setup |
+|---|---|---|
+| `/` | GET | Dashboard UI |
+| `/health` | GET | Readiness JSON |
+| `/api/status` | GET | Detailed status, commands, artifacts |
+| `/api/topics` | GET | Sample NFCorpus topics |
+| `/api/search?q=...&hits=N` | GET | Live Anserini search (JSON) |
+| `/api/evaluate` | GET | Current evaluation state |
+| `/api/evaluate` | POST | Trigger a fresh evaluation run |
 
-## Browser Tests
+## Cache & artifacts
 
-Install test dependencies (Playwright browsers):
+Runtime caches and generated files are stored under `./cache` (or `/app/cache` in Docker):
 
-```bash
-playwright install chromium
-```
+- `anserini-2.1.1-fatjar.jar`
+- `run.nfcorpus.bm25.txt`
+- `eval.nfcorpus.bm25.txt`
+- `setup.log`, `eval.log`, `discovery.log`
 
-Run the end-to-end verification:
+The NFCorpus Lucene index is cached by Anserini itself under `~/.cache/pyserini/indexes/` (or `/root/.cache/pyserini/indexes/` inside the Docker container).
 
-```bash
-pytest tests/test_app.py -v
-```
+## Notes
 
-The browser test proves the app exercises real Anserini commands and does not mock search or evaluation results.
-
-## Design Notes
-
-- **NFCorpus-specific**: The app only downloads and indexes NFCorpus. It does not fetch other BEIR corpora.
-- **Real commands only**: Search and evaluation results come from actual `java -cp anserini-*.jar ...` subprocess invocations.
-- **No mocked data**: Expected metrics are sourced from Anserini's bundled reproduction config (`beir-v1.0.0-nfcorpus.flat`).
-- **Transparency**: Every step records the exact shell command and output file paths for inspection in the UI.
+- This demonstration is intentionally confined to **NFCorpus only**.
+- No full-BEIR download, no MS MARCO, no dense retrieval, and no user accounts.
+- All search and evaluation results are produced by real Anserini CLI invocations; nothing is hardcoded or mocked.

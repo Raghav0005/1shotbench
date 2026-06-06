@@ -1,0 +1,219 @@
+
+[tool start] read
+
+[tool end] read: ok
+Let me read the relevant skill files to understand the Anserini CLI commands.
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me build the application. I'll create a Node.js/Express app with a web frontend and Playwright tests.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me first explore the Anserini CLI to understand what commands and output formats are available:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me check the topics registry and understand the CACM evaluation flow:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have a thorough understanding of the Anserini CLI. Let me build the application. I'll create the server, frontend, and Playwright test.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now create the Playwright config and test:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now let me test that the server starts and works:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me debug the evaluation failure:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+The command works fine. Let me retest the full server flow:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me add more debugging to understand the issue:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Found the bug! The `...opts` spread overrides the computed timeout with the raw value. The `timeout: 600` in opts overwrites `timeout: 600000` with `600` (600ms = 0.6s). Let me fix the server:
+[tool start] edit
+
+[tool end] edit: ok
+Now let me test again:
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+The server is working correctly. Now let me run the Playwright test:
+[tool start] bash
+
+[tool end] bash: ok
+All tests pass. Let me verify the complete file structure is clean:
+[tool start] bash
+
+[tool end] bash: ok
+Let me do a final review of all files to ensure quality:
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+Let me run the Playwright test one more time to confirm everything is solid:
+[tool start] bash
+
+[tool end] bash: ok
+All passing. Let me clean up the temporary test artifacts:
+[tool start] bash
+
+[tool end] bash: ok
+The implementation is complete. Here's a summary of what was built:
+
+## Files Created
+
+### `server.js` — Express Backend
+- **Fatjar discovery**: Auto-locates `anserini-*-fatjar.jar` in the project root
+- **`GET /api/status`**: Returns fatjar and Java availability status
+- **`GET /api/catalog`**: Queries Anserini's `PrebuiltIndexRegistry --type inverted --list` to discover all prebuilt Lucene inverted indexes, then enriches each with evaluable status and config
+- **`POST /api/evaluate`**: Runs the full pipeline:
+  1. `SearchCollection` for BM25 retrieval (index → topics → TREC run file)
+  2. `TrecEval` with the selected metric
+  3. Returns score, metadata, run file preview, and eval output
+- CACM is configured as the default evaluable index with `index=cacm`, `topics=cacm`, `qrels=cacm`
+
+### `public/index.html` — Single-Page Frontend
+- **Status bar**: Shows fatjar and Java status
+- **Index Catalog panel**: Browsable, filterable list of 109 inverted indexes from the Anserini registry. Evaluable indexes (CACM) are marked with a green "Evaluable" badge; others are marked "Catalog-only" and disabled
+- **Evaluation panel**: Shows index/topics/qrels pairing, metric selector (MAP, P@30, nDCG@10, Recall@1000), Run Evaluation button with loading state
+- **Results display**: Score, metadata table, tabbed view of eval output, run preview, and search log
+
+### `tests/e2e.spec.js` — Playwright E2E Test
+Validates the complete workflow:
+1. Opens the app and confirms the title
+2. Verifies CACM is auto-selected
+3. Confirms catalog shows >1 index (not hardcoded)
+4. Checks CACM topic/qrels pairing
+5. Selects nDCG@10 (with fallback to Recall@1000 or MAP)
+6. Triggers Run Evaluation
+7. Asserts a numeric score appears
+8. Asserts run metadata (index, topics, metric, paths)
+9. Asserts at least one catalog-only index exists
+
+### `playwright.config.js` — Test Configuration
+- Starts the server automatically
+- 5-minute test timeout for real retrieval runs

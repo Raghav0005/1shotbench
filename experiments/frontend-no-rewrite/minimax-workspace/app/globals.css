@@ -1,0 +1,81 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161a22;
+  --panel-2: #1d222c;
+  --border: #2a313d;
+  --text: #e7ecf3;
+  --text-dim: #98a2b3;
+  --accent: #4f8cff;
+  --accent-strong: #2c6cff;
+  --danger: #ff6361;
+  --warn: #f5a524;
+  --ok: #2ec27e;
+  --radius: 10px;
+  --max-w: 960px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+header.app-header {
+  margin-bottom: 24px;
+}
+header.app-header h1 {
+  margin: 0 0 6px 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+}
+header.app-header p {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+section.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+section.panel h2 {
+  margin: 0 0 12px 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+footer.app-footer {
+  margin-top: 32px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}

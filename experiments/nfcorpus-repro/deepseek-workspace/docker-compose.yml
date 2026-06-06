@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    ports:
+      - "10000:10000"
+    environment:
+      - PORT=10000
+    volumes:
+      - nfcorpus_cache:/home/anserini/.cache/anserini
+volumes:
+  nfcorpus_cache:

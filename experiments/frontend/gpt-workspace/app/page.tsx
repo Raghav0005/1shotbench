@@ -1,11 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import devQueries from '../src/data/msmarco-passage-dev-queries.json';
+import { FormEvent, useEffect, useState } from 'react';
 
-type QuerySample = {
+type SampleQuery = {
   id: string;
-  title: string;
+  query: string;
 };
 
 type SearchResult = {
@@ -15,192 +14,152 @@ type SearchResult = {
   doc?: string;
 };
 
-type SearchState = {
-  status: 'idle' | 'loading' | 'success' | 'error' | 'empty';
-  message?: string;
-  detail?: string;
-  searchedQuery?: string;
-  results: SearchResult[];
-};
-
-const SAMPLE_COUNT = 8;
-const HITS = 10;
-const allSamples = devQueries as QuerySample[];
-
-function drawSamples(count = SAMPLE_COUNT) {
-  const pool = [...allSamples];
-  const samples: QuerySample[] = [];
-
-  while (samples.length < count && pool.length > 0) {
-    const index = Math.floor(Math.random() * pool.length);
-    const [sample] = pool.splice(index, 1);
-    samples.push(sample);
-  }
-
-  return samples;
-}
-
-function cleanPassage(doc?: string) {
-  if (!doc) return 'No stored passage text was returned for this result.';
-
-  return doc
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const defaultHits = Number(process.env.NEXT_PUBLIC_DEFAULT_HITS ?? '10') || 10;
 
 export default function Home() {
   const [query, setQuery] = useState('');
-  const [samples, setSamples] = useState<QuerySample[]>([]);
-  const [state, setState] = useState<SearchState>({ status: 'idle', results: [] });
-
-  const sampleCountLabel = useMemo(() => allSamples.length.toLocaleString(), []);
+  const [samples, setSamples] = useState<SampleQuery[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchedQuery, setSearchedQuery] = useState('');
+  const [loadingSamples, setLoadingSamples] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setSamples(drawSamples());
+    let active = true;
+
+    async function loadSamples() {
+      setLoadingSamples(true);
+      try {
+        const response = await fetch('/api/samples?count=6', { cache: 'no-store' });
+        const payload = await response.json();
+        if (active) setSamples(payload.samples ?? []);
+      } catch {
+        if (active) setSamples([]);
+      } finally {
+        if (active) setLoadingSamples(false);
+      }
+    }
+
+    loadSamples();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  async function runSearch(nextQuery: string) {
+  async function runSearch(nextQuery = query) {
     const trimmed = nextQuery.trim();
-    setQuery(nextQuery);
+    setError('');
 
     if (!trimmed) {
-      setState({
-        status: 'empty',
-        message: 'Please enter a query or choose one of the MS MARCO dev queries below.',
-        results: [],
-      });
+      setResults([]);
+      setSearchedQuery('');
+      setError('Enter a query or choose a sample query.');
       return;
     }
 
-    setState({ status: 'loading', searchedQuery: trimmed, results: [] });
+    setSearching(true);
+    setQuery(trimmed);
+    setSearchedQuery(trimmed);
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}&hits=${HITS}`);
-      const data = await response.json();
+      const response = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}&hits=${defaultHits}`, {
+        cache: 'no-store',
+      });
+      const payload = await response.json();
 
       if (!response.ok) {
-        setState({
-          status: 'error',
-          message: data.error || 'Search failed.',
-          detail: data.detail,
-          searchedQuery: trimmed,
-          results: [],
-        });
-        return;
+        throw new Error(payload.error || 'Search failed.');
       }
 
-      const results = Array.isArray(data.candidates) ? data.candidates : [];
-      setState({
-        status: results.length > 0 ? 'success' : 'empty',
-        message: results.length > 0 ? undefined : 'No passages matched this query.',
-        searchedQuery: data.query || trimmed,
-        results,
-      });
-    } catch (error) {
-      setState({
-        status: 'error',
-        message: 'The frontend could not complete the search request.',
-        detail: error instanceof Error ? error.message : undefined,
-        searchedQuery: trimmed,
-        results: [],
-      });
+      setResults(payload.candidates ?? []);
+      if ((payload.candidates ?? []).length === 0) {
+        setError('No results were returned for this query.');
+      }
+    } catch (searchError) {
+      setResults([]);
+      setError(searchError instanceof Error ? searchError.message : 'Search failed.');
+    } finally {
+      setSearching(false);
     }
   }
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    runSearch(query);
+    runSearch();
+  }
+
+  function handleSampleClick(sample: SampleQuery) {
+    runSearch(sample.query);
   }
 
   return (
-    <main className="page">
+    <main className="shell">
       <section className="hero">
-        <p className="eyebrow">Anserini REST + Next.js</p>
-        <h1>MS MARCO passage search</h1>
-        <p className="subtitle">
-          Search the MS MARCO passage corpus using the local Anserini REST API. Try a query from the
-          dev set or enter your own to view ranked passages.
+        <p className="eyebrow">Local Anserini + Next.js</p>
+        <h1>MS MARCO Passage Search</h1>
+        <p className="lede">
+          Search the MS MARCO passage corpus through the Anserini REST API. Start with one of the
+          randomly selected development-set queries below or enter your own.
         </p>
       </section>
 
-      <section className="search-card" aria-label="Search MS MARCO passages">
-        <form className="search-form" onSubmit={onSubmit}>
-          <input
-            className="search-input"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="e.g. what is a lobster roll"
-            aria-label="Search query"
-          />
-          <button className="primary-button" type="submit" disabled={state.status === 'loading'}>
-            {state.status === 'loading' ? 'Searching…' : 'Search'}
-          </button>
-        </form>
-
-        <div className="samples">
-          <div className="samples-header">
-            <p className="samples-title">Random MS MARCO passage dev queries</p>
-            <button className="secondary-button" type="button" onClick={() => setSamples(drawSamples())}>
-              Shuffle from {sampleCountLabel}
+      <section className="panel search-panel" aria-label="Search form">
+        <form onSubmit={handleSubmit} className="search-form">
+          <label htmlFor="query">Search query</label>
+          <div className="search-row">
+            <input
+              id="query"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="e.g. what is a lobster roll"
+              autoComplete="off"
+            />
+            <button type="submit" disabled={searching}>
+              {searching ? 'Searching…' : 'Search'}
             </button>
           </div>
-          <div className="sample-list">
-            {samples.length === 0 && <span className="sample-placeholder">Loading sample queries…</span>}
-            {samples.map((sample) => (
-              <button
-                className="sample-chip"
-                key={sample.id}
-                type="button"
-                onClick={() => runSearch(sample.title)}
-                disabled={state.status === 'loading'}
-              >
-                {sample.title}
-              </button>
-            ))}
-          </div>
+        </form>
+
+        <div className="samples" aria-label="Sample queries">
+          <div className="section-title">Sample MS MARCO dev queries</div>
+          {loadingSamples ? (
+            <p className="muted">Loading samples…</p>
+          ) : samples.length > 0 ? (
+            <div className="sample-list">
+              {samples.map((sample) => (
+                <button key={sample.id} type="button" onClick={() => handleSampleClick(sample)}>
+                  {sample.query}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">Sample queries are unavailable.</p>
+          )}
         </div>
       </section>
 
-      {state.status === 'idle' && (
-        <div className="status">Submit a query to retrieve ranked passages from msmarco-v1-passage.</div>
-      )}
+      {error && <div className="notice" role="status">{error}</div>}
 
-      {(state.status === 'empty' || state.status === 'error') && (
-        <div className={`status ${state.status === 'error' ? 'error' : ''}`}>
-          <strong>{state.message}</strong>
-          {state.detail && <div>{state.detail}</div>}
-        </div>
-      )}
-
-      {state.status === 'loading' && <div className="status">Searching Anserini for “{state.searchedQuery}”…</div>}
-
-      {state.status === 'success' && (
-        <section className="results-card" aria-live="polite">
+      <section className="results" aria-label="Search results">
+        {searchedQuery && (
           <div className="results-header">
-            <h2 className="results-title">Ranked results</h2>
-            <p className="results-meta">
-              {state.results.length} hits for “{state.searchedQuery}”
-            </p>
+            <h2>Results for “{searchedQuery}”</h2>
+            <span>{results.length} ranked results</span>
           </div>
-          <ol className="result-list">
-            {state.results.map((result, index) => (
-              <li className="result-item" key={`${result.docid || 'doc'}-${result.rank || index}`}>
-                <div className="result-topline">
-                  <span className="rank">Rank {result.rank ?? index + 1}</span>
-                  {typeof result.score === 'number' && <span className="score">Score {result.score.toFixed(4)}</span>}
-                </div>
-                <p className="docid">Document {result.docid || 'unknown'}</p>
-                <p className="passage">{cleanPassage(result.doc)}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+        )}
+
+        {results.map((result, index) => (
+          <article key={`${result.docid ?? 'doc'}-${index}`} className="result-card">
+            <div className="result-meta">
+              <strong>#{result.rank ?? index + 1}</strong>
+              {result.docid && <span>docid {result.docid}</span>}
+              {typeof result.score === 'number' && <span>score {result.score.toFixed(4)}</span>}
+            </div>
+            <pre>{result.doc || 'No stored passage text returned for this result.'}</pre>
+          </article>
+        ))}
+      </section>
     </main>
   );
 }

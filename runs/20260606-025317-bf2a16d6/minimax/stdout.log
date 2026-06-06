@@ -1,0 +1,311 @@
+
+[tool start] read
+
+[tool end] read: ok
+I'll start by reading the PRD and consulting the required skills, then complete the task.
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now let me check the current working directory and verify the environment.
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool start] bash
+
+[tool end] read: ok
+
+[tool end] bash: ok
+Now let me start the Anserini fatjar installation. First, I'll check the latest version on Maven Central.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Smoke test passed (MAP=0.3123, P30=0.1942). Now let me look up the MS MARCO passage topics.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have 6980 dev queries. Now let me start the Anserini REST server to verify the API shape before building the frontend.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have a clear understanding of the API. Let me stop the test server and build the Next.js app.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me clean up test artifacts and set up the Next.js application.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me create the Next.js application. First, the package.json and configuration files.
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+Now let me create the main page, layout, and styles.
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now let me create the launcher script and README.
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me install Next.js dependencies and verify the app builds.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Next.js 16.2.7 is the patched version. Let me verify the build works.
+[tool start] bash
+
+[tool end] bash: ok
+Build succeeded. The cwd warning is benign for a server-only API route. Let me start both services and test the application end-to-end.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Both services are running. Let me test the full end-to-end flow.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me stop the running services and test the `start.sh` script end-to-end.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me test that the environment variables for ports work correctly.
+[tool start] bash
+
+[tool end] bash: ok
+Custom ports work. Let me clean up and finalize.
+[tool start] bash
+
+[tool end] bash: ok
+Let me add a `.gitignore` and do one final end-to-end verification.
+[tool start] write
+
+[tool start] bash
+
+[tool end] write: ok
+
+[tool end] bash: ok
+All tests pass. Let me confirm the final file structure.
+[tool start] bash
+
+[tool end] bash: ok
+The MS MARCO Passage Search app is complete and tested end-to-end. Here's a summary of what was built:
+
+## What was done
+
+1. **Anserini fatjar installed** (per `install-anserini-fatjar` skill)
+   - Downloaded `anserini-2.1.1-fatjar.jar` v2.1.1 from Maven Central
+   - Verified with the CACM smoke test (MAP=0.3123, P30=0.1942)
+
+2. **MS MARCO passage dev queries extracted** (per `anserini-cli` skill)
+   - Pulled `msmarco-v1-passage.dev` via `TopicsRegistry --get`
+   - Converted to a 6,980-line TSV at `msmarco-v1-passage.dev.queries.tsv` (and a working copy inside `frontend/`)
+
+3. **Anserini REST API verified** (per `anserini-cli` skill)
+   - Confirmed `GET /v1/{index}/search?query=...&hits=N` route and JSON shape
+   - Confirmed error responses (400 on empty query / unknown index)
+
+4. **Next.js frontend built**
+   - `frontend/src/app/page.tsx` — search input + sample-query pills + ranked results, with explicit empty-query, no-results, and backend-error states
+   - `frontend/src/app/api/samples/route.ts` — returns N random dev queries per request
+   - `frontend/src/app/api/search/route.ts` — proxies to the Anserini backend
+   - `frontend/src/lib/anserini.ts` — resolves backend URL from `ANSERINI_URL` / `ANSERINI_PORT` (default 8080)
+   - `frontend/src/lib/queries.ts` — loads the dev queries TSV
+
+5. **One-command launcher**
+   - `start.sh` starts Anserini on `$ANSERINI_PORT` (default `8080`), waits for readiness, then starts Next.js on `$PORT` (default `3000`). No interactive prompts.
+   - Both ports fully configurable via env vars; `ANSERINI_URL` is auto-wired.
+
+## End-to-end verification (default ports)
+
+| Scenario | Result |
+| --- | --- |
+| Home page | `HTTP 200` |
+| `/api/samples?count=5` | 5 random MS MARCO dev queries (different each call) |
+| Click a sample → real Anserini search | Ranked passages with `rank`, `docid`, `score`, `doc` |
+| Empty query | `HTTP 400` `{ "error": "Query is required." }` |
+| No-results query | `200` with `candidates: []` and a warn state in the UI |
+| Backend down | `HTTP 502` with a clear, actionable error message |
+| Custom ports (`ANSERINI_PORT=8765 PORT=4001 ./start.sh`) | Both services on the requested ports, frontend still proxies correctly |
+
+## How to run
+
+```bash
+./start.sh                 # uses defaults: backend 8080, frontend 3000
+ANSERINI_PORT=9000 PORT=4001 ./start.sh   # custom ports
+```
+
+Then open <http://localhost:3000>.

@@ -1,7 +1,0 @@
-model,status,duration_ms,input_tokens,output_tokens,reasoning_tokens,cache_read_tokens,total_tokens,cost_usd,requests,exit_code
-gpt,failed,572,0,0,0,0,0,0.0000,0,0
-claude,completed,814111,60,49167,0,3245243,3388089,3.4372,56,0
-gemini,completed,284648,117968,14068,0,945291,1077327,0.5938,40,0
-glm,completed,555857,48580,19491,0,1562880,1630951,0.0000,45,0
-kimi,completed,709255,301721,31495,0,7728128,8061344,1.6491,88,0
-minimax,completed,298623,57774,27990,0,1089403,1175167,0.1163,32,0

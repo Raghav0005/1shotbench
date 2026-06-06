@@ -1,0 +1,147 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+Let me start by setting up the environment. I'll install the Anserini fatjar, fetch sample queries, and then build the Next.js app.
+[tool start] bash
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me test the REST API to understand the response format:
+[tool start] bash
+
+[tool end] bash: ok
+Now I have the full picture. Let me create the Next.js app:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now I'll build all the components. Let me create the sample queries, API route, and search UI:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me also test the edge cases:
+[tool start] bash
+
+[tool end] bash: ok
+Everything is working end-to-end. Here's a summary of what was built:
+
+## MS MARCO Passage Search App
+
+**Backend (Anserini REST API)**
+- Installed Anserini fatjar v2.1.1 from Maven Central
+- Smoke tested with CACM index (MAP 0.3123, P30 0.1942 ✓)
+- REST server running on port **8080** at `http://localhost:8080/v1/msmarco-v1-passage/search`
+
+**Frontend (Next.js)**
+- Running on port **3000** at `http://localhost:3000`
+- Search input with "Search" button
+- 5 randomly selected sample queries from the MS MARCO passage dev set displayed on each page load
+- Click a sample query to run it instantly
+- Ranked results shown with rank badge, docid, score, and passage text
+- Handles empty queries, no-results, and backend errors with clear messages
+
+**Configuration (`.env.local`)**
+- `ANSERINI_URL` — backend URL (default `http://localhost:8080`)
+- `SEARCH_HITS` — number of results (default `10`)
+- Frontend port configurable via `PORT` env var (default `3000`)
+
+**Key files:**
+- `search-app/data/sample-queries.json` — 20 MS MARCO dev queries
+- `search-app/app/api/search/route.ts` — API proxy to Anserini
+- `search-app/app/SearchPage.tsx` — client-side search UI
+- `search-app/app/page.tsx` — server component with random sample selection

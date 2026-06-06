@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d2991d;
+    --purple: #a371f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: var(--accent); }
+  h2 { font-size: 1.1rem; margin-bottom: 8px; color: var(--text); }
+  h3 { font-size: 1rem; margin-bottom: 6px; }
+  .subtitle { color: var(--text-secondary); margin-bottom: 20px; }
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-err { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-warn { background: rgba(210,153,29,0.15); color: var(--yellow); }
+  .badge-info { background: rgba(88,166,255,0.15); color: var(--accent); }
+  label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
+  .search-row { display: flex; gap: 8px; }
+  .search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  .search-row button, button {
+    padding: 8px 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .search-row button:hover, button:hover { opacity: 0.85; }
+  .sample-queries { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .sample-queries button {
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 12px;
+  }
+  .sample-queries button:hover { background: var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 600; }
+  .metric-status-pass { color: var(--green); }
+  .metric-status-close { color: var(--yellow); }
+  .metric-status-fail { color: var(--red); }
+  .metric-status-unknown { color: var(--text-secondary); }
+  .score { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; }
+  .rank { color: var(--text-secondary); min-width: 30px; }
+  .docid { color: var(--purple); font-family: monospace; }
+  pre, code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem; }
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    overflow-x: auto;
+    max-height: 300px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .command-item { margin-bottom: 12px; }
+  .command-item .cmd { margin-bottom: 4px; }
+  .loader {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box {
+    background: rgba(248,81,73,0.1);
+    border: 1px solid var(--red);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .warning-box {
+    background: rgba(210,153,29,0.1);
+    border: 1px solid var(--yellow);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .info-box {
+    background: rgba(88,166,255,0.1);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .artifact-path { font-family: monospace; color: var(--accent); font-size: 0.8rem; }
+  .tab-bar { display: flex; gap: 0; margin-bottom: 0; }
+  .tab-bar button {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    font-size: 0.85rem;
+  }
+  .tab-bar button.active {
+    background: var(--bg);
+    color: var(--accent);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .spinner-box { text-align: center; padding: 40px; color: var(--text-secondary); }
+  .full-width { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+
+<h1>&#x1F50D; NFCorpus Live Retrieval Diagnostics Workbench</h1>
+<p class="subtitle">Anserini-backed NFCorpus BM25 search &amp; evaluation dashboard | Port: <code id="port-display">10000</code></p>
+<div class="panel" style="font-size:0.85rem;margin-bottom:16px;">
+  <strong>Render/Docker Contract:</strong> Binds to <code>0.0.0.0:${PORT:-10000}</code>. Health: <code>GET /health</code>.
+  Built with Anserini 2.1.1 fatjar. NFCorpus (BEIR v1.0.0) prebuilt index.
+</div>
+
+<!-- Readiness Panel -->
+<div class="panel" id="readiness-panel">
+  <h2>System Readiness</h2>
+  <div id="readiness-content"><div class="loader"></div> Checking system status...</div>
+</div>
+
+<!-- Errors / Warnings -->
+<div id="messages"></div>
+
+<!-- Main grid -->
+<div class="grid">
+  <!-- Live Search -->
+  <div class="panel" id="search-panel">
+    <h2>&#x1F50E; Live Search</h2>
+    <p style="font-size:0.85rem;color:var(--text-secondary)">Active dataset: <strong>NFCorpus (BEIR v1.0.0)</strong></p>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="Enter query..."
+             onkeydown="if(event.key==='Enter')doSearch()">
+      <button onclick="doSearch()">Search</button>
+    </div>
+    <div class="sample-queries" id="sample-queries"></div>
+    <div id="search-results" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Evaluation Panel -->
+  <div class="panel" id="eval-panel">
+    <h2>&#x1F4CA; BM25 Evaluation</h2>
+    <div id="eval-content">
+      <p style="color:var(--text-secondary)">Evaluation not yet run.</p>
+      <button onclick="triggerEval()" id="eval-run-btn">Run Evaluation</button>
+    </div>
+    <div id="eval-status" style="margin-top:8px;"></div>
+    <div id="eval-comparison" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Commands & Artifacts -->
+  <div class="panel full-width" id="commands-panel">
+    <h2>&#x1F4C4; Commands &amp; Artifacts</h2>
+    <div class="tab-bar">
+      <button class="active" onclick="showTab('setup')">Setup Commands</button>
+      <button onclick="showTab('search-cmds')">Search Commands</button>
+      <button onclick="showTab('eval-cmds')">Eval Commands</button>
+      <button onclick="showTab('artifacts')">Artifacts</button>
+      <button onclick="showTab('eval-log')">Eval Raw Output</button>
+    </div>
+    <div class="panel tab-content active" id="tab-setup" style="border-top-left-radius:0;">
+      <div id="setup-commands"><p style="color:var(--text-secondary)">Loading...</p></div>
+      <div id="setup-logs" style="margin-top:12px;"></div>
+    </div>
+    <div class="panel tab-content" id="tab-search-cmds" style="border-top-left-radius:0;">
+      <div id="search-commands-content"><p style="color:var(--text-secondary)">Run a search to see commands.</p></div>
+    </div>
+    <div class="panel tab-content" id="tab-eval-cmds" style="border-top-left-radius:0;">
+      <div id="eval-commands-content"><p style="color:var(--text-secondary)">Run evaluation to see commands.</p></div>
+    </div>
+    <div class="panel tab-content" id="tab-artifacts" style="border-top-left-radius:0;">
+      <div id="artifacts-content"><p style="color:var(--text-secondary)">Run evaluation to see artifacts.</p></div>
+    </div>
+    <div class="panel tab-content" id="tab-eval-log" style="border-top-left-radius:0;">
+      <div id="eval-log-content"><p style="color:var(--text-secondary)">Run evaluation to see raw output.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let statusData = null;
+let lastSearchCmd = null;
+
+async function fetchStatus() {
+  try {
+    const resp = await fetch('/api/status');
+    statusData = await resp.json();
+    renderReadiness();
+    renderMessages();
+    renderSetupCommands();
+    renderEvalPanel();
+    return statusData;
+  } catch (e) {
+    console.error('Status fetch error:', e);
+  }
+}
+
+function renderReadiness() {
+  const d = statusData;
+  if (!d) return;
+  const rows = [
+    ['Java 21', d.java_available, d.java_version?.split('\n')[0] || ''],
+    ['Fatjar', d.fatjar_available, d.fatjar_path || ''],
+    ['Smoke Test (CACM)', d.smoke_test_passed, d.smoke_test_passed ? 'Verified MAP=0.3123 P30=0.1942' : 'Not passed'],
+    ['NFCorpus Index', d.nfcorpus_index_ready, d.nfcorpus_index_ready ? 'beir-v1.0.0-nfcorpus.flat' : 'Not ready'],
+    ['Search Ready', d.nfcorpus_search_ready, d.nfcorpus_search_ready ? 'Live search available' : 'Not available'],
+    ['Eval Ready', d.nfcorpus_eval_ready, d.nfcorpus_eval_ready ? 'Evaluation available' : 'Not available'],
+  ];
+
+  document.getElementById('readiness-content').innerHTML =
+    '<table>' +
+    rows.map(([label, ok, detail]) =>
+      `<tr>
+        <td style="width:180px;">${label}</td>
+        <td><span class="badge ${ok ? 'badge-ok' : 'badge-err'}">${ok ? 'OK' : 'FAIL'}</span></td>
+        <td style="color:var(--text-secondary);font-size:0.85rem;">${detail}</td>
+      </tr>`
+    ).join('') +
+    '</table>';
+}
+
+function renderMessages() {
+  const d = statusData;
+  if (!d) return;
+  let html = '';
+  for (const err of (d.errors || [])) {
+    html += `<div class="error-box">&#x26A0; ${escapeHtml(err)}</div>`;
+  }
+  for (const warn of (d.warnings || [])) {
+    html += `<div class="warning-box">&#x26A0; ${escapeHtml(warn)}</div>`;
+  }
+  document.getElementById('messages').innerHTML = html;
+}
+
+function renderSetupCommands() {
+  const d = statusData;
+  if (!d) return;
+  const cmds = d.setup_commands || [];
+  if (cmds.length === 0) {
+    document.getElementById('setup-commands').innerHTML = '<p style="color:var(--text-secondary)">No commands yet.</p>';
+    return;
+  }
+  document.getElementById('setup-commands').innerHTML =
+    cmds.map(cmd => `<div class="command-item"><div class="cmd"><code>${escapeHtml(cmd)}</code></div></div>`).join('');
+
+  // Setup logs
+  const logs = d.setup_logs || [];
+  if (logs.length > 0) {
+    document.getElementById('setup-logs').innerHTML =
+      '<h3>Setup Logs</h3>' +
+      logs.map(log => `<pre>${escapeHtml(log)}</pre>`).join('');
+  }
+}
+
+function renderEvalPanel() {
+  const d = statusData;
+  if (!d) return;
+  if (!d.eval_completed) {
+    document.getElementById('eval-content').innerHTML =
+      '<p style="color:var(--text-secondary)">Evaluation not yet run.</p>' +
+      '<button onclick="triggerEval()" id="eval-run-btn">Run Evaluation</button>';
+    document.getElementById('eval-comparison').innerHTML = '';
+    return;
+  }
+
+  // Show metrics comparison
+  const comparison = buildComparison(d);
+  document.getElementById('eval-content').innerHTML =
+    `<p>Evaluation completed in ${d.eval_elapsed_seconds || '?'}s</p>` +
+    '<button onclick="triggerEval()">Rerun Evaluation</button>';
+
+  document.getElementById('eval-comparison').innerHTML = comparison;
+
+  // Eval commands
+  const ecmds = d.eval_commands || [];
+  document.getElementById('eval-commands-content').innerHTML =
+    ecmds.length > 0
+      ? ecmds.map(cmd => `<div class="command-item"><code>${escapeHtml(cmd)}</code></div>`).join('')
+      : '<p style="color:var(--text-secondary)">No eval commands recorded.</p>';
+
+  // Artifacts
+  const arts = d.eval_artifact_paths || [];
+  document.getElementById('artifacts-content').innerHTML =
+    arts.length > 0
+      ? arts.map(a => `<div class="artifact-path">${escapeHtml(a)}</div>`).join('')
+      : '<p style="color:var(--text-secondary)">No artifacts recorded.</p>';
+
+  // Eval raw log
+  const raw = d.eval_log_raw || '';
+  document.getElementById('eval-log-content').innerHTML =
+    raw ? `<pre>${escapeHtml(raw)}</pre>` : '<p style="color:var(--text-secondary)">No raw output.</p>';
+}
+
+function buildComparison(d) {
+  const observed = d.eval_observed || {};
+  const expected = d.eval_expected || {};
+  const metrics = Object.keys(expected);
+  if (metrics.length === 0) return '<p style="color:var(--text-secondary)">No expected metrics defined.</p>';
+
+  let html = '<table><tr><th>Metric</th><th>Expected</th><th>Observed</th><th>Delta</th><th>Status</th></tr>';
+  for (const metric of metrics) {
+    const exp = expected[metric];
+    const obs = observed[metric];
+    if (obs !== undefined && obs !== null) {
+      const delta = (obs - exp).toFixed(5);
+      const absDelta = Math.abs(obs - exp);
+      let status, cls;
+      if (absDelta <= 0.0001) { status = 'PASS'; cls = 'metric-status-pass'; }
+      else if (absDelta <= 0.001) { status = 'CLOSE'; cls = 'metric-status-close'; }
+      else { status = 'FAIL'; cls = 'metric-status-fail'; }
+      html += `<tr>
+        <td><strong>${metric}</strong></td>
+        <td class="score">${exp.toFixed(4)}</td>
+        <td class="score">${obs.toFixed(4)}</td>
+        <td class="score">${delta}</td>
+        <td><span class="badge ${cls}">${status}</span></td>
+      </tr>`;
+    } else {
+      html += `<tr>
+        <td><strong>${metric}</strong></td>
+        <td class="score">${exp.toFixed(4)}</td>
+        <td class="score">—</td>
+        <td class="score">—</td>
+        <td><span class="badge metric-status-unknown">N/A</span></td>
+      </tr>`;
+    }
+  }
+  html += '</table>';
+  return html;
+}
+
+async function loadSampleQueries() {
+  try {
+    const resp = await fetch('/api/sample-queries');
+    const data = await resp.json();
+    const container = document.getElementById('sample-queries');
+    container.innerHTML = (data.queries || []).map(q =>
+      `<button onclick="sampleQuery('${escapeAttr(q)}')">${escapeHtml(q)}</button>`
+    ).join('');
+  } catch (e) {
+    console.error('Sample queries error:', e);
+  }
+}
+
+function sampleQuery(q) {
+  document.getElementById('search-input').value = q;
+  doSearch();
+}
+
+async function doSearch() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+
+  const resultsDiv = document.getElementById('search-results');
+  resultsDiv.innerHTML = '<div class="loader"></div> Searching...';
+
+  try {
+    const resp = await fetch('/api/search?q=' + encodeURIComponent(query));
+    const data = await resp.json();
+
+    lastSearchCmd = data.command || '';
+
+    if (data.error) {
+      resultsDiv.innerHTML = `<div class="error-box">${escapeHtml(data.error)}</div>`;
+      return;
+    }
+
+    // Update search commands tab
+    document.getElementById('search-commands-content').innerHTML =
+      `<div class="command-item"><code>${escapeHtml(data.command || '')}</code></div>` +
+      `<p style="font-size:0.85rem;color:var(--text-secondary)">Elapsed: ${data.elapsed_seconds}s</p>`;
+
+    const results = data.results || [];
+    if (results.length === 0) {
+      resultsDiv.innerHTML = '<p style="color:var(--text-secondary)">No results found.</p>';
+      return;
+    }
+
+    resultsDiv.innerHTML =
+      `<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">
+        ${results.length} results in ${data.elapsed_seconds}s
+      </p>
+      <table>
+        <tr><th>#</th><th>DocID</th><th>Score</th><th>Content</th></tr>
+        ${results.map(r => `
+          <tr>
+            <td class="rank">${r.rank}</td>
+            <td class="docid">${escapeHtml(r.docid)}</td>
+            <td class="score">${r.score.toFixed(4)}</td>
+            <td style="font-size:0.85rem;">${escapeHtml(r.content?.substring(0, 300) || '')}</td>
+          </tr>
+        `).join('')}
+      </table>`;
+
+  } catch (e) {
+    resultsDiv.innerHTML = `<div class="error-box">Search error: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+async function triggerEval() {
+  const btn = document.getElementById('eval-run-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '\u23F3 Running evaluation...';
+  }
+
+  document.getElementById('eval-status').innerHTML = '<div class="loader"></div> Running evaluation...';
+
+  try {
+    // Trigger startup eval
+    await fetch('/api/startup-eval');
+  } catch (e) {
+    console.error('Eval trigger error:', e);
+  }
+
+  // Poll for completion
+  let attempts = 0;
+  const maxAttempts = 60;
+  const pollInterval = setInterval(async () => {
+    attempts++;
+    try {
+      // Re-fetch full status
+      const resp = await fetch('/api/eval?action=status');
+      const data = await resp.json();
+      // Also update main status
+      statusData = await (await fetch('/api/status')).json();
+      renderEvalPanel();
+      renderReadiness();
+
+      if (data.eval_completed || attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        document.getElementById('eval-status').innerHTML = '';
+        if (attempts >= maxAttempts) {
+          document.getElementById('eval-status').innerHTML =
+            '<div class="warning-box">Evaluation timed out or took too long.</div>';
+        }
+      }
+    } catch (e) {
+      clearInterval(pollInterval);
+    }
+  }, 2000);
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-bar button[onclick="showTab('${name}')"]`);
+  const content = document.getElementById('tab-' + name);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// Initialize
+fetchStatus();
+loadSampleQueries();
+
+// Poll status every 10 seconds
+setInterval(fetchStatus, 10000);
+</script>
+</body>
+</html>

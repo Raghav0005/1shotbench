@@ -1,0 +1,212 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+Completed PRD implementation.
+
+Key files added:
+- `package.json` / `package-lock.json` — Next.js app scripts
+- `app/page.jsx` — search UI, random samples, ranked results, states/errors
+- `app/api/search/route.js` — proxy to Anserini REST API
+- `app/api/sample-queries/route.js` — random MS MARCO dev query samples
+- `data/msmarco-v1-passage-dev-queries.json` — 6,980 dev queries from Anserini TopicsRegistry
+- `lib/anserini.js` — backend/index config and result normalization
+- `.env.example` — configurable backend/frontend ports
+- `README.md` — run/config instructions
+
+Anserini:
+- Installed `anserini-2.1.1-fatjar.jar`
+- Verified CACM smoke test with MAP `0.3123` and P@30 `0.1942`
+- Confirmed `msmarco-v1-passage` exists in PrebuiltIndexRegistry
+- Confirmed REST response shape via local Anserini REST request
+
+Validation run:
+- `npm install`
+- `npm run build`
+- `npm run check:anserini`
+
+Run locally:
+```bash
+npm install
+npm run dev
+```
+
+Defaults:
+- Backend: `8080`
+- Frontend: `3000`

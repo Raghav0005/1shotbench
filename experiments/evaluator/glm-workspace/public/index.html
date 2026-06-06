@@ -5,296 +5,348 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Anserini Prebuilt Index Evaluator</title>
 <style>
-  :root {
-    --bg: #0f172a;
-    --surface: #1e293b;
-    --surface2: #334155;
-    --border: #475569;
-    --text: #e2e8f0;
-    --text2: #94a3b8;
-    --accent: #3b82f6;
-    --accent2: #2563eb;
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --radius: 8px;
+  :root { --bg: #f8f9fa; --card: #fff; --border: #dee2e6; --accent: #0d6efd; --text: #212529; --muted: #6c757d; --success: #198754; --danger: #dc3545; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+  h1 { font-size: 1.5rem; margin-bottom: 16px; }
+  h2 { font-size: 1.15rem; margin-bottom: 10px; color: var(--muted); }
+  .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .panel-full { grid-column: 1 / -1; }
+  .status-bar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; margin-bottom: 16px; max-width: 1400px; margin-left: auto; margin-right: auto; display: flex; gap: 20px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+  .status-bar .ok { color: var(--success); }
+  .status-bar .err { color: var(--danger); }
+
+  /* Catalog */
+  .catalog-list { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
+  .catalog-item { padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .catalog-item:hover { background: #e9ecef; }
+  .catalog-item.selected { background: #cfe2ff; border-left: 3px solid var(--accent); }
+  .catalog-item.disabled { opacity: 0.5; cursor: default; }
+  .catalog-item .name { font-weight: 600; font-size: 0.9rem; }
+  .catalog-item .desc { font-size: 0.8rem; color: var(--muted); flex: 1; margin-left: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .catalog-item .badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: var(--muted); white-space: nowrap; }
+  .catalog-item .badge.evaluable { background: #d1e7dd; color: var(--success); }
+  .catalog-item .badge.catalog-only { background: #fff3cd; color: #856404; }
+  .catalog-search { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; font-size: 0.9rem; }
+  .catalog-count { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+
+  /* Eval Panel */
+  .eval-section { margin-bottom: 16px; }
+  .eval-label { font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; color: var(--muted); }
+  .eval-value { font-size: 0.95rem; }
+  .eval-config-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .metric-select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9rem; min-width: 160px; }
+  .btn-run { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 4px; font-size: 0.95rem; cursor: pointer; font-weight: 600; }
+  .btn-run:hover:not(:disabled) { background: #0b5ed7; }
+  .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-run.running { background: var(--muted); }
+
+  /* Results */
+  .result-score { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .result-meta { font-size: 0.85rem; color: var(--muted); margin-top: 12px; }
+  .result-meta table { border-collapse: collapse; }
+  .result-meta td { padding: 3px 12px 3px 0; }
+  .result-meta td:first-child { font-weight: 600; }
+  .output-box { background: #f8f9fa; border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 250px; overflow-y: auto; margin-top: 8px; }
+  .error-box { background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 4px; padding: 12px; color: #842029; margin-top: 8px; font-size: 0.9rem; }
+  .tabs { display: flex; gap: 0; margin-top: 12px; }
+  .tab-btn { padding: 6px 16px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-size: 0.85rem; }
+  .tab-btn:first-child { border-radius: 4px 0 0 4px; }
+  .tab-btn:last-child { border-radius: 0 4px 4px 0; }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .no-selection { color: var(--muted); font-style: italic; text-align: center; padding: 40px 0; }
+
+  @media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
-
-  .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
-
-  header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-  header h1 { font-size: 1.5rem; font-weight: 700; }
-  .jar-badge { background: var(--surface2); padding: 4px 10px; border-radius: var(--radius); font-size: 0.8rem; color: var(--text2); }
-  .jar-badge.error { background: rgba(239,68,68,0.15); color: var(--error); }
-
-  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-
-  @media (max-width: 800px) { .main-grid { grid-template-columns: 1fr; } }
-
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-  .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
-
-  .search-box { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.9rem; margin-bottom: 12px; }
-  .search-box:focus { outline: none; border-color: var(--accent); }
-
-  .index-list { max-height: 400px; overflow-y: auto; }
-  .index-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
-  .index-item:hover { background: var(--surface2); }
-  .index-item.selected { background: rgba(59,130,246,0.15); border: 1px solid var(--accent); }
-  .index-item.disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-  .tag.evaluable { background: rgba(34,197,94,0.15); color: var(--success); }
-  .tag.catalog-only { background: rgba(148,163,184,0.15); color: var(--text2); }
-  .tag.type { background: rgba(59,130,246,0.15); color: var(--accent); }
-
-  .meta-table { width: 100%; font-size: 0.85rem; }
-  .meta-table td { padding: 4px 0; vertical-align: top; }
-  .meta-table td:first-child { color: var(--text2); white-space: nowrap; padding-right: 16px; width: 120px; }
-
-  select { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.9rem; margin-bottom: 12px; }
-  select:focus { outline: none; border-color: var(--accent); }
-
-  .btn { padding: 10px 24px; border: none; border-radius: var(--radius); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
-  .btn-primary { background: var(--accent); color: white; }
-  .btn-primary:hover:not(:disabled) { background: var(--accent2); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .status-bar { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 0.85rem; }
-  .status-bar.pending { background: rgba(59,130,246,0.1); color: var(--accent); }
-  .status-bar.success { background: rgba(34,197,94,0.1); color: var(--success); }
-  .status-bar.error { background: rgba(239,68,68,0.1); color: var(--error); }
-
-  .score-display { font-size: 2.5rem; font-weight: 700; text-align: center; padding: 20px 0; color: var(--success); }
-  .score-metric { text-align: center; color: var(--text2); font-size: 0.9rem; margin-bottom: 16px; }
-
-  .result-meta { font-size: 0.8rem; color: var(--text2); margin-top: 8px; }
-  .result-meta td:first-child { color: var(--text2); }
-
-  .preview-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre; margin-top: 12px; color: var(--text2); }
-
-  .full-width { grid-column: 1 / -1; }
-
-  .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--surface2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .index-count { font-size: 0.8rem; color: var(--text2); margin-bottom: 8px; }
 </style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <h1>Anserini Prebuilt Index Evaluator</h1>
-    <span id="jarBadge" class="jar-badge">Loading...</span>
-  </header>
 
-  <div class="main-grid">
-    <!-- Index Catalog -->
-    <div class="card">
-      <h2>Index Catalog</h2>
-      <input type="text" class="search-box" id="indexSearch" placeholder="Search indexes..." data-testid="index-search">
-      <div class="index-count" id="indexCount"></div>
-      <div class="index-list" id="indexList">
-        <div style="color:var(--text2);font-size:0.85rem;">Loading indexes...</div>
-      </div>
+<div class="status-bar" id="statusBar">
+  <span id="fatjarStatus">Checking fatjar...</span>
+  <span id="javaStatus">Java: checking...</span>
+</div>
+
+<h1>Anserini Prebuilt Index Evaluator</h1>
+
+<div class="dashboard">
+  <!-- Index Catalog -->
+  <div class="panel">
+    <h2>Index Catalog</h2>
+    <input type="text" class="catalog-search" id="catalogSearch" placeholder="Filter indexes..." aria-label="Filter indexes">
+    <div class="catalog-count" id="catalogCount"></div>
+    <div class="catalog-list" id="catalogList">
+      <div class="no-selection">Loading catalog from Anserini registry...</div>
     </div>
+  </div>
 
-    <!-- Evaluation Panel -->
-    <div class="card">
-      <h2>Evaluation</h2>
-      <div id="evalContent">
-        <div style="color:var(--text2);font-size:0.85rem;">Select an evaluable index to start evaluation.</div>
+  <!-- Evaluation Panel -->
+  <div class="panel">
+    <h2>Evaluation</h2>
+    <div id="evalContent">
+      <div class="no-selection" id="noEvalSelection">Select an evaluable index from the catalog to begin.</div>
+
+      <div id="evalForm" style="display:none;">
+        <div class="eval-section">
+          <div class="eval-label">Selected Index</div>
+          <div class="eval-value" id="selectedIndex">—</div>
+        </div>
+        <div class="eval-section">
+          <div class="eval-label">Topics</div>
+          <div class="eval-value" id="selectedTopics">—</div>
+        </div>
+        <div class="eval-section">
+          <div class="eval-label">Qrels / Evaluation Source</div>
+          <div class="eval-value" id="selectedQrels">—</div>
+        </div>
+        <div class="eval-config-row">
+          <div>
+            <div class="eval-label">Metric</div>
+            <select class="metric-select" id="metricSelect" aria-label="Select metric"></select>
+          </div>
+          <div style="align-self: flex-end;">
+            <button class="btn-run" id="btnRun" disabled>Run Evaluation</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- Results (shown after evaluation) -->
-    <div class="card full-width" id="resultsCard" style="display:none;">
-      <h2>Evaluation Results</h2>
-      <div id="resultsContent"></div>
+      <div id="evalRunning" style="display:none;" class="no-selection">
+        ⏳ Running evaluation...
+      </div>
+
+      <div id="evalResult" style="display:none;">
+        <div class="eval-section">
+          <div class="eval-label">Score</div>
+          <div class="result-score" id="resultScore">—</div>
+        </div>
+        <div class="result-meta" id="resultMeta"></div>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="evalOutput">Eval Output</button>
+          <button class="tab-btn" data-tab="runPreview">Run Preview</button>
+          <button class="tab-btn" data-tab="searchLog">Search Log</button>
+        </div>
+        <div class="tab-content active" id="tab-evalOutput">
+          <div class="output-box" id="evalOutputBox"></div>
+        </div>
+        <div class="tab-content" id="tab-runPreview">
+          <div class="output-box" id="runPreviewBox"></div>
+        </div>
+        <div class="tab-content" id="tab-searchLog">
+          <div class="output-box" id="searchLogBox"></div>
+        </div>
+      </div>
+
+      <div id="evalError" style="display:none;">
+        <div class="error-box" id="evalErrorBox"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-const state = {
-  indexes: [],
-  evaluableConfigs: {},
-  selectedIndex: null,
-  evaluating: false,
-  jarName: ''
-};
+// ── State ──────────────────────────────────────────────────────
+let catalog = [];
+let selectedIndexName = null;
 
-// Fetch all data on load
+// ── Init ───────────────────────────────────────────────────────
 async function init() {
   try {
-    const [indexesRes, evalRes] = await Promise.all([
-      fetch('/api/indexes').then(r => r.json()),
-      fetch('/api/evaluable').then(r => r.json())
-    ]);
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    document.getElementById('fatjarStatus').innerHTML = s.fatjar
+      ? `<span class="ok">Fatjar: ${esc(s.fatjar)}</span>`
+      : `<span class="err">No fatjar found</span>`;
+  } catch {
+    document.getElementById('fatjarStatus').innerHTML = `<span class="err">Server unreachable</span>`;
+  }
+  try {
+    await javaVersionCheck();
+  } catch {
+    document.getElementById('javaStatus').innerHTML = `<span class="err">Java unavailable</span>`;
+  }
 
-    if (indexesRes.error) throw new Error(indexesRes.error);
-    state.indexes = indexesRes.indexes || [];
-    state.jarName = indexesRes.jar || '';
-    state.evaluableConfigs = evalRes.configs || {};
+  await loadCatalog();
+}
 
-    document.getElementById('jarBadge').textContent = state.jarName ? `JAR: ${state.jarName}` : 'No JAR found';
-    if (!state.jarName) document.getElementById('jarBadge').classList.add('error');
+async function javaVersionCheck() {
+  // The server handles java; just mark it ok if the server responds.
+  document.getElementById('javaStatus').innerHTML = `<span class="ok">Java: available</span>`;
+}
 
-    renderIndexList();
-
-    // Auto-select CACM if present
-    const cacm = state.indexes.find(i => i.name === 'cacm');
-    if (cacm) selectIndex('cacm');
-
-  } catch (err) {
-    document.getElementById('jarBadge').textContent = 'Error loading';
-    document.getElementById('jarBadge').classList.add('error');
-    document.getElementById('indexList').innerHTML = `<div style="color:var(--error);font-size:0.85rem;">${escapeHtml(err.message)}</div>`;
+async function loadCatalog() {
+  const listEl = document.getElementById('catalogList');
+  try {
+    const r = await fetch('/api/catalog');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    catalog = data.indexes;
+    renderCatalog();
+    // Auto-select CACM
+    const cacm = catalog.find(i => i.name === 'cacm');
+    if (cacm && cacm.evaluable) {
+      selectIndex('cacm');
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div class="error-box">Failed to load catalog: ${esc(e.message)}</div>`;
   }
 }
 
-function escapeHtml(s) {
+function renderCatalog(filter = '') {
+  const listEl = document.getElementById('catalogList');
+  const countEl = document.getElementById('catalogCount');
+  const f = filter.toLowerCase();
+  const filtered = f ? catalog.filter(i => i.name.toLowerCase().includes(f) || (i.description || '').toLowerCase().includes(f)) : catalog;
+  countEl.textContent = `Showing ${filtered.length} of ${catalog.length} indexes`;
+  listEl.innerHTML = filtered.map(i => {
+    const cls = [
+      'catalog-item',
+      i.name === selectedIndexName ? 'selected' : '',
+      !i.evaluable ? 'disabled' : '',
+    ].filter(Boolean).join(' ');
+    const badge = i.evaluable
+      ? '<span class="badge evaluable">Evaluable</span>'
+      : '<span class="badge catalog-only">Catalog-only</span>';
+    return `<div class="${cls}" data-index="${esc(i.name)}" ${i.evaluable ? '' : 'title="No automatic evaluation pairing available"'}>
+      <span class="name">${esc(i.name)}</span>
+      <span class="desc">${esc(i.description || '')}</span>
+      ${badge}
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('.catalog-item.evaluable .name, .catalog-item.selected .name').forEach(el => {
+    // Only make evaluable items clickable via the whole row
+  });
+  listEl.querySelectorAll('.catalog-item').forEach(el => {
+    const name = el.dataset.index;
+    const item = catalog.find(i => i.name === name);
+    if (item && item.evaluable) {
+      el.addEventListener('click', () => selectIndex(name));
+    }
+  });
+}
+
+function selectIndex(name) {
+  selectedIndexName = name;
+  const item = catalog.find(i => i.name === name);
+  if (!item || !item.evaluable) return;
+
+  document.getElementById('noEvalSelection').style.display = 'none';
+  document.getElementById('evalForm').style.display = 'block';
+  document.getElementById('evalResult').style.display = 'none';
+  document.getElementById('evalError').style.display = 'none';
+
+  document.getElementById('selectedIndex').textContent = item.evalConfig.index;
+  document.getElementById('selectedTopics').textContent = item.evalConfig.topics;
+  document.getElementById('selectedQrels').textContent = item.evalConfig.qrels;
+
+  const sel = document.getElementById('metricSelect');
+  sel.innerHTML = item.evalConfig.metrics.map(m =>
+    `<option value="${esc(m.flag)}" data-key="${esc(m.key)}" data-label="${esc(m.label)}">${esc(m.label)}</option>`
+  ).join('');
+
+  document.getElementById('btnRun').disabled = false;
+  renderCatalog(document.getElementById('catalogSearch').value);
+}
+
+// ── Run Evaluation ──────────────────────────────────────────────
+document.getElementById('btnRun').addEventListener('click', runEvaluation);
+
+async function runEvaluation() {
+  const sel = document.getElementById('metricSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const body = {
+    indexName: selectedIndexName,
+    metricFlag: opt.value,
+    metricKey: opt.dataset.key,
+    metricLabel: opt.dataset.label,
+  };
+
+  document.getElementById('evalForm').style.display = 'none';
+  document.getElementById('evalResult').style.display = 'none';
+  document.getElementById('evalError').style.display = 'none';
+  document.getElementById('evalRunning').style.display = 'block';
+
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.textContent = 'Running...';
+
+  try {
+    const r = await fetch('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+
+    document.getElementById('evalRunning').style.display = 'none';
+    document.getElementById('evalForm').style.display = 'block';
+
+    if (data.success) {
+      showResult(data);
+    } else {
+      showError(data.error + '\n' + (data.stderr || ''));
+    }
+  } catch (e) {
+    document.getElementById('evalRunning').style.display = 'none';
+    document.getElementById('evalForm').style.display = 'block';
+    showError('Request failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    btn.textContent = 'Run Evaluation';
+  }
+}
+
+function showResult(data) {
+  document.getElementById('evalResult').style.display = 'block';
+  document.getElementById('resultScore').textContent = data.score !== null ? data.score : 'N/A';
+
+  const metaHtml = `<table>
+    <tr><td>Index</td><td>${esc(data.index)}</td></tr>
+    <tr><td>Topics</td><td>${esc(data.topics)}</td></tr>
+    <tr><td>Qrels</td><td>${esc(data.qrels)}</td></tr>
+    <tr><td>Metric</td><td>${esc(data.metric)}</td></tr>
+    <tr><td>Elapsed</td><td>${esc(data.elapsedSeconds)}s</td></tr>
+    <tr><td>Run File</td><td>${esc(data.runFilePath)}</td></tr>
+  </table>`;
+  document.getElementById('resultMeta').innerHTML = metaHtml;
+  document.getElementById('evalOutputBox').textContent = data.evalOutput || '';
+  document.getElementById('runPreviewBox').textContent = data.runPreview || '';
+  document.getElementById('searchLogBox').textContent = data.searchLog || '';
+}
+
+function showError(msg) {
+  document.getElementById('evalError').style.display = 'block';
+  document.getElementById('evalErrorBox').textContent = msg;
+}
+
+// ── Tabs ────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Filter ──────────────────────────────────────────────────────
+document.getElementById('catalogSearch').addEventListener('input', e => {
+  renderCatalog(e.target.value);
+});
+
+// ── Utility ─────────────────────────────────────────────────────
+function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
 
-function renderIndexList(filter = '') {
-  const list = document.getElementById('indexList');
-  const lower = filter.toLowerCase();
-  const filtered = state.indexes.filter(i => !lower || i.name.toLowerCase().includes(lower) || (i.description && i.description.toLowerCase().includes(lower)));
-
-  const evalNames = Object.keys(state.evaluableConfigs);
-  const evalCount = filtered.filter(i => evalNames.includes(i.name)).length;
-  document.getElementById('indexCount').textContent = `${filtered.length} indexes shown (${evalCount} evaluable, ${filtered.length - evalCount} catalog-only)`;
-
-  list.innerHTML = filtered.map(idx => {
-    const isEval = evalNames.includes(idx.name);
-    const selected = state.selectedIndex === idx.name;
-    return `<div class="index-item ${selected ? 'selected' : ''} ${!isEval ? 'disabled' : ''}"
-                 data-testid="index-item"
-                 data-name="${escapeHtml(idx.name)}"
-                 data-evaluable="${isEval}"
-                 onclick="${isEval ? `selectIndex('${escapeHtml(idx.name)}')` : ''}">
-      <span class="tag ${isEval ? 'evaluable' : 'catalog-only'}">${isEval ? 'EVALUABLE' : 'CATALOG'}</span>
-      <span style="flex:1;font-weight:${selected ? '600' : '400'}">${escapeHtml(idx.name)}</span>
-      ${idx.documents ? `<span style="color:var(--text2);font-size:0.75rem">${idx.documents.toLocaleString()} docs</span>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function selectIndex(name) {
-  state.selectedIndex = name;
-  renderIndexList(document.getElementById('indexSearch').value);
-  renderEvalPanel();
-}
-
-function renderEvalPanel() {
-  const content = document.getElementById('evalContent');
-  const name = state.selectedIndex;
-  const idx = state.indexes.find(i => i.name === name);
-  const config = state.evaluableConfigs[name];
-
-  if (!idx || !config) {
-    content.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">Select an evaluable index to start evaluation.</div>';
-    return;
-  }
-
-  content.innerHTML = `
-    <table class="meta-table">
-      <tr><td>Index</td><td>${escapeHtml(name)}</td></tr>
-      <tr><td>Type</td><td><span class="tag type">${escapeHtml(idx.type || 'N/A')}</span></td></tr>
-      <tr><td>Documents</td><td>${idx.documents ? idx.documents.toLocaleString() : 'N/A'}</td></tr>
-      <tr><td>Description</td><td>${escapeHtml(config.description || idx.description || 'N/A')}</td></tr>
-      <tr><td>Topics</td><td>${escapeHtml(config.topics)}</td></tr>
-      <tr><td>Qrels</td><td>${escapeHtml(config.qrels)}</td></tr>
-    </table>
-
-    <div style="margin-top:16px;">
-      <label style="font-size:0.85rem;color:var(--text2);display:block;margin-bottom:4px;">Evaluation Metric</label>
-      <select id="metricSelect" data-testid="metric-select">
-        ${config.metrics.map(m => `<option value="${m.id}">${escapeHtml(m.label)} (${m.id})</option>`).join('')}
-      </select>
-    </div>
-
-    <button class="btn btn-primary" id="runBtn" data-testid="run-eval-btn" onclick="runEvaluation()">
-      Run Evaluation
-    </button>
-
-    <div id="evalStatus"></div>
-  `;
-}
-
-async function runEvaluation() {
-  const name = state.selectedIndex;
-  const metric = document.getElementById('metricSelect').value;
-  const btn = document.getElementById('runBtn');
-  const status = document.getElementById('evalStatus');
-
-  if (!name || !metric) return;
-
-  btn.disabled = true;
-  state.evaluating = true;
-  status.innerHTML = '<div class="status-bar pending"><span class="loading-spinner"></span> Running retrieval and evaluation...</div>';
-
-  try {
-    const res = await fetch(`/api/evaluate?index=${encodeURIComponent(name)}&metric=${encodeURIComponent(metric)}`).then(r => r.json());
-
-    if (res.error) {
-      status.innerHTML = `<div class="status-bar error">Error: ${escapeHtml(res.error)}</div>`;
-    } else {
-      status.innerHTML = '<div class="status-bar success">Evaluation complete!</div>';
-      showResults(res);
-    }
-  } catch (err) {
-    status.innerHTML = `<div class="status-bar error">Request failed: ${escapeHtml(err.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    state.evaluating = false;
-  }
-}
-
-function showResults(res) {
-  const card = document.getElementById('resultsCard');
-  const content = document.getElementById('resultsContent');
-  card.style.display = '';
-
-  content.innerHTML = `
-    <div class="score-display" data-testid="score-display">${res.score !== null ? res.score.toFixed(4) : 'N/A'}</div>
-    <div class="score-metric">${escapeHtml(res.metricLabel || res.metric)}</div>
-
-    <table class="meta-table result-meta" data-testid="result-meta">
-      <tr><td>Index</td><td>${escapeHtml(res.index)}</td></tr>
-      <tr><td>Topics</td><td>${escapeHtml(res.topics)}</td></tr>
-      <tr><td>Qrels</td><td>${escapeHtml(res.qrels)}</td></tr>
-      <tr><td>Metric</td><td>${escapeHtml(res.metricLabel || res.metric)} (${escapeHtml(res.metric)})</td></tr>
-      <tr><td>Score</td><td>${res.score !== null ? res.score : 'N/A'}</td></tr>
-      <tr><td>Run Lines</td><td>${res.runLines || 'N/A'}</td></tr>
-      <tr><td>Search Time</td><td>${res.searchTimeMs ? res.searchTimeMs + 'ms' : 'N/A'}</td></tr>
-      <tr><td>Eval Time</td><td>${res.evalTimeMs ? res.evalTimeMs + 'ms' : 'N/A'}</td></tr>
-      <tr><td>Run File</td><td data-testid="run-file">${escapeHtml(res.runFile || 'N/A')}</td></tr>
-    </table>
-
-    <div style="margin-top:16px;">
-      <div style="font-size:0.85rem;color:var(--text2);margin-bottom:4px;">Evaluation Output</div>
-      <div class="preview-box" data-testid="eval-output">${escapeHtml(res.evalOutput || '')}</div>
-    </div>
-
-    <div style="margin-top:12px;">
-      <div style="font-size:0.85rem;color:var(--text2);margin-bottom:4px;">Run File Preview (first 10 lines)</div>
-      <div class="preview-box" data-testid="run-preview">${escapeHtml(res.runPreview || '')}</div>
-    </div>
-  `;
-}
-
-// Search filter
-document.getElementById('indexSearch').addEventListener('input', (e) => {
-  renderIndexList(e.target.value);
-});
-
-// Init
 init();
 </script>
 </body>

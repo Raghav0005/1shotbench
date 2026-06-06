@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anserini Prebuilt Index Evaluator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Anserini Prebuilt Index Evaluator</h1>
+      <p class="sub">
+        Browse Anserini's prebuilt Lucene inverted indexes and run real
+        retrieval + <code>trec_eval</code>-based evaluations from your browser.
+      </p>
+      <div id="health" class="health" aria-live="polite"></div>
+    </header>
+
+    <main>
+      <section class="catalog" aria-label="Index catalog">
+        <div class="catalog-header">
+          <h2>Catalog</h2>
+          <input
+            id="filter"
+            type="search"
+            placeholder="Filter by name or description..."
+            aria-label="Filter catalog"
+          />
+        </div>
+        <div class="catalog-stats" id="catalog-stats"></div>
+        <ol id="catalog-list" class="catalog-list" role="listbox"></ol>
+      </section>
+
+      <section class="detail" aria-label="Evaluation panel">
+        <h2>Evaluation</h2>
+        <div id="detail" class="detail-body">
+          <p class="muted">Loading catalog...</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anserini Prebuilt Index Evaluator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">Anserini fatjar CLI</p>
+        <h1>Prebuilt Index Evaluator</h1>
+        <p class="subhead">Browse registry-derived Lucene inverted indexes and run a real CACM retrieval evaluation.</p>
+      </div>
+      <div id="runtime" class="runtime" data-testid="runtime">Loading runtime…</div>
+    </header>
+
+    <main>
+      <section class="panel catalog-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Index catalog</h2>
+            <p>Loaded from <code>io.anserini.cli.PrebuiltIndexRegistry --list --type inverted</code>.</p>
+          </div>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+        <label class="search-label" for="filter">Filter indexes</label>
+        <input id="filter" data-testid="filter" type="search" placeholder="Search by name or description" />
+        <div id="catalogStatus" class="status" data-testid="catalog-status">Loading catalog…</div>
+        <details class="topics-box">
+          <summary>Topics registry preview</summary>
+          <p id="topicsPreview" data-testid="topics-preview">Loading topics…</p>
+        </details>
+        <div id="catalog" class="catalog" data-testid="catalog"></div>
+      </section>
+
+      <section class="panel eval-panel">
+        <h2>Evaluation</h2>
+        <div id="selection" class="selection" data-testid="selection">Select an evaluable index.</div>
+
+        <div class="form-row">
+          <label for="metric">Metric</label>
+          <select id="metric" data-testid="metric"></select>
+        </div>
+
+        <button id="run" class="run-button" data-testid="run-evaluation" type="button" disabled>Run Evaluation</button>
+        <div id="runStatus" class="status" data-testid="run-status"></div>
+        <div id="error" class="error" data-testid="error" hidden></div>
+
+        <article id="result" class="result" data-testid="result" hidden>
+          <h3>Result</h3>
+          <div class="score"><span id="score" data-testid="score"></span></div>
+          <dl>
+            <dt>Index</dt><dd id="metaIndex" data-testid="meta-index"></dd>
+            <dt>Topics</dt><dd id="metaTopics" data-testid="meta-topics"></dd>
+            <dt>Qrels/evaluation source</dt><dd id="metaQrels" data-testid="meta-qrels"></dd>
+            <dt>Metric</dt><dd id="metaMetric" data-testid="meta-metric"></dd>
+            <dt>Status</dt><dd id="metaStatus" data-testid="meta-status"></dd>
+            <dt>Elapsed</dt><dd id="metaElapsed" data-testid="meta-elapsed"></dd>
+            <dt>Run file</dt><dd><code id="metaRunPath" data-testid="meta-run-path"></code></dd>
+            <dt>Evaluation output</dt><dd><code id="metaEvalPath" data-testid="meta-eval-path"></code></dd>
+          </dl>
+          <details open>
+            <summary>Evaluation output preview</summary>
+            <pre id="evalPreview" data-testid="eval-preview"></pre>
+          </details>
+          <details>
+            <summary>Anserini commands</summary>
+            <pre id="commands" data-testid="commands"></pre>
+          </details>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

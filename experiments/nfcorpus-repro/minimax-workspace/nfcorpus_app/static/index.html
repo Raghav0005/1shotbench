@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⌘</span>
+      <div>
+        <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+        <p class="subtitle">BM25 over <code>beir-v1.0.0-nfcorpus.flat</code> · Anserini fatjar</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="dataset-badge" class="badge badge-dataset">dataset: nfcorpus</span>
+      <span id="status-pill" class="badge status-unknown">readiness: unknown</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================== Readiness ============================== -->
+    <section class="card" id="readiness-card">
+      <header class="card-header">
+        <h2>1 · Readiness &amp; status</h2>
+        <button class="ghost" id="btn-refresh-status">Refresh</button>
+      </header>
+      <div class="readiness-grid">
+        <div class="readiness-item" data-key="java">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">Java</div>
+            <div class="value" id="readiness-java">checking…</div>
+          </div>
+        </div>
+        <div class="readiness-item" data-key="fatjar">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">Anserini fatjar</div>
+            <div class="value" id="readiness-fatjar">checking…</div>
+          </div>
+        </div>
+        <div class="readiness-item" data-key="index">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">NFCorpus prebuilt index</div>
+            <div class="value" id="readiness-index">checking…</div>
+          </div>
+        </div>
+        <div class="readiness-item" data-key="reproduction">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">Reproduction discovery</div>
+            <div class="value" id="readiness-reproduction">checking…</div>
+          </div>
+        </div>
+        <div class="readiness-item" data-key="search">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">Live search</div>
+            <div class="value" id="readiness-search">pending…</div>
+          </div>
+        </div>
+        <div class="readiness-item" data-key="evaluation">
+          <span class="dot dot-unknown"></span>
+          <div>
+            <div class="label">BM25 evaluation</div>
+            <div class="value" id="readiness-evaluation">pending…</div>
+          </div>
+        </div>
+      </div>
+      <p class="readiness-summary" id="readiness-summary"></p>
+    </section>
+
+    <!-- ================================ Search =============================== -->
+    <section class="card" id="search-card">
+      <header class="card-header">
+        <h2>2 · Live BM25 search</h2>
+        <span class="hint">Sends a single-query request to <code>io.anserini.cli.Search</code>.</span>
+      </header>
+      <form id="search-form" class="search-form">
+        <input type="text" id="search-input" autocomplete="off"
+               placeholder="Type an NFCorpus query, e.g. 'vitamin c common cold'">
+        <label class="hits">
+          hits
+          <input type="number" id="search-hits" min="1" max="50" value="10">
+        </label>
+        <button type="submit" id="btn-search">Search</button>
+      </form>
+      <div class="samples" id="sample-queries"></div>
+      <div id="search-status" class="status-line"></div>
+      <ol id="search-results" class="results-list"></ol>
+    </section>
+
+    <!-- ============================ Evaluation ============================== -->
+    <section class="card" id="evaluation-card">
+      <header class="card-header">
+        <h2>3 · BM25 evaluation</h2>
+        <div class="card-actions">
+          <button id="btn-evaluate">Run evaluation</button>
+          <button id="btn-verify" class="ghost">Verify / rerun</button>
+        </div>
+      </header>
+      <p class="hint">
+        Runs <code>io.anserini.search.SearchCollection</code> against the
+        <code>beir-nfcorpus</code> topic set, writes a TREC run file, then
+        calls <code>io.anserini.eval.TrecEval</code> on it. Observed metrics
+        are compared against the
+        <code id="expected-config-name">beir.core · flat</code> reproduction target.
+      </p>
+      <div id="eval-status" class="status-line"></div>
+      <table class="metric-table" id="metric-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Expected</th>
+            <th>Observed</th>
+            <th>Δ</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="eval-meta">
+        <span id="eval-elapsed"></span>
+        <span id="eval-cached"></span>
+        <span id="eval-verdict" class="badge"></span>
+      </div>
+    </section>
+
+    <!-- ====================== Commands & artifacts drawer ==================== -->
+    <section class="card" id="drawer-card">
+      <header class="card-header">
+        <h2>4 · Commands &amp; artifacts</h2>
+        <button class="ghost" id="btn-toggle-drawer">Hide</button>
+      </header>
+      <div class="drawer-grid">
+        <div>
+          <h3>Exact Anserini commands used</h3>
+          <ul class="command-list" id="command-list"></ul>
+        </div>
+        <div>
+          <h3>Generated artifact paths</h3>
+          <ul class="artifact-list" id="artifact-list"></ul>
+        </div>
+      </div>
+      <details class="log-preview" id="log-preview">
+        <summary>Command log preview (last evaluation search + eval)</summary>
+        <pre id="log-preview-body">no commands recorded yet</pre>
+      </details>
+    </section>
+
+    <!-- ============================ Docker / Render ========================== -->
+    <section class="card" id="deploy-card">
+      <header class="card-header">
+        <h2>5 · Deployment contract</h2>
+      </header>
+      <ul class="deploy-list">
+        <li>Docker web service that binds <code>0.0.0.0</code> and reads
+            the <code>PORT</code> env var (defaults to <code>10000</code>).</li>
+        <li><code>GET /health</code> returns JSON with <code>status</code>,
+            <code>anserini_available</code>, <code>nfcorpus_ready</code>,
+            <code>search_available</code>, and <code>evaluation_available</code>.</li>
+        <li>No interactive setup is required after the container starts;
+            the fatjar is downloaded during the first readiness probe.</li>
+        <li>Runtime caches live under <code id="data-dir-label">./data</code>;
+            mount a Render persistent disk at that path to keep them across
+            deploys.</li>
+        <li>Only the NFCorpus subset of the BEIR prebuilt index is
+            downloaded (~6.2&nbsp;MB). The full BEIR archive is never fetched.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <span>Anserini <code id="footer-anserini-version">—</code> · Java
+      <code id="footer-java-version">—</code> · port
+      <code id="footer-port">—</code></span>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

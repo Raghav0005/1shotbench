@@ -1,0 +1,25 @@
+{
+  "name": "msmarco-passage-search-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js frontend for searching the MS MARCO passage corpus through an Anserini REST backend.",
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:start:backend\" \"npm:start:frontend\"",
+    "start:backend": "bash scripts/start-backend.sh",
+    "start:frontend": "bash scripts/start-frontend.sh",
+    "build": "next build",
+    "start": "next start -p ${FRONTEND_PORT:-3000}"
+  },
+  "dependencies": {
+    "next": "15.5.19",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  }
+}

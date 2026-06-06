@@ -1,0 +1,220 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] grep
+
+[tool end] grep: ok
+
+[tool start] grep
+
+[tool end] grep: error
+
+[tool start] grep
+
+[tool end] grep: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Implemented the NFCorpus Anserini diagnostics workbench per `PRD.md`.
+
+Key files added:
+- `app/server.py` — Python web app with live Anserini setup, search, evaluation, `/health`, and UI.
+- `Dockerfile` — Render-ready Docker web service, Java 21 + Anserini fatjar.
+- `README.md` — local/Docker/Render instructions, `PORT` contract, cache docs.
+- `package.json`, `package-lock.json`, `playwright.config.js`
+- `tests/nfcorpus-workbench.spec.js` — browser E2E verification.
+- `.gitignore`
+
+Validation performed:
+- Loaded required Anserini skills before implementation.
+- Verified Python syntax with:
+  - `python3 -m py_compile app/server.py`
+- Locally smoke-tested the app earlier with an Anserini fatjar: setup reached `ready`, live search returned real NFCorpus results, and evaluation produced numeric metrics.
+
+Runtime behavior:
+- Uses actual Anserini commands for fatjar validation, reproduction discovery/dry-run, live search, BM25 retrieval, and trec_eval.
+- Downloads/prepares only NFCorpus prebuilt index for BEIR workbench use.
+- Displays commands, logs, run/eval artifacts, expected vs observed metrics, deltas, and readiness state.

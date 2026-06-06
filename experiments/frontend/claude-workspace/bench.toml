@@ -1,6 +1,6 @@
 name = "Claude workspace"
 provider = "anthropic"
-model = "claude-sonnet-4-6"
+model = "claude-opus-4-7"
 thinking = "high"
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]

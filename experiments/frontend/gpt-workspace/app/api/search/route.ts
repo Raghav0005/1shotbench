@@ -1,87 +1,87 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
+import { NextResponse } from 'next/server';
 
 type AnseriniCandidate = {
   docid?: string;
   score?: number;
   rank?: number;
   doc?: string;
+  [key: string]: unknown;
 };
 
 type AnseriniSearchResponse = {
-  api?: string;
-  index?: string;
-  query?: { text?: string };
   candidates?: AnseriniCandidate[];
+  [key: string]: unknown;
 };
 
+export const dynamic = 'force-dynamic';
+
 function getBackendBaseUrl() {
-  if (process.env.ANSERINI_API_URL) {
-    return process.env.ANSERINI_API_URL.replace(/\/$/, '');
+  if (process.env.ANSERINI_API_BASE_URL) {
+    return process.env.ANSERINI_API_BASE_URL.replace(/\/$/, '');
   }
 
-  const host = process.env.ANSERINI_HOST || 'localhost';
-  const port = process.env.ANSERINI_PORT || '8080';
-  return `http://${host}:${port}`;
+  const backendPort = process.env.BACKEND_PORT ?? process.env.ANSERINI_PORT ?? '8080';
+  return `http://localhost:${backendPort}`;
 }
 
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get('q')?.trim() || '';
-  const hitsParam = Number(request.nextUrl.searchParams.get('hits') || '10');
-  const hits = Number.isFinite(hitsParam) ? Math.min(Math.max(Math.trunc(hitsParam), 1), 50) : 10;
-  const index = process.env.ANSERINI_INDEX || 'msmarco-v1-passage';
+function getHits(value: string | null) {
+  const parsed = Number(value ?? process.env.DEFAULT_HITS ?? '10');
+  if (!Number.isFinite(parsed)) return 10;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const query = (searchParams.get('q') ?? '').trim();
 
   if (!query) {
-    return NextResponse.json({ error: 'Enter a query to search MS MARCO passages.' }, { status: 400 });
+    return NextResponse.json({ error: 'Enter a query before searching.' }, { status: 400 });
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-  const url = `${getBackendBaseUrl()}/v1/${encodeURIComponent(index)}/search?query=${encodeURIComponent(query)}&hits=${hits}`;
+  const hits = getHits(searchParams.get('hits'));
+  const index = process.env.ANSERINI_INDEX ?? 'msmarco-v1-passage';
+  const url = new URL(`/v1/${encodeURIComponent(index)}/search`, getBackendBaseUrl());
+  url.searchParams.set('query', query);
+  url.searchParams.set('hits', String(hits));
 
   try {
-    const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-    const bodyText = await response.text();
+    const response = await fetch(url, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    const text = await response.text();
+    let payload: AnseriniSearchResponse | { error: string };
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      payload = { error: text || 'The Anserini backend returned a non-JSON response.' };
+    }
 
     if (!response.ok) {
       return NextResponse.json(
         {
-          error: `Anserini backend returned HTTP ${response.status}.`,
-          detail: bodyText.slice(0, 1000),
+          error: 'The Anserini backend could not complete the search.',
+          details: payload,
         },
         { status: 502 },
       );
     }
 
-    let data: AnseriniSearchResponse;
-    try {
-      data = JSON.parse(bodyText) as AnseriniSearchResponse;
-    } catch {
-      return NextResponse.json(
-        { error: 'Anserini backend returned a non-JSON response.', detail: bodyText.slice(0, 1000) },
-        { status: 502 },
-      );
-    }
+    const candidates = Array.isArray((payload as AnseriniSearchResponse).candidates)
+      ? (payload as AnseriniSearchResponse).candidates
+      : [];
 
-    return NextResponse.json({
-      index: data.index || index,
-      query: data.query?.text || query,
-      candidates: Array.isArray(data.candidates) ? data.candidates : [],
-    });
+    return NextResponse.json({ query, index, hits, candidates }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    const message = error instanceof Error && error.name === 'AbortError'
-      ? 'Timed out waiting for the Anserini backend.'
-      : 'Could not reach the Anserini backend.';
-
+    const message = error instanceof Error ? error.message : 'Unknown backend error';
     return NextResponse.json(
       {
-        error: message,
-        detail: `Expected Anserini REST at ${getBackendBaseUrl()}. Start it with npm run backend.`,
+        error: 'Unable to reach the Anserini REST API backend.',
+        details: message,
+        backend: getBackendBaseUrl(),
       },
       { status: 502 },
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFCorpus Retrieval Diagnostics Workbench</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a; --text: #e1e4ed;
+    --muted: #8b8fa3; --accent: #6c8cff; --green: #4ade80; --red: #f87171;
+    --yellow: #fbbf24; --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+  .badge-ok { background: rgba(74,222,128,0.15); color: var(--green); }
+  .badge-warn { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .badge-err { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge-info { background: rgba(108,140,255,0.15); color: var(--accent); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .status-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
+  .status-row .label { color: var(--muted); }
+  .status-row .value { font-family: var(--mono); font-size: 12px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-gray { background: var(--muted); }
+  /* Search */
+  .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+  .search-box input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; }
+  .search-box input:focus { border-color: var(--accent); }
+  .search-box button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 500; }
+  .search-box button:hover { opacity: 0.9; }
+  .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .sample-queries { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .sample-queries button { background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; color: var(--muted); font-size: 12px; cursor: pointer; }
+  .sample-queries button:hover { border-color: var(--accent); color: var(--accent); }
+  .results-list { max-height: 500px; overflow-y: auto; }
+  .result-item { padding: 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; }
+  .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .result-rank { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+  .result-docid { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .result-score { font-family: var(--mono); font-size: 12px; color: var(--green); }
+  .result-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .result-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  /* Evaluation */
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .metric-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .metric-table td { padding: 6px 8px; font-family: var(--mono); font-size: 12px; }
+  .metric-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .status-pass { color: var(--green); font-weight: 600; }
+  .status-close { color: var(--yellow); font-weight: 600; }
+  .status-fail { color: var(--red); font-weight: 600; }
+  .eval-actions { margin-top: 12px; }
+  .btn { background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; color: var(--text); font-size: 12px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Commands drawer */
+  .drawer-toggle { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+  .drawer-toggle:hover { text-decoration: underline; }
+  .drawer-content { display: none; margin-top: 12px; }
+  .drawer-content.open { display: block; }
+  .cmd-block { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+  .cmd-desc { font-size: 12px; color: var(--accent); margin-bottom: 4px; }
+  .cmd-line { font-family: var(--mono); font-size: 11px; color: var(--green); word-break: break-all; white-space: pre-wrap; margin-bottom: 4px; }
+  .cmd-meta { font-size: 11px; color: var(--muted); }
+  .cmd-output { font-family: var(--mono); font-size: 11px; color: var(--muted); max-height: 100px; overflow-y: auto; white-space: pre-wrap; margin-top: 4px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; }
+  .error-box { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); border-radius: 6px; padding: 12px; color: var(--red); font-size: 13px; margin-bottom: 12px; }
+  .loading { text-align: center; color: var(--muted); padding: 20px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .artifact-path { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🩺 NFCorpus Retrieval Diagnostics Workbench</h1>
+    <div id="global-status"><span class="badge badge-info">Initializing...</span></div>
+  </header>
+
+  <div id="error-banner" style="display:none">
+    <div class="error-box" id="error-message"></div>
+  </div>
+
+  <!-- Readiness Panel -->
+  <div class="grid">
+    <div class="card" id="readiness-card">
+      <h2>Readiness / Status</h2>
+      <div id="status-panel"><div class="loading"><span class="spinner"></span> Checking environment...</div></div>
+    </div>
+    <div class="card" id="evaluation-card">
+      <h2>BM25 Evaluation</h2>
+      <div id="eval-panel"><div class="loading"><span class="spinner"></span> Waiting for setup...</div></div>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="card" style="margin-bottom:16px;">
+    <h2>Live NFCorpus Search</h2>
+    <div class="search-box">
+      <input type="text" id="query-input" placeholder="Enter a medical/nutrition query..." autocomplete="off">
+      <button id="search-btn" onclick="doSearch()" disabled>Search</button>
+    </div>
+    <div class="sample-queries">
+      {% for q in sample_queries %}
+      <button onclick="setQuery('{{ q }}')">{{ q }}</button>
+      {% endfor %}
+    </div>
+    <div id="search-results"><div class="loading" style="padding:10px;">Search is loading NFCorpus index...</div></div>
+  </div>
+
+  <!-- Commands Drawer -->
+  <div class="card">
+    <h2 style="display:flex;align-items:center;justify-content:space-between;">
+      Commands &amp; Artifacts
+      <button class="drawer-toggle" onclick="toggleDrawer()">▼ Toggle</button>
+    </h2>
+    <div class="drawer-content" id="commands-drawer">
+      <div id="commands-list"><div class="loading">No commands executed yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function setQuery(q) {
+  $('query-input').value = q;
+  doSearch();
+}
+
+async function doSearch() {
+  const query = $('query-input').value.trim();
+  if (!query) return;
+  $('search-btn').disabled = true;
+  $('search-results').innerHTML = '<div class="loading"><span class="spinner"></span> Searching NFCorpus...</div>';
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query}),
+    });
+    const data = await res.json();
+    if (data.error) {
+      $('search-results').innerHTML = `<div class="error-box">${data.error}</div>`;
+    } else {
+      renderResults(data);
+    }
+  } catch (e) {
+    $('search-results').innerHTML = `<div class="error-box">Request failed: ${e.message}</div>`;
+  }
+  $('search-btn').disabled = false;
+}
+
+function renderResults(data) {
+  if (!data.results || data.results.length === 0) {
+    $('search-results').innerHTML = '<div class="loading">No results found.</div>';
+    return;
+  }
+  let html = `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Query: "${data.query}" — ${data.count} results</div><div class="results-list">`;
+  for (const r of data.results) {
+    html += `<div class="result-item">
+      <div class="result-header">
+        <span><span class="result-rank">#${r.rank}</span> <span class="result-docid">${r.docid}</span></span>
+        <span class="result-score">Score: ${r.score.toFixed(4)}</span>
+      </div>
+      <div class="result-title">${escapeHtml(r.title)}</div>
+      <div class="result-text">${escapeHtml(r.text)}</div>
+      ${r.url ? `<div style="margin-top:4px;"><a href="${r.url}" target="_blank" style="color:var(--accent);font-size:11px;">PubMed ↗</a></div>` : ''}
+    </div>`;
+  }
+  html += '</div>';
+  $('search-results').innerHTML = html;
+}
+
+function escapeHtml(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const s = await res.json();
+    updateReadiness(s);
+    if (s.evaluation_ready || s.eval_in_progress) {
+      pollEvaluation();
+    }
+    $('search-btn').disabled = !s.index_ready;
+  } catch (e) {
+    $('global-status').innerHTML = '<span class="badge badge-err">Connection Error</span>';
+  }
+}
+
+function updateReadiness(s) {
+  let html = '';
+  html += statusRow('Java 21', s.java_available, s.java_version || 'Not found');
+  html += statusRow('Anserini Fatjar', s.fatjar_available, `v${s.anserini_version} — ${s.fatjar_version || 'N/A'}`);
+  html += statusRow('NFCorpus Index', s.index_ready, s.index_name);
+  html += statusRow('Evaluation', s.evaluation_ready, s.evaluation_ready ? 'Complete' : (s.eval_in_progress ? 'Running...' : 'Pending'));
+  html += `<div style="margin-top:8px;font-size:11px;color:var(--muted);">Dataset: ${s.dataset} | Eval key: ${s.eval_key}</div>`;
+  $('status-panel').innerHTML = html;
+
+  if (s.setup_error) {
+    $('error-banner').style.display = 'block';
+    $('error-message').textContent = s.setup_error;
+  }
+
+  if (s.setup_complete) {
+    $('global-status').innerHTML = '<span class="badge badge-ok">Ready</span>';
+  } else if (s.eval_in_progress) {
+    $('global-status').innerHTML = '<span class="badge badge-warn">Running Evaluation</span>';
+  } else if (s.index_ready) {
+    $('global-status').innerHTML = '<span class="badge badge-warn">Index Ready</span>';
+  } else {
+    $('global-status').innerHTML = '<span class="badge badge-info">Initializing...</span>';
+  }
+}
+
+function statusRow(label, ready, detail) {
+  const dot = ready ? 'dot-green' : 'dot-gray';
+  return `<div class="status-row"><span class="label"><span class="dot ${dot}"></span>${label}</span><span class="value">${detail}</span></div>`;
+}
+
+async function pollEvaluation() {
+  try {
+    const res = await fetch('/api/evaluation');
+    const data = await res.json();
+    renderEvaluation(data);
+  } catch (e) {}
+}
+
+function renderEvaluation(data) {
+  if (data.status === 'in_progress') {
+    $('eval-panel').innerHTML = '<div class="loading"><span class="spinner"></span> Running BM25 evaluation...</div>';
+    return;
+  }
+  if (data.status !== 'ready') {
+    $('eval-panel').innerHTML = `<div class="loading">Evaluation not ready. ${data.error || ''}</div>`;
+    return;
+  }
+  const stClass = data.status === 'PASS' ? 'status-pass' : (data.status === 'CLOSE' ? 'status-close' : 'status-fail');
+  let html = `
+    <table class="metric-table">
+      <tr><th>Metric</th><th>Expected</th><th>Observed</th><th>Delta</th><th>Status</th></tr>
+      <tr>
+        <td>${data.metric}</td>
+        <td>${data.expected.toFixed(4)}</td>
+        <td>${data.observed.toFixed(4)}</td>
+        <td>${data.delta >= 0 ? '+' : ''}${data.delta.toFixed(4)}</td>
+        <td class="${stClass}">${data.status}</td>
+      </tr>
+    </table>
+    <div style="margin-top:8px;">
+      <div class="artifact-path">Run file: ${data.run_file}</div>
+      <div class="artifact-path">Eval file: ${data.eval_file}</div>
+    </div>
+    <div style="margin-top:4px;font-size:11px;color:var(--muted);">Last evaluated: ${data.eval_time || 'N/A'}</div>
+    <div class="eval-actions">
+      <button class="btn" onclick="rerunEval()">🔄 Verify / Rerun</button>
+    </div>`;
+  $('eval-panel').innerHTML = html;
+}
+
+async function rerunEval() {
+  try {
+    await fetch('/api/evaluation/rerun', {method: 'POST'});
+    $('eval-panel').innerHTML = '<div class="loading"><span class="spinner"></span> Rerunning evaluation...</div>';
+    setTimeout(pollEvaluation, 3000);
+  } catch (e) {}
+}
+
+function toggleDrawer() {
+  const d = $('commands-drawer');
+  d.classList.toggle('open');
+  if (d.classList.contains('open')) loadCommands();
+}
+
+async function loadCommands() {
+  try {
+    const res = await fetch('/api/commands');
+    const data = await res.json();
+    renderCommands(data.commands);
+  } catch (e) {}
+}
+
+function renderCommands(cmds) {
+  if (!cmds || cmds.length === 0) {
+    $('commands-list').innerHTML = '<div class="loading">No commands executed yet.</div>';
+    return;
+  }
+  let html = '';
+  for (const c of cmds) {
+    html += `<div class="cmd-block">
+      <div class="cmd-desc">${escapeHtml(c.description)}</div>
+      <div class="cmd-line">$ ${escapeHtml(c.command)}</div>
+      <div class="cmd-meta">Exit: ${c.exit_code} | Duration: ${c.duration_ms}ms | ${c.timestamp}</div>
+      ${c.stdout ? `<div class="cmd-output">stdout: ${escapeHtml(c.stdout.slice(0, 500))}</div>` : ''}
+      ${c.stderr ? `<div class="cmd-output">stderr: ${escapeHtml(c.stderr.slice(0, 500))}</div>` : ''}
+    </div>`;
+  }
+  $('commands-list').innerHTML = html;
+}
+
+// Enter key in search box
+$('query-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+// Poll immediately and every 3 seconds
+pollStatus();
+pollEvaluation();
+setInterval(pollStatus, 3000);
+setInterval(pollEvaluation, 5000);
+</script>
+</body>
+</html>

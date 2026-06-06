@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+  <style>
+    :root { --bg: #f6f8fa; --panel: #fff; --border: #d0d7de; --accent: #0969da; --success: #1a7f37; --warn: #9a6700; --danger: #cf222e; --text: #24292f; --muted: #57606a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .subtitle { color: var(--muted); margin-bottom: 16px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .panel h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+    .badge.ok { background: #dafbe1; color: var(--success); }
+    .badge.warn { background: #fff8c5; color: var(--warn); }
+    .badge.danger { background: #ffebe9; color: var(--danger); }
+    .badge.info { background: #ddf4ff; color: var(--accent); }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .row:last-child { border-bottom: none; }
+    .key { color: var(--muted); font-size: 13px; }
+    .value { font-size: 13px; font-weight: 500; }
+    pre { background: #f3f4f6; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+    input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+    button { padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-size: 13px; cursor: pointer; }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .samples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .results { margin-top: 12px; }
+    .result-item { padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; background: #fff; }
+    .result-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .result-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .result-text { font-size: 13px; color: var(--text); line-height: 1.4; }
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .metric-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center; }
+    .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-size: 18px; font-weight: 700; margin: 4px 0; }
+    .metric-delta { font-size: 12px; }
+    .drawer { margin-top: 12px; }
+    .drawer summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); }
+    .error { color: var(--danger); font-size: 13px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+    <div class="subtitle">Anserini-backed live search and BM25 evaluation for the BEIR NFCorpus dataset.</div>
+
+    <div class="grid">
+      <!-- Status Panel -->
+      <div class="panel">
+        <h2>Readiness <span id="status-badge" class="badge info">Loading…</span></h2>
+        <div id="status-rows"></div>
+        <div id="status-errors" class="error"></div>
+      </div>
+
+      <!-- Evaluation Panel -->
+      <div class="panel">
+        <h2>BM25 Evaluation <span id="eval-badge" class="badge warn">Not run</span></h2>
+        <div id="eval-metrics" class="metric-grid"></div>
+        <div class="row" style="margin-top:8px">
+          <span class="key">Elapsed</span>
+          <span id="eval-elapsed" class="value">—</span>
+        </div>
+        <div style="margin-top:10px">
+          <button class="primary" id="btn-rerun" onclick="rerunEval()">Verify / Rerun</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Panel -->
+    <div class="panel" style="margin-top:16px">
+      <h2>Live Search</h2>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="search-input" placeholder="Type a query (e.g., deafness, DHA, diabetes)…" onkeydown="if(event.key==='Enter') doSearch()">
+        <button class="primary" onclick="doSearch()">Search</button>
+      </div>
+      <div class="samples">
+        <span style="font-size:12px;color:var(--muted)">Sample queries:</span>
+        <button onclick="setQuery('deafness')">deafness</button>
+        <button onclick="setQuery('DHA')">DHA</button>
+        <button onclick="setQuery('plant-based diet')">plant-based diet</button>
+        <button onclick="setQuery('titanium dioxide')">titanium dioxide</button>
+        <button onclick="setQuery('probiotics')">probiotics</button>
+      </div>
+      <div id="search-results" class="results"></div>
+    </div>
+
+    <!-- Commands & Artifacts -->
+    <div class="panel" style="margin-top:16px">
+      <h2>Commands & Artifacts</h2>
+      <details class="drawer" open>
+        <summary>Commands</summary>
+        <div id="commands-content"></div>
+      </details>
+      <details class="drawer">
+        <summary>Artifacts</summary>
+        <div id="artifacts-content"></div>
+      </details>
+      <details class="drawer">
+        <summary>Setup logs / previews</summary>
+        <div id="logs-content"></div>
+      </details>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h2>Deployment</h2>
+      <div class="row"><span class="key">Port binding</span><span class="value">0.0.0.0:$PORT (default 10000)</span></div>
+      <div class="row"><span class="key">Health endpoint</span><span class="value"><a href="/health">/health</a></span></div>
+      <div class="row"><span class="key">Dataset</span><span class="value">NFCorpus (BEIR) only — no full-BEIR download</span></div>
+      <div class="row"><span class="key">Cache directory</span><span class="value">./cache (runs, eval output, fatjar)</span></div>
+    </div>
+  </div>
+
+  <script>
+    const el = id => document.getElementById(id);
+    let lastStatus = {};
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        lastStatus = data;
+        renderStatus(data);
+        renderEval(data.evaluation);
+        renderCommands(data);
+      } catch (e) {
+        el('status-badge').textContent = 'Unreachable';
+        el('status-badge').className = 'badge danger';
+      }
+    }
+
+    function renderStatus(data) {
+      const badge = el('status-badge');
+      if (!data.setup_complete) {
+        badge.textContent = 'Starting…';
+        badge.className = 'badge info';
+      } else if (data.errors.length > 0) {
+        badge.textContent = 'Degraded';
+        badge.className = 'badge warn';
+      } else {
+        badge.textContent = 'Ready';
+        badge.className = 'badge ok';
+      }
+
+      const rows = [
+        {k:'Java', v: data.java.ok ? 'OK (' + (data.java.version||'').split('\n')[0] + ')' : 'Missing / wrong version', ok:data.java.ok},
+        {k:'Anserini fatjar', v: data.fatjar.ok ? 'OK' : 'Missing', ok:data.fatjar.ok},
+        {k:'CACM smoke test', v: data.cacm_smoke ? 'Pass' : (data.setup_complete ? 'Fail' : 'Pending'), ok:data.cacm_smoke},
+        {k:'NFCorpus index', v: data.nfcorpus_index_ready ? 'Ready' : 'Pending', ok:data.nfcorpus_index_ready},
+        {k:'Reproduction discovered', v: data.reproduction_discovered ? 'Yes' : 'Pending', ok:data.reproduction_discovered},
+        {k:'Search', v: data.nfcorpus_index_ready ? 'Available' : 'Unavailable', ok:data.nfcorpus_index_ready},
+        {k:'Evaluation', v: data.evaluation.run ? 'Completed' : 'Pending', ok:data.evaluation.run},
+      ];
+      el('status-rows').innerHTML = rows.map(r => `
+        <div class="row">
+          <span class="key">${r.k}</span>
+          <span class="value" style="color:${r.ok?'var(--success)':'var(--danger)'};">${r.v}</span>
+        </div>
+      `).join('');
+
+      el('status-errors').innerHTML = data.errors.map(e => `<div>• ${e}</div>`).join('');
+    }
+
+    function renderEval(eva) {
+      const badge = el('eval-badge');
+      if (!eva.run) {
+        badge.textContent = 'Not run';
+        badge.className = 'badge warn';
+      } else {
+        const allPass = Object.values(eva.status).every(s => s === 'pass');
+        badge.textContent = allPass ? 'Pass' : 'Review';
+        badge.className = allPass ? 'badge ok' : 'badge warn';
+      }
+
+      const metrics = [];
+      for (const [metric, obs] of Object.entries(eva.observed)) {
+        const exp = (eva.expected[metric] !== undefined) ? eva.expected[metric] : '—';
+        const delta = (eva.delta[metric] !== undefined) ? eva.delta[metric] : '—';
+        const st = eva.status[metric] || 'unknown';
+        const color = st === 'pass' ? 'var(--success)' : (st === 'close' ? 'var(--warn)' : 'var(--danger)');
+        metrics.push(`
+          <div class="metric-card">
+            <div class="metric-label">${metric}</div>
+            <div class="metric-value" style="color:${color}">${obs}</div>
+            <div class="metric-delta">Expected: ${exp} · Delta: ${delta}</div>
+          </div>
+        `);
+      }
+      if (!eva.run) {
+        metrics.push(`<div style="color:var(--muted);font-size:13px">Evaluation pending…</div>`);
+      }
+      el('eval-metrics').innerHTML = metrics.join('');
+      el('eval-elapsed').textContent = eva.run ? `${eva.elapsed_ms} ms` : '—';
+    }
+
+    function renderCommands(data) {
+      const cmds = data.commands || {};
+      let html = '';
+      for (const [k, v] of Object.entries(cmds)) {
+        html += `<div style="margin-top:8px"><strong style="font-size:12px;text-transform:uppercase;color:var(--muted)">${k}</strong><pre>${v}</pre></div>`;
+      }
+      if (!html) html = '<div style="color:var(--muted);font-size:13px">Commands will appear after setup.</div>';
+      el('commands-content').innerHTML = html;
+
+      const arts = data.artifacts || {};
+      let ahtml = '';
+      for (const [k, v] of Object.entries(arts)) {
+        ahtml += `<div class="row"><span class="key">${k}</span><span class="value">${v}</span></div>`;
+      }
+      if (!ahtml) ahtml = '<div style="color:var(--muted);font-size:13px">Artifacts will appear after setup.</div>';
+      el('artifacts-content').innerHTML = ahtml;
+    }
+
+    function setQuery(q) {
+      el('search-input').value = q;
+      doSearch();
+    }
+
+    async function doSearch() {
+      const q = el('search-input').value.trim();
+      if (!q) return;
+      const container = el('search-results');
+      container.innerHTML = '<div style="padding:10px"><span class="spinner"></span> Searching…</div>';
+      try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(q) + '&hits=10');
+        const data = await res.json();
+        if (data.error) {
+          container.innerHTML = '<div class="error">' + data.error + '</div>';
+          return;
+        }
+        const candidates = data.candidates || [];
+        if (candidates.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted)">No results.</div>';
+          return;
+        }
+        container.innerHTML = candidates.map((c, i) => `
+          <div class="result-item">
+            <div class="result-header">
+              <span>Rank ${i+1}</span>
+              <span>Score ${c.score}</span>
+            </div>
+            <div class="result-title">${escapeHtml(c.doc?.title || c.docid)}</div>
+            <div class="result-text">${escapeHtml(c.doc?.text || '').substring(0, 400)}${(c.doc?.text||'').length>400?'…':''}</div>
+            <div class="result-header" style="margin-top:4px">DocID: ${c.docid}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="error">Search request failed.</div>';
+      }
+    }
+
+    async function rerunEval() {
+      const btn = el('btn-rerun');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+      try {
+        const res = await fetch('/api/evaluate', {method: 'POST'});
+        const data = await res.json();
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        lastStatus.evaluation = data;
+        renderEval(data);
+        await fetchStatus(); // refresh artifacts/commands too
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify / Rerun';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>

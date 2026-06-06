@@ -1,2 +1,0 @@
-model,status,duration_ms,input_tokens,output_tokens,reasoning_tokens,cache_read_tokens,total_tokens,cost_usd,requests,exit_code
-gpt,completed,548377,81747,21132,0,2055680,2158559,2.0705,45,0

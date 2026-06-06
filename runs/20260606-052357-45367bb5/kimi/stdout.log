@@ -1,0 +1,223 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have completed the NFCorpus Live Retrieval Diagnostics Workbench exactly as specified in the PRD. Here's a summary of what was built:
+
+### Files Created
+
+| File | Purpose |
+|---|---|
+| `app.py` | Flask backend that orchestrates Anserini (fatjar verification, reproduction discovery, live search via `Search` CLI, BM25 evaluation via `SearchCollection` + `TrecEval`) |
+| `static/index.html` | Single-page diagnostics dashboard with readiness panel, live search, evaluation comparison, commands/artifacts drawer, and deployment notes |
+| `Dockerfile` | Container definition (Python 3.11 + OpenJDK 21) that binds to `0.0.0.0:${PORT:-10000}` |
+| `requirements.txt` | Python dependencies (Flask, Gunicorn, PyYAML, requests, pytest-playwright) |
+| `tests/test_e2e.py` | pytest-playwright browser test (primary) |
+| `tests/test_e2e_standalone.py` | Standalone Playwright test (fallback that doesn't require pytest) |
+| `README.md` | Full documentation including local dev, Docker, Render deployment, and cache paths |
+| `.gitignore` | Excludes runtime caches and large generated files |
+
+### Key Behaviors
+
+- **Anserini skills honored**: Uses `install-anserini-fatjar` workflow (downloads from Maven Central), `anserini-cli` (`Search`, `SearchCollection`, `TrecEval`, `PrebuiltIndexRegistry`, `TopicsRegistry`), and `anserini-reproduction` (`ReproduceFromPrebuiltIndexes --config beir.core --show`) to discover the exact expected nDCG@10 of **0.3218** for NFCorpus flat BM25.
+- **NFCorpus-only**: Downloads only the `beir-v1.0.0-nfcorpus.flat` prebuilt index (~6.5 MB). No full-BEIR download.
+- **Genuine commands**: Every search and evaluation result is produced by real `java -cp anserini-*.jar ...` subprocess invocations. Nothing is mocked or hardcoded.
+- **Live search**: Returns rank, docid, score, title, and full text snippet via Anserini's `io.anserini.cli.Search --json`.
+- **BM25 evaluation**: Writes a TREC run file, evaluates with `TrecEval`, and compares observed vs. expected with delta and pass/close/fail status.
+- **Freshness tracking**: The UI differentiates the initial startup evaluation from a user-triggered "Rerun" via a freshness badge and run counter.
+- **Health endpoint**: `/health` returns overall status, Anserini availability, NFCorpus readiness, search availability, and evaluation availability.
+- **Render-ready**: Dockerfile is self-contained, reads `PORT`, and requires no interactive setup.
+
+### Test Result
+
+The standalone browser test passed all validations:
+- Dashboard loads with readiness panel and NFCorpus label
+- Live search returns ranked results with doc IDs, scores, and snippets
+- Evaluation panel shows observed **0.3218**, expected **0.3218**, delta **0.0000**, verdict **PASS**
+- Exact commands and artifact paths are visible
+- Deployment contract is documented
+- Different queries return different results (proves no mocking)

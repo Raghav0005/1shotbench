@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFCorpus Live Retrieval Diagnostics</title>
+<style>
+:root {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --border: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --green: #4ade80;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --pass: #4ade80;
+  --close: #fbbf24;
+  --fail: #f87171;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  line-height: 1.6;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+h1 { font-size: 1.5rem; margin-bottom: 4px; }
+.subtitle { color: var(--muted); margin-bottom: 20px; font-size: 0.9rem; }
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+}
+.card h2 {
+  font-size: 1rem; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+}
+.badge.ready { background: #166534; color: var(--green); }
+.badge.pending { background: #713f12; color: var(--yellow); }
+.badge.running { background: #1e3a5f; color: var(--accent); }
+.badge.failed { background: #7f1d1d; color: var(--red); }
+.badge.pass { background: #166534; color: var(--pass); }
+.badge.close { background: #713f12; color: var(--close); }
+.badge.fail { background: #7f1d1d; color: var(--fail); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.stat-label { font-size: 0.8rem; color: var(--muted); }
+.stat-value { font-size: 1rem; font-weight: 600; }
+
+/* Readiness */
+.readiness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.readiness-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; background: var(--bg); border-radius: 6px;
+}
+
+/* Search */
+.search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-box input {
+  flex: 1; padding: 10px 14px; border-radius: 6px;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); font-size: 0.95rem; outline: none;
+}
+.search-box input:focus { border-color: var(--accent); }
+.search-box button {
+  padding: 10px 20px; border-radius: 6px; border: none;
+  background: var(--accent); color: var(--bg); font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.search-box button:hover { opacity: 0.9; }
+.search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sample-queries { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.sample-query {
+  padding: 4px 10px; border-radius: 4px; font-size: 0.8rem;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; transition: all 0.15s;
+}
+.sample-query:hover { border-color: var(--accent); color: var(--text); }
+
+/* Results */
+.result-item {
+  padding: 12px; background: var(--bg); border-radius: 6px;
+  margin-bottom: 8px; border-left: 3px solid var(--accent);
+}
+.result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.result-rank { color: var(--accent); font-weight: 700; font-size: 0.85rem; }
+.result-docid { color: var(--muted); font-size: 0.8rem; font-family: monospace; }
+.result-score { color: var(--yellow); font-weight: 600; font-size: 0.9rem; }
+.result-title { font-weight: 600; margin-bottom: 4px; }
+.result-text { color: var(--muted); font-size: 0.85rem; }
+.result-url { font-size: 0.75rem; }
+.result-url a { color: var(--accent); text-decoration: none; }
+
+/* Evaluation */
+.eval-table { width: 100%; border-collapse: collapse; }
+.eval-table th, .eval-table td {
+  padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.eval-table th { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
+.eval-table td { font-size: 0.9rem; }
+.eval-table td.mono { font-family: monospace; }
+
+/* Commands drawer */
+.drawer-toggle {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 8px 16px; border-radius: 6px; cursor: pointer;
+  font-size: 0.85rem; width: 100%; text-align: left;
+}
+.drawer-toggle:hover { border-color: var(--accent); color: var(--text); }
+.drawer-content { margin-top: 12px; }
+.command-block {
+  margin-bottom: 12px; background: var(--bg); border-radius: 6px;
+  padding: 12px; overflow-x: auto;
+}
+.command-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.command-text { font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; }
+.artifact-link { color: var(--accent); text-decoration: none; font-size: 0.8rem; }
+
+/* Log */
+.log-block {
+  max-height: 300px; overflow-y: auto; background: var(--bg);
+  border-radius: 6px; padding: 12px; font-family: monospace;
+  font-size: 0.75rem; white-space: pre-wrap; word-break: break-all;
+  color: var(--muted);
+}
+
+.loading { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error { color: var(--red); font-size: 0.9rem; }
+
+.rerun-btn {
+  padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); cursor: pointer; font-size: 0.8rem;
+}
+.rerun-btn:hover { border-color: var(--accent); }
+.rerun-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔬 NFCorpus Live Retrieval Diagnostics</h1>
+  <p class="subtitle">Anserini-backed BM25 evaluation and live search over BEIR v1.0.0 NFCorpus</p>
+
+  <!-- Readiness Panel -->
+  <div class="card" id="readiness-panel">
+    <h2>System Readiness <span class="badge pending" id="setup-badge">LOADING</span></h2>
+    <div class="readiness-grid">
+      <div class="readiness-item">
+        <span class="stat-label">Java</span>
+        <span class="stat-value" id="java-status">—</span>
+      </div>
+      <div class="readiness-item">
+        <span class="stat-label">Anserini</span>
+        <span class="stat-value" id="anserini-status">—</span>
+      </div>
+      <div class="readiness-item">
+        <span class="stat-label">Dataset</span>
+        <span class="stat-value" id="dataset-status">—</span>
+      </div>
+      <div class="readiness-item">
+        <span class="stat-label">NFCorpus Index</span>
+        <span class="stat-value" id="index-status">—</span>
+      </div>
+      <div class="readiness-item">
+        <span class="stat-label">Search</span>
+        <span class="stat-value" id="search-status">—</span>
+      </div>
+      <div class="readiness-item">
+        <span class="stat-label">Evaluation</span>
+        <span class="stat-value" id="eval-status">—</span>
+      </div>
+    </div>
+    <div id="setup-error" class="error hidden" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- Live Search -->
+  <div class="card">
+    <h2>Live NFCorpus Search</h2>
+    <div class="sample-queries" id="sample-queries"></div>
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Enter a query..." disabled>
+      <button id="search-btn" disabled>Search</button>
+    </div>
+    <div id="search-results">
+      <p style="color:var(--muted); font-size:0.9rem;">Waiting for system readiness...</p>
+    </div>
+  </div>
+
+  <!-- Evaluation Panel -->
+  <div class="card" id="eval-panel">
+    <h2>BM25 Evaluation Metrics <span class="badge pending" id="eval-badge">PENDING</span></h2>
+    <div id="eval-content">
+      <p style="color:var(--muted); font-size:0.9rem;">Evaluation not yet available.</p>
+    </div>
+  </div>
+
+  <!-- Commands & Artifacts Drawer -->
+  <div class="card">
+    <h2>Commands &amp; Artifacts</h2>
+    <div id="commands-content"></div>
+  </div>
+
+  <!-- Setup Log -->
+  <div class="card">
+    <h2><button class="drawer-toggle" onclick="toggleLog()">▸ Setup Log</button></h2>
+    <div class="drawer-content hidden" id="log-drawer">
+      <div class="log-block" id="setup-log">No log yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- State ---
+let pollInterval = null;
+
+// --- Helpers ---
+function badgeClass(status) {
+  if (status === 'ready') return 'ready';
+  if (status === 'running') return 'running';
+  if (status === 'failed') return 'failed';
+  return 'pending';
+}
+
+function setStatus(id, text, status) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  // Add a badge if applicable
+}
+
+function setBadge(id, text, status) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'badge ' + badgeClass(status);
+}
+
+// --- Polling ---
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const setupOk = data.setup_status === 'ready';
+    const setupFailed = data.setup_status === 'failed';
+
+    setBadge('setup-badge', data.setup_status.toUpperCase(), data.setup_status);
+    document.getElementById('java-status').textContent = data.java_version || '—';
+    document.getElementById('anserini-status').textContent = data.anserini_version
+      ? `v${data.anserini_version}` : '—';
+    document.getElementById('dataset-status').textContent = setupOk || setupFailed ? 'NFCorpus (BEIR v1.0.0)' : '—';
+    document.getElementById('index-status').textContent = data.index_status.toUpperCase();
+    document.getElementById('search-status').textContent = data.search_available ? '✓ Available' : '—';
+    document.getElementById('eval-status').textContent = data.evaluation_status.toUpperCase();
+
+    if (data.setup_error) {
+      const errEl = document.getElementById('setup-error');
+      errEl.textContent = 'Setup Error: ' + data.setup_error;
+      errEl.classList.remove('hidden');
+    }
+
+    // Enable search
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    if (data.search_available) {
+      searchInput.disabled = false;
+      searchBtn.disabled = false;
+      searchInput.placeholder = 'Enter a query over NFCorpus...';
+    }
+
+    // Load evaluation
+    if (data.evaluation_status === 'ready' || data.evaluation_status === 'failed') {
+      loadEvaluation();
+    }
+
+    // Load commands
+    loadCommands();
+
+    // Load sample queries
+    loadSampleQueries();
+
+    // Stop polling if done
+    if (setupOk || setupFailed) {
+      if (data.evaluation_status !== 'running') {
+        // Keep polling if evaluation still running
+        if (data.evaluation_status === 'pending' || data.evaluation_status === 'running') return;
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      }
+    }
+  } catch (e) {
+    console.error('Poll error:', e);
+  }
+}
+
+// --- Sample Queries ---
+async function loadSampleQueries() {
+  try {
+    const res = await fetch('/api/sample-queries');
+    const data = await res.json();
+    const container = document.getElementById('sample-queries');
+    if (container.children.length > 0) return;
+    data.queries.forEach(q => {
+      const el = document.createElement('span');
+      el.className = 'sample-query';
+      el.textContent = q;
+      el.onclick = () => {
+        document.getElementById('search-input').value = q;
+        doSearch();
+      };
+      container.appendChild(el);
+    });
+  } catch(e) {}
+}
+
+// --- Search ---
+async function doSearch() {
+  const input = document.getElementById('search-input');
+  const btn = document.getElementById('search-btn');
+  const resultsDiv = document.getElementById('search-results');
+  const query = input.value.trim();
+  if (!query) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  resultsDiv.innerHTML = '<div class="loading"></div> Searching with Anserini...';
+
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query, hits: 10}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultsDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+      return;
+    }
+    if (data.results.length === 0) {
+      resultsDiv.innerHTML = '<p style="color:var(--muted)">No results found.</p>';
+      return;
+    }
+    resultsDiv.innerHTML = data.results.map(r => `
+      <div class="result-item">
+        <div class="result-header">
+          <span>
+            <span class="result-rank">#${r.rank}</span>
+            <span class="result-docid">${r.docid}</span>
+          </span>
+          <span class="result-score">${r.score.toFixed(4)}</span>
+        </div>
+        <div class="result-title">${escHtml(r.title)}</div>
+        <div class="result-text">${escHtml(r.text)}</div>
+        ${r.url ? `<div class="result-url"><a href="${escHtml(r.url)}" target="_blank">${escHtml(r.url)}</a></div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    resultsDiv.innerHTML = `<p class="error">Search failed: ${e.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Evaluation ---
+let evalLoaded = false;
+async function loadEvaluation() {
+  if (evalLoaded) return;
+  try {
+    const res = await fetch('/api/evaluation');
+    const data = await res.json();
+    if (data.status === 'running' || data.status === 'pending') return;
+
+    evalLoaded = true;
+    setBadge('eval-badge', data.status.toUpperCase(), data.status);
+
+    const content = document.getElementById('eval-content');
+    if (data.status === 'failed') {
+      content.innerHTML = '<p class="error">Evaluation failed.</p>';
+      return;
+    }
+
+    const comp = data.results.comparison;
+    const allPass = comp.every(c => c.status === 'PASS');
+
+    let html = `
+      <p style="margin-bottom:8px; font-size:0.85rem; color:var(--muted);">
+        BM25 evaluation over NFCorpus test topics.
+        Elapsed: ${data.elapsed_seconds}s.
+        Overall: <span class="badge ${allPass ? 'pass' : 'close'}">${allPass ? 'ALL PASS' : 'SEE DETAILS'}</span>
+      </p>
+      <table class="eval-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Expected</th>
+            <th>Observed</th>
+            <th>Delta</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    for (const c of comp) {
+      html += `
+        <tr>
+          <td class="mono">${c.metric}</td>
+          <td class="mono">${c.expected}</td>
+          <td class="mono">${c.observed}</td>
+          <td class="mono">${c.delta >= 0 ? '+' : ''}${c.delta}</td>
+          <td><span class="badge ${c.status.toLowerCase()}">${c.status}</span></td>
+        </tr>
+      `;
+    }
+    html += `</tbody></table>`;
+    html += `<div style="margin-top:12px;">
+      <button class="rerun-btn" id="rerun-btn" onclick="rerunEval()">🔄 Rerun Evaluation</button>
+      <span id="rerun-status" style="margin-left:8px; font-size:0.8rem; color:var(--muted);"></span>
+    </div>`;
+    content.innerHTML = html;
+  } catch (e) {
+    console.error('Eval load error:', e);
+  }
+}
+
+async function rerunEval() {
+  const btn = document.getElementById('rerun-btn');
+  const status = document.getElementById('rerun-status');
+  btn.disabled = true;
+  status.textContent = 'Running fresh evaluation...';
+  evalLoaded = false;
+  setBadge('eval-badge', 'RUNNING', 'running');
+
+  try {
+    await fetch('/api/rerun-evaluation', {method: 'POST'});
+    // Poll until done
+    const check = setInterval(async () => {
+      const res = await fetch('/api/evaluation');
+      const data = await res.json();
+      if (data.status === 'ready' || data.status === 'failed') {
+        clearInterval(check);
+        loadEvaluation();
+        loadCommands();
+        status.textContent = data.status === 'ready' ? 'Rerun complete.' : 'Rerun failed.';
+      }
+    }, 2000);
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+// --- Commands ---
+async function loadCommands() {
+  try {
+    const res = await fetch('/api/commands');
+    const data = await res.json();
+    const container = document.getElementById('commands-content');
+
+    let html = '<div class="grid">';
+    for (const [key, cmd] of Object.entries(data.commands)) {
+      html += `
+        <div class="command-block">
+          <div class="command-label">${escHtml(key.replace(/_/g, ' '))}</div>
+          <div class="command-text">${escHtml(cmd)}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+
+    if (Object.keys(data.artifacts).length > 0) {
+      html += '<div style="margin-top:12px;"><strong style="font-size:0.8rem; color:var(--muted);">ARTIFACTS:</strong><br>';
+      for (const [name, path] of Object.entries(data.artifacts)) {
+        html += `<a class="artifact-link" href="/api/artifacts/${escHtml(name)}">${escHtml(name)}: ${escHtml(path)}</a><br>`;
+      }
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  } catch (e) {}
+}
+
+// --- Log ---
+function toggleLog() {
+  const drawer = document.getElementById('log-drawer');
+  drawer.classList.toggle('hidden');
+  if (!drawer.classList.contains('hidden')) loadLog();
+}
+
+async function loadLog() {
+  try {
+    const res = await fetch('/api/commands');
+    const data = await res.json();
+    document.getElementById('setup-log').textContent = (data.setup_log_preview || []).join('\n');
+  } catch(e) {}
+}
+
+// --- Init ---
+document.getElementById('search-btn').onclick = doSearch;
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch();
+});
+
+pollInterval = setInterval(pollStatus, 2000);
+pollStatus();
+</script>
+</body>
+</html>

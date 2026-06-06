@@ -1,0 +1,6 @@
+name = "Gemini workspace"
+provider = "google"
+model = "gemini-3.1-pro-preview"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]

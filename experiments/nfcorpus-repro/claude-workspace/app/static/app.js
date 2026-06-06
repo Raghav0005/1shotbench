@@ -1,333 +1,246 @@
-"use strict";
+// Minimal vanilla JS controller for the diagnostics dashboard.
+//
+// Polls /api/status on a short interval to surface readiness, last evaluation,
+// and recorded Anserini command lines. Wires up the search and rerun forms.
 
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+(function () {
+  const $ = (sel) => document.querySelector(sel);
+  const byId = (id) => document.querySelector(`[data-testid="${id}"]`);
 
-const PHASE_GROUPS = {
-  ready: "ready",
-  failed: "failed",
-};
-function phaseState(phase) {
-  if (phase === "ready") return "ready";
-  if (phase === "failed") return "failed";
-  return "working";
-}
+  const cardIds = ["java", "fatjar", "nfcorpus", "reproduction", "search", "evaluation"];
+  let lastStatusSerialized = "";
 
-function setText(testid, text) {
-  const el = document.querySelector(`[data-testid="${testid}"]`);
-  if (el) el.textContent = text == null ? "" : String(text);
-}
-
-function setCardState(testid, value, detail, stateClass) {
-  const card = document.querySelector(`[data-testid="${testid}"]`);
-  if (!card) return;
-  card.setAttribute("data-state", stateClass);
-  card.querySelector(`[data-testid="${testid}-value"]`).textContent = value;
-  const det = card.querySelector(`[data-testid="${testid}-detail"]`);
-  if (det) det.textContent = detail || "";
-}
-
-function escapeHtml(s) {
-  return (s == null ? "" : String(s))
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function fmtFloat(n, places = 4) {
-  if (n == null || Number.isNaN(Number(n))) return "—";
-  return Number(n).toFixed(places);
-}
-
-async function fetchStatus() {
-  const resp = await fetch("/api/status", { cache: "no-store" });
-  if (!resp.ok) throw new Error("status failed");
-  return resp.json();
-}
-
-function renderReadiness(status) {
-  const phase = status.phase;
-  const phasePill = $("[data-testid=phase-pill]");
-  phasePill.setAttribute("data-state", phaseState(phase));
-  setText("phase-label", phase);
-
-  // Java
-  if (status.java && status.java.available) {
-    setCardState("status-java", `Java ${status.java.major ?? "?"}`, "Anserini requires major 21", "ok");
-  } else {
-    setCardState("status-java", "missing", "Install Java 21 (Temurin/OpenJDK).", "bad");
+  function updateCard(name, card) {
+    const root = byId(`status-${name}`);
+    if (!root) return;
+    root.classList.remove("state-ok", "state-warn", "state-error", "state-pending");
+    root.classList.add("state-" + (card.state || "pending"));
+    const v = byId(`status-${name}-value`);
+    const d = byId(`status-${name}-detail`);
+    if (v) v.textContent = card.value || "—";
+    if (d) d.textContent = card.detail || "";
   }
 
-  // Fatjar
-  const f = status.fatjar || {};
-  if (f.verified) {
-    setCardState("status-fatjar", "verified", `${f.path}`, "ok");
-  } else if (f.exists) {
-    setCardState("status-fatjar", "found, verifying…", f.path, "warn");
-  } else {
-    setCardState("status-fatjar", "missing", f.path || "ANSERINI_JAR not set", "bad");
+  function updatePhase(phase) {
+    const pill = byId("phase-pill");
+    const label = byId("phase-label");
+    if (!pill || !label) return;
+    pill.classList.remove("ready", "error", "warn");
+    if (phase === "ready") pill.classList.add("ready");
+    else if (phase.startsWith("failed")) pill.classList.add("error");
+    else pill.classList.add("warn");
+    label.textContent = phase;
   }
 
-  // NFCorpus
-  const nfc = status.nfcorpus || {};
-  const entry = nfc.registry_entry;
-  if (nfc.ready) {
-    setCardState(
-      "status-nfcorpus",
-      "ready",
-      entry ? `${entry.documents} docs, ${entry.unique_terms} unique terms, ~${Math.round((entry.size || 0) / 1024 / 1024)} MB` : "",
-      "ok",
-    );
-  } else if (entry) {
-    setCardState(
-      "status-nfcorpus",
-      "registered, downloading…",
-      `${entry.filename}`,
-      "warn",
-    );
-  } else {
-    setCardState("status-nfcorpus", "pending", `index=${nfc.index}`, "warn");
+  function renderSamples(samples) {
+    const wrap = byId("sample-queries");
+    if (!wrap || wrap.dataset.rendered === "1") return;
+    wrap.innerHTML = "";
+    (samples || []).forEach((q) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "sample-chip";
+      chip.dataset.testid = "sample-chip";
+      chip.textContent = q;
+      chip.addEventListener("click", () => {
+        $("#search-input").value = q;
+        runSearch();
+      });
+      wrap.appendChild(chip);
+    });
+    wrap.dataset.rendered = "1";
   }
 
-  // Reproduction
-  const repro = status.reproduction || {};
-  if (repro.target) {
-    const exp = Object.entries(repro.target.expected_scores || {}).map(([k, v]) => `${k}=${v}`).join(", ");
-    setCardState(
-      "status-reproduction",
-      "found",
-      `config=${repro.config}, condition=${repro.target.condition_name}, expected ${exp || "(none)"}`,
-      "ok",
-    );
-  } else if (repro.available === false && (status.errors || []).some((e) => e.includes("Reproduction"))) {
-    setCardState("status-reproduction", "missing", "ReproduceFromPrebuiltIndexes did not expose nfcorpus", "bad");
-  } else {
-    setCardState("status-reproduction", "discovering…", `config=${repro.config || ""}`, "warn");
+  function renderSetupLog(lines) {
+    const pre = byId("setup-log");
+    if (!pre) return;
+    pre.textContent = (lines || []).join("\n");
   }
 
-  // Search
-  const rest = status.rest_server || {};
-  if (rest.ready) {
-    setCardState("status-search", "available", `RestServer at ${rest.base_url}`, "ok");
-  } else if (rest.running) {
-    setCardState("status-search", "starting…", rest.base_url || "", "warn");
-  } else if (rest.error) {
-    setCardState("status-search", "failed", rest.error, "bad");
-  } else {
-    setCardState("status-search", "pending", "", "warn");
+  function renderErrors(errors) {
+    const box = byId("errors");
+    if (!box) return;
+    if (!errors || errors.length === 0) {
+      box.hidden = true;
+      box.textContent = "";
+    } else {
+      box.hidden = false;
+      box.textContent = errors.join("\n");
+    }
   }
 
-  // Evaluation
-  const ev = status.evaluation || {};
-  if (ev.ran) {
-    const label = ev.overall_status || "ran";
-    const state = ev.overall_status === "match" ? "ok" : (ev.overall_status === "fail" ? "bad" : "warn");
-    setCardState("status-evaluation", label, ev.fresh ? "fresh rerun" : "cached setup pass", state);
-  } else {
-    setCardState("status-evaluation", "pending", "Setup will run BM25 + TrecEval", "warn");
+  function renderEvaluation(ev, expectedMetrics) {
+    byId("eval-status").textContent = ev.status || "pending";
+    byId("eval-elapsed").textContent =
+      ev.elapsed_seconds != null ? `${ev.elapsed_seconds}s` : "—";
+    byId("eval-source").textContent = ev.source || "—";
+    byId("eval-rerun-count").textContent = String(ev.rerun_count || 0);
+    byId("eval-run-path").textContent = ev.run_path || "—";
+    byId("eval-eval-path").textContent = ev.eval_path || "—";
+
+    const tbody = byId("metrics-table-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    const rows = (ev.metrics && ev.metrics.length)
+      ? ev.metrics
+      : Object.entries(expectedMetrics || {}).map(([name, meta]) => ({
+          name,
+          trec_eval_args: (meta && meta.trec_eval_args_str) || "",
+          expected: meta && meta.value,
+          observed: null,
+          delta: null,
+          status: "pending",
+        }));
+    rows.forEach((m) => {
+      const tr = document.createElement("tr");
+      tr.dataset.testid = "metric-row";
+      tr.dataset.metric = m.name;
+      tr.innerHTML = `
+        <td data-testid="metric-name">${m.name}</td>
+        <td><code>${escapeHtml(m.trec_eval_args || "")}</code></td>
+        <td data-testid="metric-expected">${fmt(m.expected)}</td>
+        <td data-testid="metric-observed">${fmt(m.observed)}</td>
+        <td data-testid="metric-delta">${fmt(m.delta)}</td>
+        <td class="metric-status-${m.status}" data-testid="metric-status">${m.status}</td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
-  // Setup log
-  const log = (status.log || []).map((l) => `[${new Date(l.ts * 1000).toLocaleTimeString()}] ${l.msg}`).join("\n");
-  setText("setup-log", log);
-
-  // Errors
-  const errEl = $("[data-testid=errors]");
-  if ((status.errors || []).length) {
-    errEl.hidden = false;
-    errEl.innerHTML = `<strong>Errors:</strong><ul>${status.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`;
-  } else {
-    errEl.hidden = true;
+  function renderCommands(commands) {
+    const list = byId("commands-list");
+    if (!list) return;
+    list.innerHTML = "";
+    (commands || []).slice(-30).reverse().forEach((c, idx) => {
+      const det = document.createElement("details");
+      det.className = "command-record";
+      det.dataset.testid = "command-record";
+      if (idx === 0) det.open = true;
+      const exitTxt = c.exit_code === null
+        ? "running"
+        : c.exit_code === 0 ? "exit 0" : `exit ${c.exit_code}`;
+      const exitCls = c.exit_code === 0 ? "ok" : c.exit_code === null ? "" : "err";
+      det.innerHTML = `
+        <summary>
+          <span class="cmd-label">${escapeHtml(c.label)}</span>
+          <span class="cmd-exit ${exitCls}">${exitTxt}</span>
+        </summary>
+        <div class="cmd-display" data-testid="command-text">${escapeHtml(c.display)}</div>
+        ${c.stdout_preview ? `<div class="cmd-preview" data-testid="command-stdout"><strong>stdout:</strong>\n${escapeHtml(c.stdout_preview)}</div>` : ""}
+        ${c.stderr_preview ? `<div class="cmd-preview" data-testid="command-stderr"><strong>stderr:</strong>\n${escapeHtml(c.stderr_preview)}</div>` : ""}
+      `;
+      list.appendChild(det);
+    });
   }
 
-  // Deployment info
-  if (status.deployment) {
-    setText("deployment-port", `PORT (${status.deployment.port})`);
-    setText("deployment-cache", status.deployment.cache_dir);
+  function fmt(v) {
+    if (v == null || v === "") return "—";
+    if (typeof v === "number") return v.toFixed(4);
+    return String(v);
   }
-}
-
-function renderEvaluation(status) {
-  const ev = status.evaluation || {};
-  setText("eval-status", ev.overall_status || "pending");
-  setText("eval-elapsed", ev.elapsed_seconds != null ? `${ev.elapsed_seconds.toFixed(2)} s` : "—");
-  setText("eval-source", ev.fresh ? "fresh rerun" : (ev.ran ? "cached startup pass" : "—"));
-  setText("eval-rerun-count", String(ev.rerun_count || 0));
-  setText("eval-run-path", ev.run_path || "—");
-  setText("eval-eval-path", ev.eval_path || "—");
-
-  const tbody = $("[data-testid=metrics-table-body]");
-  const target = (status.reproduction && status.reproduction.target) || {};
-  const comparison = ev.comparison || [];
-
-  let rows = [];
-  if (comparison.length) {
-    rows = comparison.map((row) => `
-      <tr>
-        <td>${escapeHtml(row.metric)}</td>
-        <td><code>${escapeHtml(row.trec_eval_key)}</code></td>
-        <td data-testid="metric-expected-${escapeHtml(row.trec_eval_key)}">${fmtFloat(row.expected)}</td>
-        <td data-testid="metric-observed-${escapeHtml(row.trec_eval_key)}">${fmtFloat(row.observed)}</td>
-        <td data-testid="metric-delta-${escapeHtml(row.trec_eval_key)}">${row.delta == null ? "—" : (row.delta >= 0 ? "+" : "") + Number(row.delta).toFixed(4)}</td>
-        <td class="status-${escapeHtml(row.status)}" data-testid="metric-status-${escapeHtml(row.trec_eval_key)}">${escapeHtml(row.status)}</td>
-      </tr>
-    `);
-  } else if (Object.keys(ev.metrics || {}).length) {
-    rows = Object.entries(ev.metrics).map(([k, v]) => `
-      <tr>
-        <td>${escapeHtml(k)}</td>
-        <td><code>${escapeHtml(k)}</code></td>
-        <td>—</td>
-        <td data-testid="metric-observed-${escapeHtml(k)}">${fmtFloat(v)}</td>
-        <td>—</td>
-        <td class="status-missing">observed-only</td>
-      </tr>
-    `);
-  } else {
-    rows = [`<tr><td colspan="6" style="color:#475569">No evaluation metrics available yet.</td></tr>`];
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[c]);
   }
-  tbody.innerHTML = rows.join("");
-}
 
-function renderCommands(status) {
-  const list = $("[data-testid=commands-list]");
-  const commands = status.commands || {};
-  const order = [
-    "java_version",
-    "verify_fatjar_registry",
-    "reproduce_show",
-    "reproduce_dry_run",
-    "search_collection",
-    "trec_eval",
-  ];
-  const labels = {
-    java_version: "Java runtime check",
-    verify_fatjar_registry: "Verify NFCorpus prebuilt index entry",
-    reproduce_show: "Discover reproduction target (--show)",
-    reproduce_dry_run: "Reproduction dry-run (exact commands)",
-    search_collection: "Run BM25 SearchCollection over NFCorpus",
-    trec_eval: "Evaluate run file with TrecEval",
-  };
-  const blocks = [];
-  // Live search REST command first.
-  const rest = status.rest_server || {};
-  if (rest.cmd) {
-    blocks.push(`
-      <div class="command-block" data-testid="cmd-restserver">
-        <h3>Live search backend (Anserini RestServer)</h3>
-        <div class="command-meta">base url: <code>${escapeHtml(rest.base_url || "")}</code> &middot; ready: ${rest.ready ? "yes" : "no"}</div>
-        <pre>${escapeHtml(rest.cmd)}</pre>
-        <div class="command-meta">log: <code>${escapeHtml(rest.log_path || "")}</code></div>
-      </div>
-    `);
+  async function refreshStatus() {
+    try {
+      const r = await fetch("/api/status", { cache: "no-store" });
+      if (!r.ok) return;
+      const s = await r.json();
+      const serialized = JSON.stringify({
+        phase: s.phase,
+        cards: s.cards,
+        ev: s.evaluation,
+        cmds: (s.commands || []).length,
+        errs: s.errors,
+      });
+      if (serialized === lastStatusSerialized) return;
+      lastStatusSerialized = serialized;
+      updatePhase(s.phase || "starting");
+      cardIds.forEach((n) => updateCard(n, (s.cards || {})[n] || {}));
+      renderSamples(s.sample_queries);
+      renderSetupLog(s.setup_log);
+      renderErrors(s.errors);
+      renderEvaluation(s.evaluation || {}, s.expected_metrics || {});
+      renderCommands(s.commands || []);
+    } catch (e) {
+      console.warn("status poll failed", e);
+    }
   }
-  for (const key of order) {
-    const c = commands[key];
-    if (!c) continue;
-    blocks.push(`
-      <div class="command-block" data-testid="cmd-${key}">
-        <h3>${escapeHtml(labels[key] || key)}</h3>
-        <div class="command-meta">exit=${c.returncode} &middot; elapsed=${(c.elapsed_seconds ?? 0).toFixed(3)}s</div>
-        <pre>${escapeHtml(c.cmd || "")}</pre>
-        ${c.stdout ? `<details><summary>stdout (${c.stdout.length} bytes)</summary><pre>${escapeHtml(c.stdout)}</pre></details>` : ""}
-        ${c.stderr ? `<details><summary>stderr</summary><pre>${escapeHtml(c.stderr)}</pre></details>` : ""}
-      </div>
-    `);
-  }
-  list.innerHTML = blocks.join("");
-}
 
-function renderSamples(status) {
-  const samples = (status && status.sample_queries) || [];
-  const container = $("[data-testid=sample-queries]");
-  container.innerHTML = samples
-    .map(
-      (s) => `<span class="sample" data-testid="sample-${escapeHtml(s.id)}" data-query="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>`,
-    )
-    .join("");
-  container.querySelectorAll(".sample").forEach((el) => {
-    el.addEventListener("click", () => {
-      const q = el.getAttribute("data-query");
-      $("#search-input").value = q;
+  async function runSearch() {
+    const q = $("#search-input").value.trim();
+    if (!q) return;
+    const hits = parseInt($("#hits-input").value || "10", 10);
+    const meta = byId("search-meta");
+    const results = byId("search-results");
+    meta.textContent = `Searching "${q}" (hits=${hits})…`;
+    results.innerHTML = "";
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&hits=${hits}`);
+      if (!r.ok) {
+        const txt = await r.text();
+        meta.textContent = `Search failed: ${r.status} ${txt}`;
+        return;
+      }
+      const data = await r.json();
+      meta.textContent = `Returned ${data.hits_returned} hits from ${data.index} via ${data.rest_url}`;
+      data.results.forEach((row) => {
+        const li = document.createElement("li");
+        li.className = "result";
+        li.dataset.testid = "search-result";
+        li.dataset.rank = row.rank;
+        li.dataset.docid = row.docid;
+        li.innerHTML = `
+          <div class="top">
+            <span>rank <strong data-testid="result-rank">${row.rank}</strong>
+              · docid <code data-testid="result-docid">${escapeHtml(row.docid)}</code></span>
+            <span>score <strong data-testid="result-score">${(+row.score).toFixed(4)}</strong></span>
+          </div>
+          <div class="title" data-testid="result-title">${escapeHtml(row.title || "(no title)")}</div>
+          <p class="text" data-testid="result-text">${escapeHtml(row.text || "")}</p>
+        `;
+        results.appendChild(li);
+      });
+      lastStatusSerialized = ""; // force refresh of commands
+      refreshStatus();
+    } catch (e) {
+      meta.textContent = `Search error: ${e}`;
+    }
+  }
+
+  async function rerunEval() {
+    const btn = $("#rerun-btn");
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Running…";
+    byId("eval-status").textContent = "running";
+    try {
+      const r = await fetch("/api/evaluate", { method: "POST" });
+      if (!r.ok) {
+        const txt = await r.text();
+        alert(`Rerun failed: ${r.status} ${txt}`);
+      }
+    } catch (e) {
+      alert(`Rerun error: ${e}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+      lastStatusSerialized = "";
+      refreshStatus();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    $("#search-form").addEventListener("submit", (e) => {
+      e.preventDefault();
       runSearch();
     });
+    $("#rerun-btn").addEventListener("click", rerunEval);
+    byId("deployment-port").textContent = `$PORT`;
+    refreshStatus();
+    setInterval(refreshStatus, 1500);
   });
-}
-
-async function runSearch() {
-  const input = $("#search-input");
-  const q = input.value.trim();
-  const hits = $("#hits-input").value || 10;
-  if (!q) return;
-  const meta = $("[data-testid=search-meta]");
-  const list = $("[data-testid=search-results]");
-  meta.textContent = `Searching for "${q}"…`;
-  list.innerHTML = "";
-  try {
-    const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}&hits=${encodeURIComponent(hits)}`);
-    const body = await resp.json();
-    if (!body.ok) {
-      meta.textContent = `Error: ${body.error || resp.statusText}`;
-      return;
-    }
-    meta.innerHTML = `Returned <strong data-testid="result-count">${body.result_count}</strong> hits in ${body.elapsed_seconds.toFixed(3)}s &middot; index <code>${escapeHtml(body.index)}</code> &middot; backend <code>${escapeHtml(body.backend)}</code>`;
-    list.innerHTML = body.results
-      .map(
-        (r) => `
-          <li data-testid="result-${escapeHtml(String(r.rank))}">
-            <div>
-              <span class="docid" data-testid="result-docid-${escapeHtml(String(r.rank))}">${escapeHtml(r.docid)}</span>
-              <span class="score" data-testid="result-score-${escapeHtml(String(r.rank))}">score ${fmtFloat(r.score, 4)}</span>
-            </div>
-            <div class="title" data-testid="result-title-${escapeHtml(String(r.rank))}">${escapeHtml(r.title || "(no title)")}</div>
-            <div class="snippet" data-testid="result-snippet-${escapeHtml(String(r.rank))}">${escapeHtml((r.text || "").slice(0, 500))}${(r.text || "").length > 500 ? "…" : ""}</div>
-          </li>
-        `,
-      )
-      .join("");
-  } catch (e) {
-    meta.textContent = `Request failed: ${e}`;
-  }
-}
-
-async function rerunEvaluation() {
-  const btn = $("#rerun-btn");
-  btn.disabled = true;
-  btn.textContent = "Rerunning…";
-  try {
-    const resp = await fetch("/api/evaluation/rerun", { method: "POST" });
-    const body = await resp.json();
-    if (!body.ok) {
-      alert("Rerun failed: " + (body.error || body.errors?.join(", ") || "unknown"));
-    }
-  } catch (e) {
-    alert("Rerun failed: " + e);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Rerun evaluation (fresh)";
-    refresh();
-  }
-}
-
-async function refresh() {
-  try {
-    const status = await fetchStatus();
-    renderReadiness(status);
-    renderEvaluation(status);
-    renderCommands(status);
-    renderSamples(status);
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-  $("#search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    runSearch();
-  });
-  $("#rerun-btn").addEventListener("click", rerunEvaluation);
-  refresh();
-  setInterval(refresh, 4000);
-});
+})();

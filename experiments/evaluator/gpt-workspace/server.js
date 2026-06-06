@@ -1,302 +1,366 @@
+'use strict';
+
 const express = require('express');
 const fs = require('fs');
+const fsp = require('fs/promises');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const app = express();
-const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
-const ARTIFACT_DIR = path.join(ROOT, 'artifacts');
-const RUN_DIR = path.join(ARTIFACT_DIR, 'runs');
-const EVAL_DIR = path.join(ARTIFACT_DIR, 'evals');
-const LOG_DIR = path.join(ARTIFACT_DIR, 'logs');
+const PORT = Number(process.env.PORT || 3000);
+const COMMAND_TIMEOUT_MS = Number(process.env.ANSERINI_COMMAND_TIMEOUT_MS || 10 * 60 * 1000);
 
-for (const dir of [ARTIFACT_DIR, RUN_DIR, EVAL_DIR, LOG_DIR]) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-app.use(express.json());
-app.use(express.static(path.join(ROOT, 'public')));
-
-let catalogCache = null;
-let catalogCacheTime = 0;
-
-const CACM_CONFIG = {
+const CACM_PAIRING = {
   index: 'cacm',
   topics: 'cacm',
   qrels: 'cacm',
-  qrelsLabel: 'Anserini built-in qrels key: cacm',
-  searchModel: 'BM25 (Anserini defaults: k1=0.9, b=0.4)',
+  qrelsSource: 'Anserini built-in TrecEval qrels key: cacm',
+  retrievalModel: 'BM25',
   hits: 1000,
   metrics: [
-    { label: 'nDCG@10', value: 'ndcg_cut.10', outputName: 'ndcg_cut_10' },
-    { label: 'Recall@1000', value: 'recall.1000', outputName: 'recall_1000' },
-    { label: 'MAP', value: 'map', outputName: 'map' },
-    { label: 'P@30', value: 'P.30', outputName: 'P_30' }
-  ]
+    { label: 'nDCG@10', id: 'ndcg_cut.10', outputKey: 'ndcg_cut_10' },
+    { label: 'Recall@1000', id: 'recall.1000', outputKey: 'recall_1000' },
+    { label: 'MAP', id: 'map', outputKey: 'map' },
+    { label: 'P@30', id: 'P.30', outputKey: 'P_30' }
+  ],
+  inferredFrom: 'Repo-local Anserini skills: CACM SearchCollection and TrecEval smoke-test workflow.'
 };
 
-function findAnseriniJar() {
-  const envJar = process.env.ANSERINI_JAR;
-  if (envJar && fs.existsSync(envJar)) return path.resolve(envJar);
-  const localJar = fs.readdirSync(ROOT)
-    .filter((name) => /^anserini-.*-fatjar\.jar$/.test(name))
-    .sort()
-    .pop();
-  if (localJar) return path.join(ROOT, localJar);
-  return null;
+let catalogCache = null;
+let catalogCacheAt = 0;
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+
+function isFile(p) {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
 }
 
-function runProcess(cmd, args, options = {}) {
-  const timeoutMs = options.timeoutMs || 120000;
+function findAnseriniJar() {
+  if (process.env.ANSERINI_JAR && isFile(process.env.ANSERINI_JAR)) {
+    return path.resolve(process.env.ANSERINI_JAR);
+  }
+
+  const dirs = [path.join(ROOT, '.anserini'), ROOT];
+  const jars = [];
+  for (const dir of dirs) {
+    try {
+      for (const entry of fs.readdirSync(dir)) {
+        if (/^anserini-.+-fatjar\.jar$/.test(entry)) {
+          const candidate = path.join(dir, entry);
+          if (isFile(candidate)) jars.push(candidate);
+        }
+      }
+    } catch {
+      // directory does not exist; ignore
+    }
+  }
+  jars.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return jars.length ? path.resolve(jars[jars.length - 1]) : null;
+}
+
+function runCommand(command, args, options = {}) {
+  const timeoutMs = options.timeoutMs || COMMAND_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
-    const started = Date.now();
-    const child = spawn(cmd, args, {
-      cwd: options.cwd || ROOT,
+    const startedAt = Date.now();
+    const child = spawn(command, args, {
+      cwd: ROOT,
       env: { ...process.env, ...(options.env || {}) },
-      shell: false
+      stdio: ['ignore', 'pipe', 'pipe']
     });
+
     let stdout = '';
     let stderr = '';
-    let timedOut = false;
     const timer = setTimeout(() => {
-      timedOut = true;
       child.kill('SIGTERM');
       setTimeout(() => child.kill('SIGKILL'), 3000).unref();
     }, timeoutMs);
 
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString();
     });
-    child.on('close', (code) => {
+    child.stderr.on('data', chunk => {
+      stderr += chunk.toString();
+    });
+    child.on('error', err => {
       clearTimeout(timer);
-      const result = { cmd, args, code, stdout, stderr, elapsedMs: Date.now() - started };
-      if (timedOut) {
-        const err = new Error(`Command timed out after ${Math.round(timeoutMs / 1000)}s`);
-        err.result = result;
-        reject(err);
-      } else if (code !== 0) {
-        const err = new Error(`Command failed with exit code ${code}: ${cmd} ${args.join(' ')}`);
-        err.result = result;
-        reject(err);
-      } else {
+      reject(Object.assign(new Error(`Failed to start ${command}: ${err.message}`), { cause: err }));
+    });
+    child.on('close', code => {
+      clearTimeout(timer);
+      const result = { command, args, stdout, stderr, code, elapsedMs: Date.now() - startedAt };
+      if (code === 0) {
         resolve(result);
+      } else {
+        const message = code === null
+          ? `${command} timed out after ${timeoutMs} ms`
+          : `${command} exited with code ${code}`;
+        reject(Object.assign(new Error(message), result));
       }
     });
   });
 }
 
-async function runJava(className, classArgs, options = {}) {
+function runAnserini(jar, mainClass, args, options = {}) {
+  return runCommand('java', ['-cp', jar, mainClass, ...args], options);
+}
+
+function parseJsonFromOutput(output) {
+  const trimmed = output.trim();
+  const start = trimmed.indexOf('[');
+  const end = trimmed.lastIndexOf(']');
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error('Anserini registry did not return a JSON array.');
+  }
+  return JSON.parse(trimmed.slice(start, end + 1));
+}
+
+function parseCacmReproductionConfig(output) {
+  const topicMatch = output.match(/topic_key:\s*([^\s]+)/);
+  const evalMatch = output.match(/eval_key:\s*([^\s]+)/);
+  const commandMatch = output.match(/command:\s*(.+)/);
+  return {
+    ...CACM_PAIRING,
+    topics: topicMatch ? topicMatch[1] : CACM_PAIRING.topics,
+    qrels: evalMatch ? evalMatch[1] : CACM_PAIRING.qrels,
+    reproductionCommandTemplate: commandMatch ? commandMatch[1].trim() : null,
+    inferredFrom: 'Anserini ReproduceFromPrebuiltIndexes --config cacm --show, plus repo-local Anserini skills for current TrecEval metric identifiers.'
+  };
+}
+
+async function discoverCatalog({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && catalogCache && now - catalogCacheAt < CATALOG_TTL_MS) {
+    return catalogCache;
+  }
+
   const jar = findAnseriniJar();
   if (!jar) {
-    throw new Error('Anserini fatjar not found. Download anserini-*-fatjar.jar or set ANSERINI_JAR.');
+    const err = new Error('Missing Anserini fatjar. Run `npm run setup:anserini` or set ANSERINI_JAR to an anserini-*-fatjar.jar file.');
+    err.status = 500;
+    throw err;
   }
-  return runProcess('java', ['-cp', jar, className, ...classArgs], options);
-}
 
-function extractJson(text) {
-  const trimmed = text.trim();
-  if (!trimmed) throw new Error('No JSON emitted by Anserini registry.');
-  return JSON.parse(trimmed);
-}
-
-function publicPath(filePath) {
-  return path.relative(ROOT, filePath);
-}
-
-function withEvaluationMetadata(indexEntry, topicsList) {
-  const isCacm = indexEntry.name === CACM_CONFIG.index;
-  const hasCacmTopics = topicsList.includes(CACM_CONFIG.topics);
-  return {
-    ...indexEntry,
-    evaluable: isCacm && hasCacmTopics,
-    evaluation: isCacm && hasCacmTopics ? {
-      topics: CACM_CONFIG.topics,
-      qrels: CACM_CONFIG.qrels,
-      qrelsLabel: CACM_CONFIG.qrelsLabel,
-      metrics: CACM_CONFIG.metrics,
-      defaultMetric: CACM_CONFIG.metrics[0].value,
-      searchModel: CACM_CONFIG.searchModel,
-      reason: 'Small end-to-end pairing verified by Anserini fatjar smoke-test workflow.'
-    } : null,
-    catalogOnlyReason: isCacm && !hasCacmTopics
-      ? 'CACM index is present, but CACM topics were not discovered in TopicsRegistry.'
-      : (isCacm ? null : 'Visible in PrebuiltIndexRegistry, but this app has not automatically discovered a safe topics/qrels pairing for it.')
-  };
-}
-
-async function loadCatalog(force = false) {
-  const now = Date.now();
-  if (!force && catalogCache && (now - catalogCacheTime) < 5 * 60 * 1000) return catalogCache;
-
-  const [indexResult, topicsResult] = await Promise.all([
-    runJava('io.anserini.cli.PrebuiltIndexRegistry', ['--type', 'inverted', '--list'], { timeoutMs: 120000 }),
-    runJava('io.anserini.cli.TopicsRegistry', ['--list'], { timeoutMs: 120000 })
+  const [indexResult, topicsResult, cacmConfigResult] = await Promise.all([
+    runAnserini(jar, 'io.anserini.cli.PrebuiltIndexRegistry', ['--type', 'inverted', '--list'], { timeoutMs: 120000 }),
+    runAnserini(jar, 'io.anserini.cli.TopicsRegistry', ['--list'], { timeoutMs: 120000 }),
+    runAnserini(jar, 'io.anserini.reproduce.ReproduceFromPrebuiltIndexes', ['--config', 'cacm', '--show'], { timeoutMs: 120000 })
   ]);
-  const indexes = extractJson(indexResult.stdout);
-  const topics = extractJson(topicsResult.stdout);
-  if (!Array.isArray(indexes)) throw new Error('Unexpected PrebuiltIndexRegistry JSON shape.');
-  if (!Array.isArray(topics)) throw new Error('Unexpected TopicsRegistry JSON shape.');
 
-  const decorated = indexes
-    .map((entry) => withEvaluationMetadata(entry, topics))
-    .sort((a, b) => {
-      if (a.name === 'cacm') return -1;
-      if (b.name === 'cacm') return 1;
-      if (a.evaluable !== b.evaluable) return a.evaluable ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
+  const rawIndexes = parseJsonFromOutput(indexResult.stdout);
+  const topics = parseJsonFromOutput(topicsResult.stdout);
+  const topicsSet = new Set(topics.map(t => String(t).toLowerCase()));
+  const cacmPairing = parseCacmReproductionConfig(cacmConfigResult.stdout);
+
+  const indexes = rawIndexes.map(item => {
+    const name = item.name || item.corpus_index || '';
+    const isCacm = name === cacmPairing.index;
+    const topicAvailable = topicsSet.has(cacmPairing.topics.toLowerCase());
+    const evaluable = isCacm && topicAvailable;
+    return {
+      ...item,
+      name,
+      evaluable,
+      status: evaluable ? 'Ready for evaluation' : 'Catalog-only',
+      pairing: evaluable ? cacmPairing : null,
+      readyReason: evaluable ? cacmPairing.inferredFrom : null,
+      catalogOnlyReason: evaluable ? null : 'No automatic topics/qrels pairing has been inferred for this index.'
+    };
+  });
+
+  indexes.sort((a, b) => {
+    if (a.name === 'cacm') return -1;
+    if (b.name === 'cacm') return 1;
+    if (a.evaluable !== b.evaluable) return a.evaluable ? -1 : 1;
+    return String(a.name).localeCompare(String(b.name));
+  });
 
   catalogCache = {
-    source: 'Anserini CLI registries: PrebuiltIndexRegistry --type inverted --list and TopicsRegistry --list',
-    jar: findAnseriniJar(),
+    jar,
     generatedAt: new Date().toISOString(),
-    indexes: decorated,
-    topicsCount: topics.length,
     registryCommands: {
-      indexes: 'java -cp <anserini-fatjar> io.anserini.cli.PrebuiltIndexRegistry --type inverted --list',
-      topics: 'java -cp <anserini-fatjar> io.anserini.cli.TopicsRegistry --list'
-    }
+      prebuiltIndexes: `java -cp ${jar} io.anserini.cli.PrebuiltIndexRegistry --type inverted --list`,
+      topics: `java -cp ${jar} io.anserini.cli.TopicsRegistry --list`,
+      cacmReproductionConfig: `java -cp ${jar} io.anserini.reproduce.ReproduceFromPrebuiltIndexes --config cacm --show`
+    },
+    topics,
+    indexes
   };
-  catalogCacheTime = now;
+  catalogCacheAt = now;
   return catalogCache;
 }
 
-function parseMetricScore(evalOutput, metric) {
-  const desired = CACM_CONFIG.metrics.find((m) => m.value === metric);
-  const aliases = new Set([metric, metric.replace(/\./g, '_')]);
-  if (desired) aliases.add(desired.outputName);
-  for (const line of evalOutput.split(/\r?\n/)) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length >= 3 && aliases.has(parts[0])) {
-      const score = Number(parts[2]);
-      if (Number.isFinite(score)) return { measure: parts[0], topic: parts[1], score };
-    }
-  }
-  const fallback = evalOutput.match(/([0-9]+(?:\.[0-9]+)?)/);
-  if (fallback) return { measure: metric, topic: 'all', score: Number(fallback[1]) };
-  throw new Error(`Unable to parse numeric score for metric ${metric}.`);
+function safeSlug(value) {
+  return String(value).replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
-app.get('/api/health', async (_req, res) => {
+function parseEvaluationScore(output, metric) {
+  const lines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const expectedKeys = [metric.outputKey, metric.id.replace(/\./g, '_')];
+  for (const line of lines) {
+    const parts = line.split(/\s+/);
+    if (parts.length >= 3 && expectedKeys.includes(parts[0])) {
+      const score = Number(parts[2]);
+      if (Number.isFinite(score)) return { key: parts[0], score, line };
+    }
+  }
+
+  for (const line of lines) {
+    const parts = line.split(/\s+/);
+    if (parts.length >= 3) {
+      const score = Number(parts[2]);
+      if (Number.isFinite(score)) return { key: parts[0], score, line };
+    }
+  }
+  throw new Error(`Could not parse a numeric score for metric ${metric.label} from Anserini evaluator output.`);
+}
+
+function relativeArtifact(p) {
+  return path.relative(ROOT, p);
+}
+
+async function runEvaluation(body) {
+  const catalog = await discoverCatalog();
+  const indexName = body.indexName || body.index;
+  const selected = catalog.indexes.find(index => index.name === indexName);
+  if (!selected) {
+    const err = new Error(`Index '${indexName}' was not found in the Anserini prebuilt inverted-index registry.`);
+    err.status = 404;
+    throw err;
+  }
+  if (!selected.evaluable || !selected.pairing) {
+    const err = new Error(`Index '${indexName}' is catalog-only: ${selected.catalogOnlyReason}`);
+    err.status = 400;
+    throw err;
+  }
+
+  const metricId = body.metricId || body.metric;
+  const metric = selected.pairing.metrics.find(m => m.id === metricId || m.label === metricId);
+  if (!metric) {
+    const err = new Error(`Metric '${metricId}' is not available for ${indexName}.`);
+    err.status = 400;
+    throw err;
+  }
+
+  const startedAt = Date.now();
+  const runId = `${safeSlug(indexName)}-${safeSlug(metric.id)}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  const runDir = path.join(ROOT, 'artifacts', 'runs');
+  const evalDir = path.join(ROOT, 'artifacts', 'eval');
+  await fsp.mkdir(runDir, { recursive: true });
+  await fsp.mkdir(evalDir, { recursive: true });
+  const runFile = path.join(runDir, `run.${runId}.txt`);
+  const evalFile = path.join(evalDir, `eval.${runId}.txt`);
+
+  const searchArgs = [
+    '-threads', '1',
+    '-index', selected.pairing.index,
+    '-topics', selected.pairing.topics,
+    '-output', runFile,
+    '-hits', String(selected.pairing.hits),
+    '-bm25'
+  ];
+  const searchResult = await runAnserini(catalog.jar, 'io.anserini.search.SearchCollection', searchArgs);
+
+  if (!isFile(runFile) || fs.statSync(runFile).size === 0) {
+    const err = new Error('Retrieval completed but did not create a non-empty TREC run file.');
+    err.status = 500;
+    throw err;
+  }
+
+  const evalArgs = ['-c', '-m', metric.id, selected.pairing.qrels, runFile];
+  const evalResult = await runAnserini(catalog.jar, 'io.anserini.eval.TrecEval', evalArgs);
+  await fsp.writeFile(evalFile, evalResult.stdout + (evalResult.stderr ? `\n--- stderr ---\n${evalResult.stderr}` : ''), 'utf8');
+
+  const parsed = parseEvaluationScore(evalResult.stdout, metric);
+  const elapsedMs = Date.now() - startedAt;
+  const preview = (evalResult.stdout + (evalResult.stderr ? `\n${evalResult.stderr}` : '')).trim().slice(0, 4000);
+
+  return {
+    status: 'completed',
+    score: parsed.score,
+    scoreLine: parsed.line,
+    metric: {
+      label: metric.label,
+      id: metric.id,
+      outputKey: parsed.key
+    },
+    selectedIndex: selected.name,
+    topics: selected.pairing.topics,
+    qrels: selected.pairing.qrels,
+    qrelsSource: selected.pairing.qrelsSource,
+    retrievalModel: selected.pairing.retrievalModel,
+    hits: selected.pairing.hits,
+    elapsedMs,
+    anseriniJar: catalog.jar,
+    runFile: relativeArtifact(runFile),
+    evaluationOutputFile: relativeArtifact(evalFile),
+    runFileAbsolute: runFile,
+    evaluationOutputFileAbsolute: evalFile,
+    searchCommand: `java -cp ${catalog.jar} io.anserini.search.SearchCollection ${searchArgs.join(' ')}`,
+    evalCommand: `java -cp ${catalog.jar} io.anserini.eval.TrecEval ${evalArgs.join(' ')}`,
+    searchElapsedMs: searchResult.elapsedMs,
+    evalElapsedMs: evalResult.elapsedMs,
+    evaluationPreview: preview
+  };
+}
+
+const app = express();
+app.use(express.json({ limit: '1mb' }));
+app.use(express.static(path.join(ROOT, 'public')));
+
+app.get('/api/environment', async (req, res) => {
   const jar = findAnseriniJar();
-  if (!jar) return res.status(500).json({ ok: false, error: 'Anserini fatjar not found.' });
   try {
-    const java = await runProcess('java', ['-version'], { timeoutMs: 15000 });
-    res.json({ ok: true, jar, java: java.stderr || java.stdout });
+    const java = await runCommand('java', ['-version'], { timeoutMs: 30000 });
+    res.json({ ok: Boolean(jar), jar, java: java.stderr || java.stdout });
   } catch (err) {
-    res.status(500).json({ ok: false, jar, error: err.message, details: err.result?.stderr || err.result?.stdout });
+    res.status(500).json({ ok: false, jar, error: 'Missing Java or unable to run java -version.', details: err.message });
   }
 });
 
 app.get('/api/catalog', async (req, res) => {
   try {
-    const catalog = await loadCatalog(req.query.refresh === '1');
+    const catalog = await discoverCatalog({ force: req.query.refresh === '1' });
     res.json(catalog);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-      details: err.result ? { stdout: err.result.stdout, stderr: err.result.stderr } : undefined
-    });
+    res.status(err.status || 500).json({ error: err.message, details: err.stderr || undefined });
   }
 });
 
 app.post('/api/evaluate', async (req, res) => {
-  const requestedIndex = req.body?.index || CACM_CONFIG.index;
-  const metric = req.body?.metric || CACM_CONFIG.metrics[0].value;
-  const metricConfig = CACM_CONFIG.metrics.find((m) => m.value === metric);
-
-  if (requestedIndex !== CACM_CONFIG.index) {
-    return res.status(400).json({ error: `Index ${requestedIndex} is catalog-only in this app; no automatic topics/qrels pairing is available.` });
-  }
-  if (!metricConfig) {
-    return res.status(400).json({ error: `Metric ${metric} is not available for CACM in this app.` });
-  }
-
-  const started = Date.now();
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const runFile = path.join(RUN_DIR, `run.cacm.${metricConfig.outputName}.${stamp}.txt`);
-  const evalFile = path.join(EVAL_DIR, `eval.cacm.${metricConfig.outputName}.${stamp}.txt`);
-  const searchLogFile = path.join(LOG_DIR, `search.cacm.${metricConfig.outputName}.${stamp}.log`);
-  const evalLogFile = path.join(LOG_DIR, `eval.cacm.${metricConfig.outputName}.${stamp}.log`);
-
-  const searchArgs = [
-    '-threads', '1',
-    '-index', CACM_CONFIG.index,
-    '-topics', CACM_CONFIG.topics,
-    '-output', runFile,
-    '-hits', String(CACM_CONFIG.hits),
-    '-bm25'
-  ];
-  const evalArgs = ['-c', '-m', metric, CACM_CONFIG.qrels, runFile];
-
   try {
-    const search = await runJava('io.anserini.search.SearchCollection', searchArgs, { timeoutMs: 180000 });
-    fs.writeFileSync(searchLogFile, `${search.stdout}\n${search.stderr}`);
-    if (!fs.existsSync(runFile) || fs.statSync(runFile).size === 0) {
-      throw new Error('Anserini retrieval completed but did not write a non-empty run file.');
-    }
-
-    const evaluation = await runJava('io.anserini.eval.TrecEval', evalArgs, { timeoutMs: 60000 });
-    fs.writeFileSync(evalFile, evaluation.stdout);
-    fs.writeFileSync(evalLogFile, `${evaluation.stdout}\n${evaluation.stderr}`);
-    const parsed = parseMetricScore(evaluation.stdout, metric);
-
-    const runPreview = fs.readFileSync(runFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(0, 5).join('\n');
-    res.json({
-      status: 'completed',
-      score: parsed.score,
-      measure: parsed.measure,
-      selectedMetric: metric,
-      selectedMetricLabel: metricConfig.label,
-      elapsedMs: Date.now() - started,
-      index: CACM_CONFIG.index,
-      topics: CACM_CONFIG.topics,
-      qrels: CACM_CONFIG.qrels,
-      qrelsLabel: CACM_CONFIG.qrelsLabel,
-      searchModel: CACM_CONFIG.searchModel,
-      commands: {
-        retrieval: `java -cp <anserini-fatjar> io.anserini.search.SearchCollection ${searchArgs.map((a) => a.includes(' ') ? JSON.stringify(a) : a).join(' ')}`,
-        evaluation: `java -cp <anserini-fatjar> io.anserini.eval.TrecEval ${evalArgs.map((a) => a.includes(' ') ? JSON.stringify(a) : a).join(' ')}`
-      },
-      artifacts: {
-        runFile: publicPath(runFile),
-        evalFile: publicPath(evalFile),
-        searchLogFile: publicPath(searchLogFile),
-        evalLogFile: publicPath(evalLogFile)
-      },
-      evaluationOutput: evaluation.stdout.trim(),
-      runPreview
-    });
+    const result = await runEvaluation(req.body || {});
+    res.json(result);
   } catch (err) {
-    const details = err.result ? `${err.result.stdout}\n${err.result.stderr}`.trim() : '';
-    res.status(500).json({
-      status: 'failed',
+    res.status(err.status || 500).json({
       error: err.message,
-      details,
-      elapsedMs: Date.now() - started,
-      index: CACM_CONFIG.index,
-      topics: CACM_CONFIG.topics,
-      metric,
-      artifacts: {
-        runFile: publicPath(runFile),
-        evalFile: publicPath(evalFile),
-        searchLogFile: publicPath(searchLogFile),
-        evalLogFile: publicPath(evalLogFile)
-      }
+      stdout: err.stdout,
+      stderr: err.stderr,
+      command: err.command ? `${err.command} ${(err.args || []).join(' ')}` : undefined
     });
   }
 });
 
+app.get('/api/artifacts/*', async (req, res) => {
+  const rel = req.params[0] || '';
+  const artifactPath = path.resolve(ROOT, 'artifacts', rel);
+  if (!artifactPath.startsWith(path.resolve(ROOT, 'artifacts') + path.sep)) {
+    return res.status(400).send('Invalid artifact path');
+  }
+  if (!isFile(artifactPath)) return res.status(404).send('Artifact not found');
+  res.type('text/plain').sendFile(artifactPath);
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(ROOT, 'public', 'index.html'));
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
-    const jar = findAnseriniJar();
-    console.log(`Anserini evaluator listening on http://localhost:${PORT}`);
-    console.log(jar ? `Using Anserini fatjar: ${jar}` : 'No Anserini fatjar found; set ANSERINI_JAR or download one locally.');
+    console.log(`Anserini Prebuilt Index Evaluator running at http://localhost:${PORT}`);
   });
 }
 
-module.exports = app;
+module.exports = { app, findAnseriniJar, discoverCatalog, runEvaluation };

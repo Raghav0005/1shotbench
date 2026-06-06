@@ -1,0 +1,20 @@
+# Render deployment manifest.
+# This app is a single Docker web service. Render injects PORT automatically;
+# the container binds 0.0.0.0:$PORT (default 10000 when run locally).
+services:
+  - type: web
+    name: nfcorpus-workbench
+    runtime: docker
+    plan: starter            # ~512 MB RAM is enough for NFCorpus BM25.
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: nfcorpus-cache
+      mountPath: /data       # NFCorpus index + run files + logs.
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: NFCORPUS_DATA_DIR
+        value: /data

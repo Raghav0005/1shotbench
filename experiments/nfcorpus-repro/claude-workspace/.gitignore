@@ -1,7 +1,11 @@
-.venv/
+cache/
 __pycache__/
 *.pyc
-cache/
-runs/
-*.jar
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+playwright-report/
+test-results/
 .DS_Store
+*.log

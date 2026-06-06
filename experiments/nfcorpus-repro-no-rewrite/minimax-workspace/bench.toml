@@ -1,0 +1,6 @@
+name = "MiniMax workspace"
+provider = "minimax"
+model = "MiniMax-M3"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]

@@ -1,0 +1,290 @@
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+Done! Here's what was built and verified end-to-end:
+
+## What Was Built
+
+### Backend
+- **Anserini fatjar** downloaded from Maven Central (`anserini-2.1.1-fatjar.jar`) and verified with the CACM smoke test (MAP `0.3123`, P30 `0.1942`).
+- **REST server** running on port `8080`, serving the `msmarco-v1-passage` index via:
+  - `GET /v1/msmarco-v1-passage/search?query=...&hits=...`
+  - `GET /v1/msmarco-v1-passage/doc/<docid>`
+
+### Frontend (Next.js)
+- **Search page** at `frontend/src/app/page.tsx` with a search input, ranked results, and sample query chips.
+- **Sample queries** — 6 random queries from the MS MARCO passage dev set (6,980 total) are fetched from `/queries.json` and displayed on load. Users can click any chip to run it, or click **Refresh** to see new random samples.
+- **Next.js API route** at `frontend/src/app/api/search/route.ts` proxies requests to the Anserini backend to avoid CORS issues.
+- **Error handling** for empty queries, no-results, and backend disconnects.
+- **Ports**: frontend defaults to `3000`, backend to `8080`. Both are configurable via environment variables.
+
+## Files Created
+| File | Purpose |
+|------|---------|
+| `anserini-2.1.1-fatjar.jar` | Anserini fatjar (auto-downloaded) |
+| `start-backend.sh` | Script to start the Anserini REST server (`BACKEND_PORT` configurable) |
+| `frontend/public/queries.json` | All 6,980 MS MARCO passage dev queries |
+| `frontend/src/app/page.tsx` | Main search UI |
+| `frontend/src/app/api/search/route.ts` | Proxy API route to Anserini |
+| `frontend/.env.local` | Frontend env config (`API_URL`) |
+| `README.md` | Full setup and usage docs |
+
+## Running It
+```bash
+# Terminal 1 — backend
+./start-backend.sh          # defaults to port 8080
+
+# Terminal 2 — frontend
+cd frontend && npm run dev  # defaults to port 3000
+```
+
+Then open **http://localhost:3000**.

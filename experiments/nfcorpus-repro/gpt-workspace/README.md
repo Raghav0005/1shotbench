@@ -1,49 +1,53 @@
 # NFCorpus Live Retrieval Diagnostics Workbench
 
-A Dockerized web app for live NFCorpus retrieval diagnostics with Anserini. It uses the repo-local Anserini skill workflow: Java/fatjar verification, `ReproduceFromPrebuiltIndexes` discovery for `beir.core`, live `io.anserini.cli.Search`, BM25 `SearchCollection`, and `io.anserini.eval.TrecEval`.
+Dockerized web app for live NFCorpus retrieval diagnostics using real Anserini commands.
 
-## What runs
+## What it does
 
-- Dataset: **NFCorpus only** (`beir-v1.0.0-nfcorpus.flat`, topics `beir-nfcorpus`, qrels/eval key `beir-v1.0.0-nfcorpus.test`).
-- Search: `java -cp $ANSERINI_JAR io.anserini.cli.Search --index beir-v1.0.0-nfcorpus.flat --query ... --json`.
-- Evaluation: `SearchCollection` writes a TREC run file, then `TrecEval -c -m ndcg_cut.10` evaluates it.
-- Expected metric is discovered from Anserini reproduction config `beir.core` (`flat` / `nfcorpus`) and compared with observed output.
-
-No full BEIR archive, MS MARCO, dense-vector artifacts, or non-NFCorpus BEIR corpora are downloaded by default. Runtime caches and generated run/eval logs live in `DATA_DIR` (default `./data`; Docker default `/var/data/nfcorpus-workbench`).
+- Downloads or finds an Anserini released fatjar and checks Java/fatjar readiness.
+- Uses Anserini reproduction discovery for `beir.core` (`--list`, `--show`, `--dry-run`) to find NFCorpus BM25 commands, qrels/eval key, metric definitions, and expected scores.
+- Downloads/prepares only the small NFCorpus prebuilt index (`beir-v1.0.0-nfcorpus.flat`). It does **not** download all BEIR corpora.
+- Runs live browser searches through `io.anserini.cli.Search`.
+- Runs BM25 evaluation through `io.anserini.search.SearchCollection` plus Anserini `trec_eval`, then displays observed vs expected metrics, deltas, commands, and artifact paths.
 
 ## Local run
 
 ```bash
-npm install
-npm start
-# open http://localhost:10000
+python3 app/server.py
+# open http://127.0.0.1:10000
 ```
 
-If `ANSERINI_JAR` is unset, the app locates `/opt/anserini/anserini-$ANSERINI_VERSION-fatjar.jar` or downloads the Maven Central fatjar into `DATA_DIR/jars`.
+Optional environment variables:
+
+- `PORT` — HTTP port, default `10000`.
+- `ANSERINI_JAR` — path to an existing `anserini-*-fatjar.jar`.
+- `ANSERINI_VERSION` — Maven Central version to download when `ANSERINI_JAR` is not provided.
+- `NFCORPUS_CACHE_DIR` — runtime cache/data directory, default `.runtime` locally and `/data/nfcorpus-workbench` in Docker.
+- `RUN_CACM_SMOKE` — defaults to `1`; runs the small CACM Anserini fatjar smoke test from the install skill before NFCorpus setup.
 
 ## Docker / Render
 
-The container is a single Render-compatible web service. It binds HTTP to `0.0.0.0` and uses `PORT` from the environment, defaulting to `10000`.
+Build and run:
 
 ```bash
 docker build -t nfcorpus-workbench .
-docker run --rm -p 10000:10000 -e PORT=10000 -v nfcorpus-data:/var/data/nfcorpus-workbench nfcorpus-workbench
+docker run --rm -p 10000:10000 -e PORT=10000 nfcorpus-workbench
 ```
 
-Render settings:
+Render contract:
 
-- Service type: Docker Web Service
-- Health check path: `/health`
-- Optional persistent disk mount: `/var/data/nfcorpus-workbench`
-- Optional env: `PORT`, `DATA_DIR`, `ANSERINI_VERSION`, `ANSERINI_THREADS`
-
-`/health` returns JSON containing app status, Anserini availability, NFCorpus readiness, search availability, and evaluation availability.
+- Deploy as a Docker web service.
+- The app binds to `0.0.0.0`.
+- The app reads `PORT` and defaults to `10000` if unset.
+- Health endpoint: `/health` returns JSON with app status, Anserini availability, NFCorpus readiness, search availability, and evaluation availability.
+- Runtime caches and generated run/eval files live under `NFCORPUS_CACHE_DIR`. For Render persistent storage, mount a disk at `/data` so `/data/nfcorpus-workbench` persists between restarts.
 
 ## Browser verification
 
 ```bash
+npm install
 npx playwright install chromium
 npm test
 ```
 
-The test opens the app, runs a real query, verifies ranked results with doc ids/scores/snippets, checks a numeric observed metric plus expected-vs-observed delta/status, and confirms exact Anserini command text and artifact paths are visible.
+The test starts the server, waits for Anserini-backed setup/evaluation, searches NFCorpus from the browser, and asserts that exact Anserini search/evaluation commands and generated artifacts are visible.

@@ -1,7 +1,6 @@
 node_modules/
-anserini-*-fatjar.jar
+frontend/node_modules/
+backend/
 runs/
-*.log
-.DS_Store
-playwright-report/
-test-results/
+*.txt
+.env

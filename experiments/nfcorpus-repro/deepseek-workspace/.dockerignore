@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Workspace
+.pi-bench-rewrites
+bench.toml
+PRD.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Cache/runtime dirs (generated content)
+cache/
+
+# Large jars copied at build time
+*.jar
+
+# Node (tests)
+node_modules
+package.json
+package-lock.json
+playwright-report
+test-results

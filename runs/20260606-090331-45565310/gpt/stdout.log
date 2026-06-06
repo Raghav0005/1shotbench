@@ -1,0 +1,191 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Implemented the Anserini Prebuilt Index Evaluator as specified.
+
+Key files:
+- `src/anserini.js` — Anserini fatjar discovery, registry loading, CACM retrieval/evaluation execution.
+- `src/server.js` — local HTTP app + API.
+- `public/*` — browser dashboard UI.
+- `tests/e2e.spec.js` — Playwright end-to-end browser test.
+- `scripts/setup-anserini.js` / `scripts/smoke-cacm.js` — fatjar setup and CACM smoke verification.
+- `README.md` — usage instructions.
+
+Verified:
+- Downloaded/located Anserini fatjar.
+- Ran CACM smoke test successfully: MAP `0.3123`, P@30 `0.1942`.
+- Ran Playwright E2E successfully.
+- `npm test` passes.

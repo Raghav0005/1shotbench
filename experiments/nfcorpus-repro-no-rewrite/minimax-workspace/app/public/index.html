@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <div class="title-block">
+    <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+    <p class="subtitle">A small hosted demo that exercises real Anserini commands on the BEIR <code>nfcorpus</code> collection.</p>
+  </div>
+  <div class="dataset-tag" id="dataset-tag">dataset: <strong>nfcorpus</strong></div>
+</header>
+
+<main>
+  <!-- Readiness panel -->
+  <section class="card" id="readiness-card">
+    <h2>Readiness</h2>
+    <div class="status-grid" id="status-grid">
+      <div class="status-tile" data-key="app">
+        <div class="label">App</div>
+        <div class="value" id="status-app">…</div>
+      </div>
+      <div class="status-tile" data-key="anserini">
+        <div class="label">Anserini</div>
+        <div class="value" id="status-anserini">…</div>
+      </div>
+      <div class="status-tile" data-key="nfcorpus">
+        <div class="label">NFCorpus</div>
+        <div class="value" id="status-nfcorpus">…</div>
+      </div>
+      <div class="status-tile" data-key="search">
+        <div class="label">Live search</div>
+        <div class="value" id="status-search">…</div>
+      </div>
+      <div class="status-tile" data-key="evaluation">
+        <div class="label">BM25 evaluation</div>
+        <div class="value" id="status-eval">…</div>
+      </div>
+    </div>
+    <div class="readiness-detail" id="readiness-detail"></div>
+  </section>
+
+  <!-- Search panel -->
+  <section class="card" id="search-card">
+    <h2>Live search over NFCorpus</h2>
+    <p class="hint">Each query is served by the Anserini REST server backed by the <code>beir-v1.0.0-nfcorpus.flat</code> prebuilt index. Result rows include rank, docid, BM25 score, title, and the full indexed text.</p>
+    <form id="search-form" autocomplete="off">
+      <input type="text" id="search-input" name="q" placeholder="e.g. effects of cholesterol" required />
+      <label for="hits-input">Hits:&nbsp;</label>
+      <input type="number" id="hits-input" name="hits" min="1" max="50" value="10" />
+      <button type="submit" id="search-button">Search</button>
+    </form>
+    <div class="samples" id="samples"></div>
+    <div class="search-meta" id="search-meta"></div>
+    <ol class="results" id="results"></ol>
+  </section>
+
+  <!-- Evaluation panel -->
+  <section class="card" id="eval-card">
+    <h2>BM25 evaluation</h2>
+    <p class="hint">Anserini runs <code>SearchCollection</code> over the <code>beir-nfcorpus</code> test topics with BM25, writes a TREC run file, and evaluates it with <code>io.anserini.eval.TrecEval</code>. The table below shows observed vs. expected metrics.</p>
+    <div class="eval-actions">
+      <button type="button" id="eval-refresh">Refresh</button>
+      <button type="button" id="eval-rerun">Verify / Rerun</button>
+      <span class="eval-state" id="eval-state"></span>
+    </div>
+    <table class="eval-table" id="eval-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Observed</th>
+          <th>Expected</th>
+          <th>Δ</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="eval-detail" id="eval-detail"></div>
+  </section>
+
+  <!-- Commands & artifacts drawer -->
+  <section class="card" id="commands-card">
+    <h2>Commands &amp; artifacts</h2>
+    <p class="hint">Every panel above is backed by the commands below. Click a row to preview stdout/stderr. Artifact paths are real files written by Anserini; use the buttons to fetch their raw contents.</p>
+    <div class="command-list" id="command-list"></div>
+    <h3>Artifact paths</h3>
+    <ul class="artifact-list" id="artifact-list"></ul>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <div>
+    <strong>Render / Docker readiness:</strong>
+    binds <code>0.0.0.0</code> on <code>$PORT</code> (default <code>10000</code>),
+    exposes <code>GET /health</code>, and never requires interactive setup.
+  </div>
+  <div id="env-summary"></div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Anserini Prebuilt Index Evaluator</h1>
+    <p class="subtitle">
+      Browse Anserini's prebuilt Lucene inverted-index catalog and run a
+      reproducible retrieval evaluation entirely from your browser. All work
+      is delegated to the real Anserini fatjar CLI.
+    </p>
+    <div id="health" class="health" data-testid="health">Checking environment…</div>
+  </header>
+
+  <main>
+    <section class="panel catalog-panel">
+      <div class="panel-header">
+        <h2>Index catalog</h2>
+        <div class="catalog-stats" data-testid="catalog-stats">Loading…</div>
+      </div>
+      <input
+        type="search"
+        id="catalog-filter"
+        placeholder="Filter indexes by name or description…"
+        data-testid="catalog-filter"
+        autocomplete="off"
+      />
+      <div class="filters">
+        <label><input type="checkbox" id="filter-evaluable" data-testid="filter-evaluable" /> Show evaluable only</label>
+      </div>
+      <ul id="catalog-list" class="catalog-list" data-testid="catalog-list">
+        <li class="empty">Loading prebuilt-index registry…</li>
+      </ul>
+    </section>
+
+    <section class="panel detail-panel" data-testid="detail-panel">
+      <h2>Selected index</h2>
+      <div id="detail" data-testid="detail">
+        <p class="muted">Select an index from the catalog to view details.</p>
+      </div>
+
+      <div id="pairing-section" hidden>
+        <h3>Topic / qrels pairing</h3>
+        <label>
+          Pairing
+          <select id="pairing-select" data-testid="pairing-select"></select>
+        </label>
+        <dl class="pairing-meta" data-testid="pairing-meta"></dl>
+
+        <h3>Evaluation metric</h3>
+        <label>
+          Metric
+          <select id="metric-select" data-testid="metric-select"></select>
+        </label>
+
+        <button id="run-button" data-testid="run-button" type="button">Run Evaluation</button>
+        <p id="run-status" class="run-status" data-testid="run-status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="panel results-panel">
+      <h2>Last evaluation result</h2>
+      <div id="results" data-testid="results">
+        <p class="muted">No evaluation has run yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

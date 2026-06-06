@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anserini Prebuilt Index Evaluator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f8;
+  color: #222;
+  line-height: 1.5;
+  padding: 20px;
+}
+h1 { font-size: 1.5rem; margin-bottom: 4px; }
+.subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.panel h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+/* Catalog sidebar */
+.catalog-search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+.catalog-list {
+  max-height: 500px;
+  overflow-y: auto;
+  list-style: none;
+}
+.catalog-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.catalog-item:hover { background: #f0f0f5; }
+.catalog-item.selected { background: #dbe4ff; font-weight: 600; }
+.catalog-item.disabled { opacity: 0.45; cursor: default; }
+.catalog-item.disabled:hover { background: transparent; }
+.catalog-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge-evaluable { background: #d3f9d8; color: #2b8a3e; }
+.badge-catalog { background: #e9ecef; color: #868e96; }
+
+/* Main area */
+.eval-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-group span, .form-group select, .form-group button {
+  font-size: 0.9rem;
+}
+.form-group select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  min-width: 200px;
+}
+
+.btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary { background: #4263eb; color: #fff; }
+.btn-primary:hover { background: #3b5bdb; }
+.btn-primary:disabled { background: #adb5bd; cursor: not-allowed; }
+
+/* Results */
+.result-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.score-display {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2b8a3e;
+  text-align: center;
+  padding: 12px;
+}
+.score-label {
+  font-size: 0.85rem;
+  color: #666;
+  text-align: center;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.85rem;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+}
+.meta-key { color: #868e96; font-size: 0.75rem; text-transform: uppercase; }
+.meta-val { color: #333; font-weight: 500; word-break: break-all; }
+
+.error-box {
+  background: #fff5f5;
+  border: 1px solid #ffa8a8;
+  color: #c92a2a;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 12px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-top-color: #4263eb;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.runs-history {
+  margin-top: 16px;
+}
+.run-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 120px 120px 80px;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.85rem;
+  align-items: center;
+}
+.run-header {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.status-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-block;
+}
+.status-complete { background: #d3f9d8; color: #2b8a3e; }
+.status-running { background: #fff3bf; color: #e67700; }
+.status-error { background: #ffe3e3; color: #c92a2a; }
+
+/* No selection state */
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #868e96;
+}
+</style>
+</head>
+<body>
+
+<h1>Anserini Prebuilt Index Evaluator</h1>
+<p class="subtitle">Browse prebuilt Lucene inverted indexes and run reproducible retrieval evaluations</p>
+
+<div class="layout">
+  <!-- Left: Catalog -->
+  <div class="panel">
+    <h2>📚 Prebuilt Index Catalog</h2>
+    <input class="catalog-search" type="text" id="catalog-search" placeholder="Filter indexes...">
+    <ul class="catalog-list" id="catalog-list"></ul>
+    <div style="margin-top:8px;font-size:0.75rem;color:#868e96" id="catalog-count"></div>
+  </div>
+
+  <!-- Right: Evaluation -->
+  <div class="panel" id="main-panel">
+    <div id="no-selection" class="empty-state">
+      <p>Select an index from the catalog to start</p>
+    </div>
+
+    <div id="eval-section" style="display:none">
+      <h2>🔬 Evaluation Setup</h2>
+
+      <div class="eval-setup">
+        <div class="form-group">
+          <label>Selected Index</label>
+          <span id="selected-index-name" style="font-weight:600;"></span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Topic Set</label>
+            <select id="topic-select"></select>
+          </div>
+          <div class="form-group">
+            <label>Qrels / Eval Key</label>
+            <span id="eval-key-display" style="font-weight:500;"></span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Metric</label>
+            <select id="metric-select"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <button class="btn btn-primary" id="run-btn">▶ Run Evaluation</button>
+          <span id="run-spinner" style="display:none;"><span class="spinner"></span> Running...</span>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="result-area"></div>
+
+      <!-- Runs History -->
+      <div class="runs-history" id="runs-history" style="display:none;">
+        <h2 style="margin-top:16px;">📋 Run History</h2>
+        <div class="run-row run-header">
+          <span>Index</span><span>Topics</span><span>Metric</span><span>Score</span><span>Status</span>
+        </div>
+        <div id="runs-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- State ----
+let catalogData = [];
+let selectedIndex = null;
+let evaluableData = null;
+let currentRunId = null;
+let pollTimer = null;
+
+// Metric display name to trec_eval output name
+const METRIC_LABELS = {
+  'nDCG@10': 'nDCG@10',
+  'Recall@1000': 'Recall@1000',
+  'MAP': 'MAP',
+  'P30': 'P.30',
+  'MRR@10': 'MRR@10',
+  'R@1K': 'Recall@1000',
+};
+
+// ---- API helpers ----
+async function api(url, opts = {}) {
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+// ---- Init ----
+async function init() {
+  catalogData = await api('/api/catalog');
+  renderCatalog();
+
+  // Auto-select CACM
+  const cacm = catalogData.find(c => c.name === 'cacm');
+  if (cacm && cacm.evaluable) {
+    selectIndex(cacm);
+  }
+}
+
+function renderCatalog(filter = '') {
+  const list = document.getElementById('catalog-list');
+  const count = document.getElementById('catalog-count');
+  const q = filter.toLowerCase();
+
+  const filtered = catalogData.filter(c => c.name.toLowerCase().includes(q));
+  const evaluable = filtered.filter(c => c.evaluable);
+  const catalogOnly = filtered.filter(c => !c.evaluable);
+
+  let html = '';
+
+  // Evaluable first
+  for (const c of evaluable) {
+    const sel = selectedIndex && selectedIndex.name === c.name ? ' selected' : '';
+    html += `<li class="catalog-item${sel}" data-name="${c.name}" onclick="onCatalogClick('${c.name}')">
+      <span class="catalog-badge badge-evaluable">evaluable</span>
+      <span style="flex:1">${escHtml(c.name)}</span>
+      ${c.documents ? `<span style="color:#999;font-size:0.75rem">${c.documents.toLocaleString()} docs</span>` : ''}
+    </li>`;
+  }
+
+  // Catalog-only
+  for (const c of catalogOnly) {
+    html += `<li class="catalog-item disabled" data-name="${c.name}">
+      <span class="catalog-badge badge-catalog">catalog</span>
+      <span style="flex:1">${escHtml(c.name)}</span>
+      ${c.documents ? `<span style="color:#999;font-size:0.75rem">${c.documents.toLocaleString()} docs</span>` : ''}
+    </li>`;
+  }
+
+  list.innerHTML = html || '<li style="padding:12px;color:#999;text-align:center">No matching indexes</li>';
+  count.textContent = `${evaluable.length} evaluable · ${catalogOnly.length} catalog-only (${filtered.length} total)`;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---- Catalog interaction ----
+document.getElementById('catalog-search').addEventListener('input', (e) => {
+  renderCatalog(e.target.value);
+});
+
+function onCatalogClick(name) {
+  const c = catalogData.find(x => x.name === name);
+  if (c && c.evaluable) {
+    selectIndex(c);
+  }
+}
+
+// ---- Index selection ----
+async function selectIndex(indexObj) {
+  selectedIndex = indexObj;
+  document.getElementById('no-selection').style.display = 'none';
+  document.getElementById('eval-section').style.display = 'block';
+  document.getElementById('selected-index-name').textContent = indexObj.name;
+
+  renderCatalog(document.getElementById('catalog-search').value);
+
+  // Fetch evaluable details
+  try {
+    evaluableData = await api(`/api/evaluable/${indexObj.name}`);
+  } catch (e) {
+    evaluableData = null;
+  }
+
+  if (!evaluableData || evaluableData.error) {
+    document.getElementById('topic-select').innerHTML = '<option>Not evaluable</option>';
+    document.getElementById('metric-select').innerHTML = '<option>Not evaluable</option>';
+    document.getElementById('eval-key-display').textContent = '-';
+    return;
+  }
+
+  // Populate topics
+  const topicSel = document.getElementById('topic-select');
+  topicSel.innerHTML = '';
+  for (const tp of evaluableData.topic_pairs) {
+    topicSel.innerHTML += `<option value="${escHtml(tp.topic_key)}" data-eval-key="${escHtml(tp.eval_key)}">${escHtml(tp.topic_key)}</option>`;
+  }
+  topicSel.onchange = () => updateMetrics();
+
+  updateMetrics();
+}
+
+function updateMetrics() {
+  const topicSel = document.getElementById('topic-select');
+  const selectedOption = topicSel.options[topicSel.selectedIndex];
+  const topicKey = topicSel.value;
+  const evalKey = selectedOption ? selectedOption.dataset.evalKey : '';
+
+  document.getElementById('eval-key-display').textContent = evalKey || '-';
+
+  // Find the matching topic pair
+  const tp = evaluableData.topic_pairs.find(t => t.topic_key === topicKey);
+
+  const metricSel = document.getElementById('metric-select');
+  metricSel.innerHTML = '';
+
+  if (!tp || !tp.metrics) {
+    metricSel.innerHTML = '<option value="">No metrics available</option>';
+    return;
+  }
+
+  for (const [name, def] of Object.entries(tp.metrics)) {
+    metricSel.innerHTML += `<option value="${escHtml(name)}" data-trec-args="${escHtml(def.trec_args)}">${escHtml(name)}</option>`;
+  }
+}
+
+// ---- Run Evaluation ----
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const topicSel = document.getElementById('topic-select');
+  const metricSel = document.getElementById('metric-select');
+  const selectedOption = topicSel.options[topicSel.selectedIndex];
+
+  const payload = {
+    index: selectedIndex.name,
+    topic_key: topicSel.value,
+    eval_key: selectedOption ? selectedOption.dataset.evalKey : '',
+    metric: metricSel.value,
+    trec_args: metricSel.options[metricSel.selectedIndex].dataset.trecArgs,
+  };
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('run-spinner').style.display = 'inline';
+  document.getElementById('result-area').innerHTML = '';
+
+  try {
+    const res = await api('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    currentRunId = res.run_id;
+    pollStatus();
+  } catch (e) {
+    document.getElementById('result-area').innerHTML =
+      `<div class="error-box">Failed to start evaluation: ${escHtml(e.message)}</div>`;
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('run-spinner').style.display = 'none';
+  }
+});
+
+function pollStatus() {
+  if (!currentRunId) return;
+  api(`/api/status/${currentRunId}`).then(status => {
+    if (status.status === 'complete' || status.status === 'error') {
+      document.getElementById('run-btn').disabled = false;
+      document.getElementById('run-spinner').style.display = 'none';
+      renderResult(status);
+      loadRunHistory();
+      currentRunId = null;
+    } else if (status.status === 'running') {
+      document.getElementById('result-area').innerHTML =
+        '<div style="padding:20px;text-align:center;"><span class="spinner"></span> Retrieving and evaluating...</div>';
+      pollTimer = setTimeout(pollStatus, 1000);
+    }
+  });
+}
+
+function renderResult(status) {
+  let html = '';
+
+  if (status.error) {
+    html += `<div class="error-box">${escHtml(status.error)}</div>`;
+  }
+
+  if (status.score !== null && status.score !== undefined) {
+    html += `<div class="result-card">
+      <div class="score-label">${escHtml(status.metric)}</div>
+      <div class="score-display">${status.score.toFixed(4)}</div>
+    </div>`;
+  }
+
+  // Metadata
+  html += `<div class="result-card">
+    <h3 style="margin-bottom:8px;font-size:0.95rem;">Run Metadata</h3>
+    <div class="meta-grid">`;
+
+  const metaItems = [
+    ['Index', status.index],
+    ['Topics', status.topic_key],
+    ['Qrels / Eval Key', status.eval_key],
+    ['Metric', status.metric],
+    ['Status', status.status],
+    ['Started', status.started],
+  ];
+
+  if (status.search) {
+    metaItems.push(
+      ['Search elapsed', `${status.search.elapsed.toFixed(1)}s`],
+      ['Run file', status.search.run_file || '-'],
+    );
+  }
+  if (status.eval) {
+    metaItems.push(
+      ['Eval elapsed', `${status.eval.elapsed.toFixed(1)}s`],
+    );
+  }
+  if (status.completed) {
+    metaItems.push(['Completed', status.completed]);
+  }
+
+  for (const [k, v] of metaItems) {
+    html += `<div class="meta-item"><span class="meta-key">${k}</span><span class="meta-val">${escHtml(String(v || '-'))}</span></div>`;
+  }
+
+  // Eval output preview
+  if (status.eval && status.eval.stdout) {
+    html += `<div class="meta-item" style="grid-column:1/-1;margin-top:8px;">
+      <span class="meta-key">Evaluation Output</span>
+      <pre style="background:#f8f9fa;padding:8px;border-radius:4px;font-size:0.8rem;max-height:200px;overflow:auto;margin-top:4px;">${escHtml(status.eval.stdout)}</pre>
+    </div>`;
+  }
+
+  html += '</div></div>';
+  document.getElementById('result-area').innerHTML = html;
+}
+
+// ---- Run History ----
+async function loadRunHistory() {
+  const runs = await api('/api/runs');
+  if (!runs || runs.length === 0) return;
+
+  document.getElementById('runs-history').style.display = 'block';
+  const list = document.getElementById('runs-list');
+  list.innerHTML = runs.slice(0, 20).map(r => `
+    <div class="run-row">
+      <span>${escHtml(r.index || '-')}</span>
+      <span>${escHtml(r.topic_key || '-')}</span>
+      <span>${escHtml(r.metric || '-')}</span>
+      <span style="font-weight:600;">${r.score !== null && r.score !== undefined ? r.score.toFixed(4) : '-'}</span>
+      <span><span class="status-badge status-${r.status}">${r.status}</span></span>
+    </div>
+  `).join('');
+}
+
+// ---- Boot ----
+init();
+</script>
+</body>
+</html>

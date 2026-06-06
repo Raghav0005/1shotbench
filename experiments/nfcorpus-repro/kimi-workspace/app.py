@@ -1,102 +1,72 @@
-"""
-NFCorpus Live Retrieval Diagnostics Workbench
-A Flask backend that prepares Anserini, builds an NFCorpus index,
-runs BM25 evaluation, and serves live search via Anserini CLI.
-"""
-
-import json
 import os
-import re
-import shutil
-import subprocess
 import sys
-import threading
+import json
+import re
+import subprocess
+import shlex
 import time
-import urllib.request
-import zipfile
+import threading
 from pathlib import Path
-from typing import Any
-
 from flask import Flask, jsonify, request, send_from_directory
 
-app = Flask(__name__, static_folder="static")
+APP_DIR = Path(__file__).resolve().parent
+CACHE_DIR = APP_DIR / "cache"
+CACHE_DIR.mkdir(exist_ok=True)
 
-# Configuration
 ANSERINI_VERSION = os.environ.get("ANSERINI_VERSION", "2.1.1")
-ANSERINI_JAR_NAME = f"anserini-{ANSERINI_VERSION}-fatjar.jar"
-CACHE_DIR = Path(os.environ.get("CACHE_DIR", ".cache"))
-DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
-INDEX_DIR = Path(os.environ.get("INDEX_DIR", "indexes"))
-RUNS_DIR = Path(os.environ.get("RUNS_DIR", "runs"))
-PORT = int(os.environ.get("PORT", "10000"))
+FATJAR_NAME = f"anserini-{ANSERINI_VERSION}-fatjar.jar"
+FATJAR_PATH = CACHE_DIR / FATJAR_NAME
 
-FATJAR_PATH = CACHE_DIR / ANSERINI_JAR_NAME
-NFCORPUS_ZIP_URL = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/nfcorpus.zip"
-NFCORPUS_ZIP_PATH = DATA_DIR / "nfcorpus.zip"
-NFCORPUS_EXTRACT_PATH = DATA_DIR / "nfcorpus"
-CORPUS_PATH = DATA_DIR / "collections" / "beir-v1.0.0" / "corpus" / "nfcorpus"
-INDEX_PATH = INDEX_DIR / "lucene-inverted.beir-v1.0.0-nfcorpus.flat"
-RUN_PATH = RUNS_DIR / "run.nfcorpus.bm25.txt"
-QRELS_PATH = DATA_DIR / "qrels.nfcorpus.test.txt"
-EVAL_PATH = RUNS_DIR / "eval.nfcorpus.bm25.txt"
+RUN_FILE = CACHE_DIR / "run.nfcorpus.bm25.txt"
+EVAL_FILE = CACHE_DIR / "eval.nfcorpus.bm25.txt"
+SETUP_LOG = CACHE_DIR / "setup.log"
+EVAL_LOG = CACHE_DIR / "eval.log"
+DISCOVERY_LOG = CACHE_DIR / "discovery.log"
 
-# Expected metrics from reproduction config
-EXPECTED_METRICS = {
-    "nDCG@10": 0.3218,
-    "R@100": 0.2457,
-    "R@1000": 0.3704,
-}
+INDEX_NAME = "beir-v1.0.0-nfcorpus.flat"
+TOPICS_NAME = "beir-nfcorpus"
+EVAL_KEY = "beir-v1.0.0-nfcorpus.test"
+
+EXPECTED_METRIC = "nDCG@10"
+EXPECTED_SCORE = 0.3218
+METRIC_TREC_EVAL = "ndcg_cut.10"
 
 # Global state
-_state = {
+state = {
     "java_ok": False,
-    "java_version": "",
-    "fatjar_ready": False,
+    "java_version": None,
+    "fatjar_ok": False,
     "fatjar_path": str(FATJAR_PATH),
-    "corpus_ready": False,
     "index_ready": False,
-    "index_path": str(INDEX_PATH),
+    "index_path": None,
+    "discovery_ok": False,
+    "discovery_info": {},
     "evaluation_ready": False,
-    "search_ready": False,
-    "setup_in_progress": False,
-    "setup_error": None,
-    "setup_log": [],
+    "evaluation_running": False,
+    "evaluation_result": None,
+    "eval_run_count": 0,
+    "search_available": False,
     "commands": {},
-    "artifacts": {},
-    "evaluation": {
-        "observed": {},
-        "expected": EXPECTED_METRICS.copy(),
-        "status": {},
-        "elapsed_ms": 0,
-    },
-    "sample_queries": [],
+    "errors": [],
+    "setup_done": False,
 }
 
-_state_lock = threading.Lock()
+state_lock = threading.Lock()
 
 
-def _log(msg: str):
+def log(msg):
     print(msg, flush=True)
-    with _state_lock:
-        _state["setup_log"].append(msg)
+    with open(SETUP_LOG, "a") as f:
+        f.write(msg + "\n")
 
 
-def _set(**kwargs):
-    with _state_lock:
-        _state.update(kwargs)
-
-
-def _get(key: str, default=None):
-    with _state_lock:
-        return _state.get(key, default)
-
-
-def run_cmd(cmd: list[str], cwd: Path = None, timeout: int = 300, capture: bool = True) -> tuple[int, str, str]:
-    """Run a shell command and return (returncode, stdout, stderr)."""
-    _log(f"$ {' '.join(cmd)}")
+def run_cmd(cmd_list, cwd=None, timeout=300, capture=True):
+    """Run a command and return (returncode, stdout, stderr)."""
+    cmd_str = " ".join(shlex.quote(str(c)) for c in cmd_list)
+    log(f"[CMD] {cmd_str}")
     try:
         result = subprocess.run(
-            cmd,
+            cmd_list,
             cwd=cwd,
             capture_output=capture,
             text=True,
@@ -104,470 +74,374 @@ def run_cmd(cmd: list[str], cwd: Path = None, timeout: int = 300, capture: bool 
         )
         if capture:
             if result.stdout:
-                _log(result.stdout[:2000])
+                log(f"[OUT] {result.stdout[:2000]}")
             if result.stderr:
-                _log(result.stderr[:2000])
+                log(f"[ERR] {result.stderr[:2000]}")
         return result.returncode, result.stdout or "", result.stderr or ""
     except subprocess.TimeoutExpired:
-        _log(f"Command timed out after {timeout}s: {' '.join(cmd)}")
+        log(f"[TIMEOUT] {cmd_str}")
         return -1, "", "timeout"
     except Exception as e:
-        _log(f"Command failed: {e}")
+        log(f"[EXCEPTION] {cmd_str}: {e}")
         return -1, "", str(e)
 
 
-def check_java():
-    rc, out, err = run_cmd(["java", "-version"], capture=True)
-    version_text = out + err
-    _set(java_version=version_text.strip().splitlines()[0] if version_text else "")
-    match = re.search(r'version "?(\d+)', version_text)
-    if match:
-        major = int(match.group(1))
-        _set(java_ok=major >= 21)
-        return major >= 21
-    return False
-
-
-def download_fatjar():
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+def ensure_fatjar():
     if FATJAR_PATH.exists():
-        _log(f"Fatjar already exists at {FATJAR_PATH}")
         return True
-    url = f"https://repo1.maven.org/maven2/io/anserini/anserini/{ANSERINI_VERSION}/{ANSERINI_JAR_NAME}"
-    _log(f"Downloading Anserini fatjar from {url}...")
-    try:
-        urllib.request.urlretrieve(url, FATJAR_PATH)
-        _log(f"Downloaded to {FATJAR_PATH}")
-        return True
-    except Exception as e:
-        _log(f"Failed to download fatjar: {e}")
+    url = (
+        f"https://repo1.maven.org/maven2/io/anserini/anserini/"
+        f"{ANSERINI_VERSION}/{FATJAR_NAME}"
+    )
+    log(f"Downloading fatjar from {url}")
+    code, out, err = run_cmd(["curl", "-fL", "-o", str(FATJAR_PATH), url], timeout=180)
+    if code != 0 or not FATJAR_PATH.exists():
+        state["errors"].append(f"Failed to download fatjar: {err}")
         return False
-
-
-def verify_fatjar():
-    """Run CACM smoke test to verify the fatjar works."""
-    cmd = [
-        "java", "-cp", str(FATJAR_PATH),
-        "io.anserini.search.SearchCollection",
-        "-threads", "1",
-        "-index", "cacm",
-        "-topics", "cacm",
-        "-output", "run.cacm.bm25.txt",
-        "-hits", "1000",
-        "-bm25",
-    ]
-    rc, out, err = run_cmd(cmd, timeout=120)
-    if rc != 0:
-        _log("CACM smoke test failed.")
-        return False
-    eval_cmd = [
-        "java", "-cp", str(FATJAR_PATH),
-        "io.anserini.eval.TrecEval",
-        "-c", "-m", "map", "-m", "P.30",
-        "cacm", "run.cacm.bm25.txt",
-    ]
-    rc, out, err = run_cmd(eval_cmd, timeout=60)
-    if rc != 0 or "map" not in out:
-        _log("TrecEval smoke test failed.")
-        return False
-    _log("Fatjar verified with CACM smoke test.")
     return True
 
 
-def download_nfcorpus():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if NFCORPUS_EXTRACT_PATH.exists():
-        _log("NFCorpus already extracted.")
-        return True
-    if not NFCORPUS_ZIP_PATH.exists():
-        _log(f"Downloading NFCorpus from {NFCORPUS_ZIP_URL}...")
+def check_java():
+    code, out, err = run_cmd(["java", "-version"], timeout=30)
+    combined = out + "\n" + err
+    version_match = re.search(r'version "?(\d+)', combined)
+    if version_match:
+        major = int(version_match.group(1))
+        state["java_version"] = combined.strip().splitlines()[0]
+        if major == 21:
+            state["java_ok"] = True
+        else:
+            state["errors"].append(f"Java major version {major} found, require 21")
+    else:
+        state["errors"].append("Could not determine Java version")
+
+
+def discovery_reproduction():
+    """Run reproduction discovery to get expected metrics."""
+    if not state["fatjar_ok"]:
+        return
+    cmd = [
+        "java",
+        "-cp", str(FATJAR_PATH),
+        "io.anserini.reproduce.ReproduceFromPrebuiltIndexes",
+        "--config", "beir.core",
+        "--show",
+    ]
+    code, out, err = run_cmd(cmd, timeout=60)
+    with open(DISCOVERY_LOG, "w") as f:
+        f.write(f"Command: {' '.join(cmd)}\n")
+        f.write(f"Stdout:\n{out}\n")
+        f.write(f"Stderr:\n{err}\n")
+    state["commands"]["discovery"] = " ".join(shlex.quote(str(c)) for c in cmd)
+    if code == 0 and out:
+        # Parse YAML-like output for nfcorpus expected score
+        # Look for nfcorpus under flat condition
         try:
-            urllib.request.urlretrieve(NFCORPUS_ZIP_URL, NFCORPUS_ZIP_PATH)
-            _log(f"Downloaded {NFCORPUS_ZIP_PATH}")
+            import yaml
+            data = yaml.safe_load(out)
+            conditions = data.get("conditions", [])
+            for cond in conditions:
+                if cond.get("name") == "flat":
+                    for topic in cond.get("topics", []):
+                        if topic.get("topic_key") == "nfcorpus":
+                            expected = topic.get("expected_scores", {})
+                            metric_defs = topic.get("metric_definitions", {})
+                            state["discovery_info"] = {
+                                "condition": "flat",
+                                "topic_key": "nfcorpus",
+                                "eval_key": topic.get("eval_key"),
+                                "expected_scores": expected,
+                                "metric_definitions": metric_defs,
+                            }
+                            state["discovery_ok"] = True
+                            return
         except Exception as e:
-            _log(f"Failed to download NFCorpus: {e}")
-            return False
-    _log("Extracting NFCorpus...")
-    try:
-        with zipfile.ZipFile(NFCORPUS_ZIP_PATH, "r") as z:
-            z.extractall(DATA_DIR)
-        _log(f"Extracted to {NFCORPUS_EXTRACT_PATH}")
-        return True
-    except Exception as e:
-        _log(f"Failed to extract NFCorpus: {e}")
-        return False
+            log(f"YAML parse error: {e}")
+            # Fallback regex parsing
+            if "nfcorpus" in out and "nDCG@10" in out:
+                match = re.search(r'nDCG@10:\s*([0-9.]+)', out)
+                if match:
+                    state["discovery_info"] = {
+                        "condition": "flat",
+                        "topic_key": "nfcorpus",
+                        "eval_key": EVAL_KEY,
+                        "expected_scores": {EXPECTED_METRIC: float(match.group(1))},
+                        "metric_definitions": {EXPECTED_METRIC: "-c -m ndcg_cut.10"},
+                    }
+                    state["discovery_ok"] = True
+                    return
+    state["errors"].append("Reproduction discovery failed or returned no expected metrics")
 
 
-def prepare_corpus():
-    CORPUS_PATH.mkdir(parents=True, exist_ok=True)
-    src = NFCORPUS_EXTRACT_PATH / "corpus.jsonl"
-    dst = CORPUS_PATH / "corpus.jsonl"
-    if not dst.exists() and src.exists():
-        shutil.copy2(src, dst)
-        _log(f"Copied corpus to {dst}")
-    return dst.exists()
+def find_index_path():
+    """Try to locate the cached index path."""
+    cache_root = Path.home() / ".cache" / "pyserini" / "indexes"
+    if cache_root.exists():
+        for p in cache_root.iterdir():
+            if "nfcorpus" in p.name.lower() and p.is_dir():
+                return str(p)
+    return None
 
 
-def convert_qrels():
-    src = NFCORPUS_EXTRACT_PATH / "qrels" / "test.tsv"
-    if not src.exists():
-        return False
-    if QRELS_PATH.exists():
-        return True
-    with open(src, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    with open(QRELS_PATH, "w", encoding="utf-8") as f:
-        for line in lines[1:]:
-            parts = line.strip().split("\t")
-            if len(parts) >= 3:
-                f.write(f"{parts[0]} 0 {parts[1]} {parts[2]}\n")
-    _log(f"Converted qrels to {QRELS_PATH}")
-    return True
+def run_evaluation():
+    """Run SearchCollection + TrecEval for NFCorpus."""
+    with state_lock:
+        if state["evaluation_running"]:
+            return
+        state["evaluation_running"] = True
+        state["evaluation_ready"] = False
 
+    log("Starting NFCorpus BM25 evaluation...")
+    start = time.time()
 
-def build_index():
-    INDEX_DIR.mkdir(parents=True, exist_ok=True)
-    if INDEX_PATH.exists():
-        _log(f"Index already exists at {INDEX_PATH}")
-        return True
-    cmd = [
-        "java", "-cp", str(FATJAR_PATH),
-        "io.anserini.index.IndexCollection",
-        "-collection", "BeirFlatCollection",
-        "-input", str(CORPUS_PATH),
-        "-index", str(INDEX_PATH),
-        "-generator", "DefaultLuceneDocumentGenerator",
-        "-threads", "1",
-        "-storePositions", "-storeDocvectors", "-storeRaw",
-    ]
-    rc, out, err = run_cmd(cmd, timeout=300)
-    return rc == 0 and INDEX_PATH.exists()
-
-
-def run_search_collection():
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "java", "-cp", str(FATJAR_PATH),
+    # SearchCollection
+    search_cmd = [
+        "java",
+        "-cp", str(FATJAR_PATH),
         "io.anserini.search.SearchCollection",
-        "-index", str(INDEX_PATH),
-        "-topics", "beir-nfcorpus",
-        "-output", str(RUN_PATH),
-        "-bm25",
+        "-threads", "1",
+        "-index", INDEX_NAME,
+        "-topics", TOPICS_NAME,
+        "-output", str(RUN_FILE),
         "-hits", "1000",
+        "-bm25",
         "-removeQuery",
     ]
-    rc, out, err = run_cmd(cmd, timeout=300)
-    return rc == 0 and RUN_PATH.exists()
+    code, out, err = run_cmd(search_cmd, timeout=300)
+    state["commands"]["searchcollection"] = " ".join(shlex.quote(str(c)) for c in search_cmd)
+    if code != 0:
+        state["errors"].append(f"SearchCollection failed: {err}")
+        state["evaluation_running"] = False
+        return
 
+    # Find index path after search (it downloads on first use)
+    idx_path = find_index_path()
+    if idx_path:
+        state["index_path"] = idx_path
+        state["index_ready"] = True
 
-def run_eval():
-    metrics = [
-        ("ndcg_cut.10", "nDCG@10"),
-        ("recall.100", "R@100"),
-        ("recall.1000", "R@1000"),
+    # TrecEval
+    eval_cmd = [
+        "java",
+        "-cp", str(FATJAR_PATH),
+        "io.anserini.eval.TrecEval",
+        "-c",
+        "-m", METRIC_TREC_EVAL,
+        EVAL_KEY,
+        str(RUN_FILE),
     ]
-    all_out = []
-    start = time.time()
-    for trec_metric, _ in metrics:
-        cmd = [
-            "java", "-cp", str(FATJAR_PATH),
-            "io.anserini.eval.TrecEval",
-            "-c", "-m", trec_metric,
-            str(QRELS_PATH),
-            str(RUN_PATH),
-        ]
-        rc, out, err = run_cmd(cmd, timeout=120)
-        if rc != 0:
-            _log(f"Evaluation failed for metric {trec_metric}.")
-            return False
-        all_out.append(out)
-    elapsed = int((time.time() - start) * 1000)
-    combined_out = "\n".join(all_out)
-    with open(EVAL_PATH, "w", encoding="utf-8") as f:
-        f.write(combined_out)
-    observed = {}
-    for line in combined_out.splitlines():
-        parts = line.strip().split()
-        if len(parts) >= 3 and parts[1] == "all":
-            metric_name = parts[0].rstrip(":").replace("ndcg_cut_", "nDCG@").replace("recall_", "R@")
-            try:
-                observed[metric_name] = float(parts[2])
-            except ValueError:
-                continue
-    status = {}
-    for metric, expected in EXPECTED_METRICS.items():
-        obs = observed.get(metric)
-        if obs is None:
-            status[metric] = "unknown"
-        elif abs(obs - expected) < 0.0001:
-            status[metric] = "pass"
-        elif abs(obs - expected) < 0.01:
-            status[metric] = "close"
-        else:
-            status[metric] = "fail"
-    _set(evaluation={
+    code, out, err = run_cmd(eval_cmd, timeout=60)
+    state["commands"]["trec_eval"] = " ".join(shlex.quote(str(c)) for c in eval_cmd)
+    elapsed = time.time() - start
+
+    with open(EVAL_FILE, "w") as f:
+        f.write(out)
+    with open(EVAL_LOG, "w") as f:
+        f.write(f"Command: {' '.join(eval_cmd)}\n")
+        f.write(f"Stdout:\n{out}\n")
+        f.write(f"Stderr:\n{err}\n")
+
+    observed = None
+    if code == 0:
+        # Parse ndcg_cut_10            all    0.3218
+        m = re.search(r'ndcg_cut_10\s+all\s+([0-9.]+)', out)
+        if m:
+            observed = float(m.group(1))
+
+    expected = EXPECTED_SCORE
+    if state["discovery_ok"] and state["discovery_info"].get("expected_scores"):
+        expected = state["discovery_info"]["expected_scores"].get(EXPECTED_METRIC, EXPECTED_SCORE)
+
+    delta = round(observed - expected, 4) if observed is not None else None
+    if delta is not None and abs(delta) < 0.0001:
+        status = "pass"
+    elif delta is not None and abs(delta) < 0.01:
+        status = "close"
+    else:
+        status = "fail" if observed is not None else "unknown"
+
+    with state_lock:
+        state["eval_run_count"] = state.get("eval_run_count", 0) + 1
+        run_count = state["eval_run_count"]
+
+    result = {
+        "metric": EXPECTED_METRIC,
+        "trec_metric": METRIC_TREC_EVAL,
+        "expected": expected,
         "observed": observed,
-        "expected": EXPECTED_METRICS.copy(),
+        "delta": delta,
         "status": status,
-        "elapsed_ms": elapsed,
-    })
-    return True
-
-
-def load_sample_queries():
-    """Fetch a few sample queries from the beir-nfcorpus topics."""
-    cmd = [
-        "java", "-cp", str(FATJAR_PATH),
-        "io.anserini.cli.TopicsRegistry",
-        "--get", "beir-nfcorpus",
-    ]
-    rc, out, err = run_cmd(cmd, timeout=60)
-    if rc != 0:
-        return []
-    try:
-        topics = json.loads(out)
-        queries = []
-        # Pick a diverse sample
-        keys = list(topics.keys())
-        for key in keys[:5]:
-            queries.append({"id": key, "text": topics[key].get("title", "")})
-        for key in keys[50:55]:
-            queries.append({"id": key, "text": topics[key].get("title", "")})
-        for key in keys[100:105]:
-            queries.append({"id": key, "text": topics[key].get("title", "")})
-        return queries
-    except Exception as e:
-        _log(f"Failed to parse topics: {e}")
-        return []
-
-
-def do_setup():
-    _set(setup_in_progress=True, setup_error=None, setup_log=[])
-    try:
-        commands = {}
-        artifacts = {}
-
-        # 1. Java
-        if not check_java():
-            raise RuntimeError("Java 21+ is required but not found.")
-        commands["java_check"] = "java -version"
-
-        # 2. Fatjar
-        if not download_fatjar():
-            raise RuntimeError("Failed to download Anserini fatjar.")
-        _set(fatjar_ready=True)
-        artifacts["fatjar"] = str(FATJAR_PATH)
-        commands["fatjar_verify"] = (
-            f"java -cp {FATJAR_PATH} io.anserini.search.SearchCollection "
-            f"-threads 1 -index cacm -topics cacm -output run.cacm.bm25.txt -hits 1000 -bm25"
-        )
-        if not verify_fatjar():
-            raise RuntimeError("Fatjar verification failed.")
-
-        # 3. NFCorpus corpus
-        if not download_nfcorpus():
-            raise RuntimeError("Failed to download NFCorpus.")
-        if not prepare_corpus():
-            raise RuntimeError("Failed to prepare corpus.")
-        if not convert_qrels():
-            raise RuntimeError("Failed to convert qrels.")
-        _set(corpus_ready=True)
-        artifacts["corpus"] = str(CORPUS_PATH / "corpus.jsonl")
-        artifacts["qrels"] = str(QRELS_PATH)
-        commands["corpus_download"] = f"curl -fL -o nfcorpus.zip {NFCORPUS_ZIP_URL}"
-
-        # 4. Index
-        if not build_index():
-            raise RuntimeError("Failed to build NFCorpus index.")
-        _set(index_ready=True)
-        artifacts["index"] = str(INDEX_PATH)
-        commands["index_build"] = (
-            f"java -cp {FATJAR_PATH} io.anserini.index.IndexCollection "
-            f"-collection BeirFlatCollection -input {CORPUS_PATH} "
-            f"-index {INDEX_PATH} -generator DefaultLuceneDocumentGenerator "
-            f"-threads 1 -storePositions -storeDocvectors -storeRaw"
-        )
-
-        # 5. SearchCollection run
-        if not run_search_collection():
-            raise RuntimeError("Failed to run SearchCollection.")
-        artifacts["run"] = str(RUN_PATH)
-        commands["search_collection"] = (
-            f"java -cp {FATJAR_PATH} io.anserini.search.SearchCollection "
-            f"-index {INDEX_PATH} -topics beir-nfcorpus -output {RUN_PATH} "
-            f"-bm25 -hits 1000 -removeQuery"
-        )
-
-        # 6. Evaluation
-        if not run_eval():
-            raise RuntimeError("Failed to run evaluation.")
-        _set(evaluation_ready=True)
-        artifacts["eval"] = str(EVAL_PATH)
-        commands["evaluation"] = (
-            f"java -cp {FATJAR_PATH} io.anserini.eval.TrecEval "
-            f"-c -m ndcg_cut.10 -m recall.100 -m recall.1000 "
-            f"{QRELS_PATH} {RUN_PATH}"
-        )
-
-        # 7. Load sample queries
-        queries = load_sample_queries()
-        _set(sample_queries=queries, search_ready=True)
-
-        _set(commands=commands, artifacts=artifacts)
-        _log("Setup complete.")
-    except Exception as e:
-        _log(f"Setup error: {e}")
-        _set(setup_error=str(e))
-    finally:
-        _set(setup_in_progress=False)
-
-
-@app.route("/health")
-def health():
-    with _state_lock:
-        s = _state.copy()
-    return jsonify({
-        "status": "ready" if s["search_ready"] else ("error" if s["setup_error"] else "setting_up"),
-        "java_ok": s["java_ok"],
-        "java_version": s["java_version"],
-        "fatjar_ready": s["fatjar_ready"],
-        "nfcorpus_ready": s["corpus_ready"] and s["index_ready"],
-        "search_available": s["search_ready"],
-        "evaluation_available": s["evaluation_ready"],
-    })
-
-
-@app.route("/api/status")
-def api_status():
-    with _state_lock:
-        s = _state.copy()
-    return jsonify({
-        "java_ok": s["java_ok"],
-        "java_version": s["java_version"],
-        "fatjar_ready": s["fatjar_ready"],
-        "fatjar_path": s["fatjar_path"],
-        "corpus_ready": s["corpus_ready"],
-        "index_ready": s["index_ready"],
-        "index_path": s["index_path"],
-        "evaluation_ready": s["evaluation_ready"],
-        "search_ready": s["search_ready"],
-        "setup_in_progress": s["setup_in_progress"],
-        "setup_error": s["setup_error"],
-        "setup_log": s["setup_log"][-50:],
-        "commands": s.get("commands", {}),
-        "artifacts": s.get("artifacts", {}),
-        "evaluation": s.get("evaluation", {}),
-        "sample_queries": s.get("sample_queries", []),
-        "dataset": "NFCorpus",
-    })
-
-
-@app.route("/api/search", methods=["POST"])
-def api_search():
-    if not _get("search_ready"):
-        return jsonify({"error": "Search not ready."}), 503
-    data = request.get_json(force=True, silent=True) or {}
-    query = data.get("query", "").strip()
-    hits = min(int(data.get("hits", 10)), 50)
-    if not query:
-        return jsonify({"error": "Query is required."}), 400
-
-    cmd = [
-        "java", "-cp", str(FATJAR_PATH),
-        "io.anserini.cli.Search",
-        "--index", str(INDEX_PATH),
-        "--query", query,
-        "--json",
-        "--hits", str(hits),
-    ]
-    rc, out, err = run_cmd(cmd, timeout=60, capture=True)
-    if rc != 0:
-        return jsonify({"error": "Search failed.", "stderr": err[:500]}), 500
-    try:
-        # Filter out any log lines before the JSON
-        json_start = out.find("{")
-        if json_start == -1:
-            return jsonify({"error": "No JSON in search output."}), 500
-        result = json.loads(out[json_start:])
-    except Exception as e:
-        return jsonify({"error": f"Failed to parse search results: {e}"}), 500
-
-    # Add rank numbers
-    candidates = result.get("candidates", [])
-    for i, c in enumerate(candidates, start=1):
-        c["rank"] = i
-
-    return jsonify({
-        "query": query,
-        "results": candidates,
-        "command": " ".join(cmd),
-    })
-
-
-@app.route("/api/evaluation", methods=["GET"])
-def api_evaluation():
-    if not _get("evaluation_ready"):
-        return jsonify({"error": "Evaluation not ready."}), 503
-    with _state_lock:
-        ev = _state.get("evaluation", {}).copy()
-    ev["artifacts"] = {
-        "run": str(RUN_PATH),
-        "eval_output": str(EVAL_PATH),
-        "qrels": str(QRELS_PATH),
+        "elapsed_seconds": round(elapsed, 2),
+        "run_file": str(RUN_FILE),
+        "eval_file": str(EVAL_FILE),
+        "eval_stdout": out,
+        "run_count": run_count,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
+        "fresh": run_count > 1,
     }
-    ev["commands"] = {
-        "search_collection": (
-            f"java -cp {FATJAR_PATH} io.anserini.search.SearchCollection "
-            f"-index {INDEX_PATH} -topics beir-nfcorpus -output {RUN_PATH} "
-            f"-bm25 -hits 1000 -removeQuery"
-        ),
-        "evaluation": (
-            f"java -cp {FATJAR_PATH} io.anserini.eval.TrecEval "
-            f"-c -m ndcg_cut.10 -m recall.100 -m recall.1000 "
-            f"{QRELS_PATH} {RUN_PATH}"
-        ),
-    }
-    return jsonify(ev)
+
+    with state_lock:
+        state["evaluation_result"] = result
+        state["evaluation_ready"] = True
+        state["evaluation_running"] = False
+        state["search_available"] = True
+    log(f"Evaluation complete: observed={observed}, expected={expected}, status={status}")
 
 
-@app.route("/api/evaluation/rerun", methods=["POST"])
-def api_evaluation_rerun():
-    if not _get("index_ready"):
-        return jsonify({"error": "Index not ready."}), 503
-    _set(evaluation_ready=False)
-    if not run_search_collection():
-        return jsonify({"error": "SearchCollection rerun failed."}), 500
-    if not run_eval():
-        return jsonify({"error": "Evaluation rerun failed."}), 500
-    _set(evaluation_ready=True)
-    return api_evaluation()
+def setup():
+    """One-time setup on startup."""
+    log("=== Setup starting ===")
+    check_java()
+    if not state["java_ok"]:
+        log("Java check failed, aborting setup")
+        return
+
+    state["fatjar_ok"] = ensure_fatjar()
+    if not state["fatjar_ok"]:
+        log("Fatjar unavailable, aborting setup")
+        return
+
+    discovery_reproduction()
+
+    # Run evaluation (this also downloads the index on first use)
+    run_evaluation()
+
+    state["setup_done"] = True
+    log("=== Setup complete ===")
 
 
-@app.route("/api/commands")
-def api_commands():
-    with _state_lock:
-        return jsonify({
-            "commands": _state.get("commands", {}),
-            "artifacts": _state.get("artifacts", {}),
-        })
+# Start setup in background thread so the server can boot immediately
+threading.Thread(target=setup, daemon=True).start()
+
+app = Flask(__name__, static_folder="static")
 
 
 @app.route("/")
 def index():
-    return send_from_directory(app.static_folder, "index.html")
+    return send_from_directory("static", "index.html")
 
 
-@app.route("/<path:path>")
-def static_files(path):
-    return send_from_directory(app.static_folder, path)
+@app.route("/health")
+def health():
+    with state_lock:
+        return jsonify({
+            "status": "healthy" if state["setup_done"] and state["evaluation_ready"] else "starting",
+            "anserini_available": state["fatjar_ok"] and state["java_ok"],
+            "nfcorpus_ready": state["index_ready"],
+            "search_available": state["search_available"],
+            "evaluation_available": state["evaluation_ready"],
+        })
 
 
-def main():
-    # Start setup in background
-    setup_thread = threading.Thread(target=do_setup, daemon=True)
-    setup_thread.start()
-    app.run(host="0.0.0.0", port=PORT, threaded=True)
+@app.route("/api/status")
+def api_status():
+    with state_lock:
+        return jsonify({
+            "java_ok": state["java_ok"],
+            "java_version": state["java_version"],
+            "fatjar_ok": state["fatjar_ok"],
+            "fatjar_path": state["fatjar_path"],
+            "index_ready": state["index_ready"],
+            "index_path": state["index_path"],
+            "discovery_ok": state["discovery_ok"],
+            "discovery_info": state["discovery_info"],
+            "evaluation_ready": state["evaluation_ready"],
+            "evaluation_running": state["evaluation_running"],
+            "evaluation_result": state["evaluation_result"],
+            "search_available": state["search_available"],
+            "commands": state["commands"],
+            "errors": state["errors"],
+            "setup_done": state["setup_done"],
+            "cache_dir": str(CACHE_DIR),
+        })
+
+
+@app.route("/api/topics")
+def api_topics():
+    # Return a curated set of sample topics from NFCorpus
+    samples = [
+        {"id": "PLAIN-1008", "title": "deafness"},
+        {"id": "PLAIN-1018", "title": "DHA"},
+        {"id": "PLAIN-102", "title": "Stopping Heart Disease in Childhood"},
+        {"id": "PLAIN-12", "title": "Exploiting Autophagy to Live Longer"},
+        {"id": "PLAIN-78", "title": "What Do Meat Purge and Cola Have in Common?"},
+        {"id": "PLAIN-1817", "title": "peanut butter"},
+        {"id": "PLAIN-1950", "title": "prunes"},
+        {"id": "PLAIN-2800", "title": "Prolonged Liver Function Enhancement From Broccoli"},
+        {"id": "PLAIN-44", "title": "Who Should be Careful About Curcumin?"},
+        {"id": "PLAIN-2", "title": "Do Cholesterol Statin Drugs Cause Breast Cancer?"},
+    ]
+    return jsonify({"dataset": "NFCorpus", "topics": samples})
+
+
+@app.route("/api/search")
+def api_search():
+    q = request.args.get("q", "").strip()
+    hits = request.args.get("hits", "10")
+    if not q:
+        return jsonify({"error": "Missing query parameter 'q'"}), 400
+    if not state["search_available"]:
+        return jsonify({"error": "Search not available yet"}), 503
+
+    try:
+        hits_int = min(int(hits), 50)
+    except ValueError:
+        hits_int = 10
+
+    cmd = [
+        "java",
+        "-cp", str(FATJAR_PATH),
+        "io.anserini.cli.Search",
+        "--index", INDEX_NAME,
+        "--query", q,
+        "--hits", str(hits_int),
+        "--json",
+    ]
+    code, out, err = run_cmd(cmd, timeout=60)
+    if code != 0:
+        return jsonify({"error": f"Search failed: {err}", "command": " ".join(shlex.quote(str(c)) for c in cmd)}), 500
+
+    # Parse JSON output (may be mixed with log lines)
+    json_str = None
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("{"):
+            json_str = line
+            break
+    results = None
+    if json_str:
+        try:
+            results = json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+
+    return jsonify({
+        "query": q,
+        "hits": hits_int,
+        "results": results,
+        "command": " ".join(shlex.quote(str(c)) for c in cmd),
+    })
+
+
+@app.route("/api/evaluate", methods=["POST"])
+def api_evaluate():
+    if state["evaluation_running"]:
+        return jsonify({"error": "Evaluation already running"}), 409
+    # Run in background thread
+    threading.Thread(target=run_evaluation, daemon=True).start()
+    return jsonify({"message": "Evaluation started", "cached_result": state["evaluation_result"]})
+
+
+@app.route("/api/evaluate")
+def api_evaluate_get():
+    with state_lock:
+        return jsonify({
+            "evaluation_ready": state["evaluation_ready"],
+            "evaluation_running": state["evaluation_running"],
+            "result": state["evaluation_result"],
+        })
 
 
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port, threaded=True)

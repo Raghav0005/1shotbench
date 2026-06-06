@@ -1,0 +1,9 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.jar
+node_modules/
+playwright-report/
+test-results/

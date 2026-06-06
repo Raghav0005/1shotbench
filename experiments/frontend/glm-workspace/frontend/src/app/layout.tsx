@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MS MARCO Passage Search",
-  description: "Search the MS MARCO passage corpus powered by Anserini",
+  description: "Search the MS MARCO passage corpus via Anserini",
 };
 
 export default function RootLayout({
@@ -27,7 +27,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
+        {children}
+      </body>
     </html>
   );
 }

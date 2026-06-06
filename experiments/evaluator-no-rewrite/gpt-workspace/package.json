@@ -1,0 +1,17 @@
+{
+  "name": "anserini-prebuilt-index-evaluator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "npm run test:e2e",
+    "test:e2e": "node scripts/setup-anserini.js && playwright test",
+    "anserini:setup": "node scripts/setup-anserini.js",
+    "anserini:smoke": "node scripts/smoke-cacm.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@playwright/test": "^1.53.0"
+  }
+}

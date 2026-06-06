@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">Anserini + BEIR</p>
+      <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+      <p class="lede">A Docker/Render-ready demo that runs real Anserini NFCorpus search and BM25 evaluation commands, then exposes commands, artifacts, and observed-vs-expected metrics.</p>
+    </div>
+    <div class="badge" id="app-status">starting</div>
+  </header>
+
+  <main>
+    <section class="card" aria-labelledby="ready-title">
+      <h2 id="ready-title">Readiness</h2>
+      <div class="grid status-grid">
+        <div><span>Active dataset</span><strong id="dataset">NFCorpus</strong></div>
+        <div><span>Anserini setup status</span><strong id="anserini-status">pending</strong></div>
+        <div><span>NFCorpus artifact/index status</span><strong id="nfcorpus-status">pending</strong></div>
+        <div><span>Live search</span><strong id="search-status">pending</strong></div>
+        <div><span>Evaluation</span><strong id="eval-status">pending</strong></div>
+        <div><span>HTTP binding</span><strong>0.0.0.0:$PORT (default 10000)</strong></div>
+      </div>
+      <p id="java-line" class="muted"></p>
+      <p class="notice">Download policy: NFCorpus only. This app uses <code>beir-v1.0.0-nfcorpus.flat</code>, <code>beir-nfcorpus</code> topics, and NFCorpus qrels; it does not download the full BEIR corpus archive.</p>
+    </section>
+
+    <section class="card" aria-labelledby="search-title">
+      <h2 id="search-title">Live NFCorpus Search</h2>
+      <form id="search-form">
+        <input id="query" name="q" value="vitamin d cancer" placeholder="Enter a health/science query" />
+        <button type="submit">Search with Anserini</button>
+      </form>
+      <div class="samples" aria-label="Sample NFCorpus queries">
+        <button data-query="vitamin d cancer">vitamin d cancer</button>
+        <button data-query="omega 3 cardiovascular disease">omega 3 cardiovascular disease</button>
+        <button data-query="diabetes diet whole grains">diabetes diet whole grains</button>
+      </div>
+      <p id="search-command" class="command-line"></p>
+      <div id="results" class="results"></div>
+    </section>
+
+    <section class="card" aria-labelledby="eval-title">
+      <div class="section-head">
+        <h2 id="eval-title">BM25 Evaluation</h2>
+        <button id="rerun-eval">Verify/Rerun</button>
+      </div>
+      <p class="muted">Workflow: <code>SearchCollection</code> writes a TREC run, then Anserini <code>TrecEval</code> evaluates NFCorpus qrels.</p>
+      <div id="metrics" class="metrics"></div>
+      <div class="artifacts">
+        <div><span>Run file</span><code id="run-file">pending</code></div>
+        <div><span>Evaluation output</span><code id="eval-file">pending</code></div>
+        <div><span>Elapsed</span><code id="elapsed">pending</code></div>
+      </div>
+      <pre id="eval-preview" class="preview"></pre>
+    </section>
+
+    <section class="card" aria-labelledby="repro-title">
+      <h2 id="repro-title">Reproduction Discovery</h2>
+      <div class="artifacts">
+        <div><span>Config</span><code id="repro-config">beir.core</code></div>
+        <div><span>Expected metric source</span><code id="expected-source">pending</code></div>
+        <div><span>Template</span><code id="template">pending</code></div>
+      </div>
+      <details>
+        <summary>Show reproduction config preview</summary>
+        <pre id="show-preview" class="preview"></pre>
+      </details>
+      <details>
+        <summary>Show dry-run preview</summary>
+        <pre id="dry-preview" class="preview"></pre>
+      </details>
+    </section>
+
+    <section class="card" aria-labelledby="commands-title">
+      <h2 id="commands-title">Command & Artifact Drawer</h2>
+      <p class="muted">Every visible search and evaluation result is backed by a recorded process invocation. Paths below are runtime cache artifacts.</p>
+      <div id="commands"></div>
+    </section>
+
+    <section class="card" aria-labelledby="deploy-title">
+      <h2 id="deploy-title">Docker / Render Readiness Contract</h2>
+      <ul>
+        <li>Container binds HTTP to <code>0.0.0.0</code> and reads <code>PORT</code>, defaulting to <code>10000</code>.</li>
+        <li><code>/health</code> returns JSON with app status, Anserini availability, NFCorpus readiness, search availability, and evaluation availability.</li>
+        <li>Runtime cache defaults to <code>.cache</code>; on Render, mount persistent disk at <code>/data/nfcorpus-workbench</code> and set <code>APP_CACHE_DIR</code> accordingly.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

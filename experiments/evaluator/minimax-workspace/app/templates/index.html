@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Anserini Prebuilt Index Evaluator</h1>
+    <p class="subtitle">
+      Browse Anserini&rsquo;s prebuilt Lucene inverted indexes, pair them
+      with topics and qrels from the registries, and run real retrieval
+      evaluations through the fatjar CLI.
+    </p>
+    <div class="meta" id="meta-bar">
+      <span class="meta-pill" id="meta-version">jar: &hellip;</span>
+      <span class="meta-pill" id="meta-indexes">indexes: &hellip;</span>
+      <span class="meta-pill" id="meta-topics">topics: &hellip;</span>
+      <span class="meta-pill" id="meta-pairings">pairings: &hellip;</span>
+      <span class="meta-pill status" id="meta-status">loading&hellip;</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="catalog-section">
+      <div class="catalog-header">
+        <h2>Prebuilt Lucene Inverted Indexes</h2>
+        <input
+          type="search"
+          id="catalog-filter"
+          placeholder="Filter by name, type, or description&hellip;"
+          autocomplete="off"
+        />
+      </div>
+      <div class="catalog-summary" id="catalog-summary">
+        Loading catalog&hellip;
+      </div>
+      <ol class="catalog-list" id="catalog-list" aria-live="polite"></ol>
+    </section>
+
+    <section class="eval-section" id="eval-section" hidden>
+      <h2>Run Evaluation</h2>
+      <div class="eval-selected" id="eval-selected"></div>
+      <form id="eval-form" class="eval-form">
+        <label>
+          Topic set
+          <select id="topic-select" required></select>
+        </label>
+        <label>
+          Qrels / evaluation source
+          <input id="qrels-input" type="text" readonly />
+        </label>
+        <label>
+          Metric
+          <select id="metric-select" required></select>
+        </label>
+        <button type="submit" id="run-btn">Run Evaluation</button>
+        <span class="status-pill" id="run-status" hidden></span>
+      </form>
+      <div class="eval-result" id="eval-result" hidden></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Built on the
+      <a href="https://github.com/castorini/anserini">Anserini</a>
+      fatjar. Run metadata is sourced from real
+      <code>io.anserini.cli.PrebuiltIndexRegistry</code>,
+      <code>io.anserini.cli.TopicsRegistry</code>,
+      <code>io.anserini.search.SearchCollection</code> and
+      <code>io.anserini.eval.TrecEval</code> invocations.
+    </p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

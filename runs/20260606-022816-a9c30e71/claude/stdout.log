@@ -1,0 +1,207 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool start] read
+
+[tool start] read
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+Anserini fatjar install verified. Now let me explore the MS MARCO passage REST endpoint and the dev queries.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+The dev queries are JSON: `{ qid: { title: "..." } }`. Now let me start the REST server and verify the MS MARCO passage endpoint works.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+REST server is working. Response shape: `{ api, index, query: { text }, candidates: [ { docid, score, rank, doc } ] }`. Now let me scaffold the Next.js app.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool start] bash
+
+[tool end] write: ok
+
+[tool end] bash: ok
+Now the Next.js app code (App Router):
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+Now a top-level README explaining how to run both ends, and a small launcher script.
+[tool start] write
+
+[tool start] write
+
+[tool start] bash
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] bash: ok
+Now build the frontend to verify types & code compile, then end-to-end smoke test.
+[tool start] bash
+
+[tool end] bash: ok
+Build passes. Now end-to-end smoke test with the dev server.
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+Everything works end-to-end. Let me check final state and report.
+[tool start] bash
+
+[tool end] bash: ok
+The MS MARCO Passage Search app is built and verified end-to-end.
+
+## What was done
+
+**1. Installed and verified Anserini fatjar** (per `install-anserini-fatjar` skill)
+- Downloaded `anserini-2.1.1-fatjar.jar` from Maven Central
+- Ran CACM smoke test: produced expected `map all 0.3123` / `P_30 all 0.1942`
+
+**2. Extracted MS MARCO passage dev queries** (per `anserini-cli` skill)
+- Used `io.anserini.cli.TopicsRegistry --get msmarco-v1-passage.dev`
+- 6,980 dev queries saved to `frontend/data/msmarco-passage-dev-queries.json` as `[{id, text}]`
+- Regenerable via `frontend/scripts/fetch-dev-queries.sh`
+
+**3. Backend: Anserini REST server**
+- `io.anserini.api.RestServer --port 8080`
+- Endpoint per the skill: `GET /v1/msmarco-v1-passage/search?query=…&hits=…` → `{candidates:[{docid,score,rank,doc}]}`
+- Launcher: `scripts/start-backend.sh` (honors `BACKEND_PORT`/`PORT`, default 8080)
+
+**4. Frontend: Next.js 14 (App Router, TypeScript)** in `frontend/`
+- `app/page.tsx` — server component picks N random sample queries on every load (`force-dynamic`)
+- `app/SearchClient.tsx` — client UI: search box, clickable sample chips, ranked results, status banners
+- `app/api/search/route.ts` — proxies to Anserini REST, maps `candidates` → `results`
+- `app/api/sample-queries/route.ts` — random dev-set queries (client-side recovery path)
+- `lib/{config,anserini,sample-queries}.ts` — typed config, REST client (with `AnseriniError`), reservoir sampling
+
+**5. PRD acceptance criteria — all verified live:**
+- ✅ `GET /api/search?q=what+is+a+lobster+roll` returned real MS MARCO passages with scores/ranks
+- ✅ `GET /api/sample-queries?count=4` returned 4 fresh random dev queries
+- ✅ Empty query → HTTP 400 `{"error":"Query must not be empty."}`
+- ✅ No-results banner, backend-down banner (`AnseriniError` → 502/503)
+- ✅ Home page rendered with "MS MARCO Passage Search" and "Try a sample query"
+- ✅ Ports overridable via env (`PORT`, `BACKEND_PORT`, `ANSERINI_BASE_URL`, etc.) with PRD defaults 8080/3000
+- ✅ `next build` passes cleanly (4 routes, no type errors)
+
+**Currently running** (so you can poke at it):
+- Anserini REST server on `:8080` (`rest.log`)
+- Next.js dev server on `:3000` (`frontend-dev.log`)
+
+Top-level `README.md` documents the full local run flow, env vars, and architecture.

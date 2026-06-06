@@ -1,0 +1,93 @@
+{
+  "tasks": {
+    "frontend": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/frontend/frontend-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/frontend/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/frontend/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/frontend/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/frontend/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/frontend/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/frontend/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/frontend/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/frontend/mimo.png"
+      }
+    },
+    "frontend-no-rewrite": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/frontend-no-rewrite/frontend-no-rewrite-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/frontend-no-rewrite/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/frontend-no-rewrite/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/frontend-no-rewrite/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/frontend-no-rewrite/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/frontend-no-rewrite/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/frontend-no-rewrite/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/frontend-no-rewrite/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/frontend-no-rewrite/mimo.png"
+      }
+    },
+    "evaluator": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/evaluator/evaluator-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/evaluator/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/evaluator/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/evaluator/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/evaluator/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/evaluator/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/evaluator/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/evaluator/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/evaluator/mimo.png"
+      }
+    },
+    "evaluator-no-rewrite": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/evaluator-no-rewrite-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/evaluator-no-rewrite/mimo.png"
+      }
+    },
+    "nfcorpus-repro": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/nfcorpus-repro/nfcorpus-repro-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/nfcorpus-repro/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/nfcorpus-repro/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/nfcorpus-repro/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/nfcorpus-repro/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/nfcorpus-repro/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/nfcorpus-repro/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/nfcorpus-repro/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/nfcorpus-repro/mimo.png"
+      }
+    },
+    "nfcorpus-repro-no-rewrite": {
+      "contact_sheet": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/nfcorpus-repro-no-rewrite-2x4-contact-sheet.png",
+      "screenshots": {
+        "gpt": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/gpt.png",
+        "claude": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/claude.png",
+        "gemini": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/gemini.png",
+        "glm": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/glm.png",
+        "kimi": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/kimi.png",
+        "minimax": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/minimax.png",
+        "deepseek": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/deepseek.png",
+        "mimo": "artifacts/good-screenshots-20260606/nfcorpus-repro-no-rewrite/mimo.png"
+      }
+    }
+  },
+  "models": [
+    "gpt",
+    "claude",
+    "gemini",
+    "glm",
+    "kimi",
+    "minimax",
+    "deepseek",
+    "mimo"
+  ],
+  "note": "Final good screenshot set after NF retries, Minimax ANSERINI_JAR runtime config, and Claude evaluator-no-rewrite rerun."
+}

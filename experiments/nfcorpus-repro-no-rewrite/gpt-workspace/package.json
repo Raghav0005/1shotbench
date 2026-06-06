@@ -1,0 +1,15 @@
+{
+  "name": "nfcorpus-live-retrieval-diagnostics-workbench",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dockerized NFCorpus Anserini diagnostics workbench",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "npx playwright test",
+    "test:e2e": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

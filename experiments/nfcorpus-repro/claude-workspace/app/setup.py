@@ -1,292 +1,484 @@
-"""Startup orchestration for the NFCorpus diagnostics workbench.
+"""Anserini environment bootstrap.
 
-`run_setup(state)` drives the full real-Anserini setup pipeline:
+Follows the repo-local skills:
+- install-anserini-fatjar:  download a Maven Central fatjar and verify Java 21.
+- anserini-cli:             use PrebuiltIndexRegistry / SearchCollection / TrecEval
+                            with `java -cp $ANSERINI_JAR`.
+- anserini-reproduction:    use ReproduceFromPrebuiltIndexes --config beir.core
+                            --show to discover NFCorpus index / topics / qrels /
+                            expected metrics, then run SearchCollection +
+                            TrecEval to compare observed vs expected.
 
-1. Verify Java + fatjar runtime checks (install-anserini-fatjar skill).
-2. Confirm the NFCorpus prebuilt index is registered (anserini-cli skill).
-3. Discover the NFCorpus reproduction target via ReproduceFromPrebuiltIndexes
-   (anserini-reproduction skill).
-4. Run BM25 SearchCollection over the NFCorpus topics.
-5. Run TrecEval and compare observed vs expected nDCG@10.
-
-It mutates the supplied `state` dict so the Flask layer can stream phase
-updates and any captured commands/logs into the dashboard.
+The startup pass executes once at boot. A browser-triggered "Rerun" repeats the
+SearchCollection + TrecEval steps against the cached index.
 """
-
 from __future__ import annotations
 
+import atexit
+import json
 import os
+import re
+import shutil
+import socket
+import subprocess
 import threading
 import time
-from typing import Any, Dict, Optional
+import urllib.request
+from pathlib import Path
 
-from . import anserini
+from .config import (
+    ANSERINI_REST_PORT,
+    ANSERINI_VERSION,
+    CACHE_DIR,
+    EVAL_KEY,
+    EXPECTED_METRICS,
+    FATJAR_PATH,
+    INDEX_NAME,
+    LOGS_DIR,
+    REPRODUCTION_CONDITION,
+    REPRODUCTION_CONFIG,
+    RUNS_DIR,
+    SAMPLE_QUERIES,
+    TOPICS_KEY,
+    cmd_for_display,
+)
+from .runner import run_command
+from .state import STATE, EvaluationResult, MetricRow
 
-
-def _log(state: Dict[str, Any], message: str) -> None:
-    state.setdefault("log", []).append(
-        {"ts": round(time.time(), 3), "msg": message}
-    )
-
-
-def _record(state: Dict[str, Any], key: str, value: Any) -> None:
-    state["commands"][key] = value
-
-
-def initial_state(cache_dir: str) -> Dict[str, Any]:
-    return {
-        "phase": "starting",
-        "started_at": time.time(),
-        "finished_at": None,
-        "ok": False,
-        "errors": [],
-        "log": [],
-        "commands": {},
-        "fatjar": {
-            "path": os.environ.get("ANSERINI_JAR"),
-            "exists": False,
-            "verified": False,
-        },
-        "java": {"available": False, "major": None},
-        "reproduction": {
-            "config": anserini.REPRODUCE_CONFIG,
-            "condition": anserini.REPRODUCE_CONDITION,
-            "target": None,
-            "available": False,
-        },
-        "nfcorpus": {
-            "index": anserini.NFCORPUS_INDEX,
-            "topics": anserini.NFCORPUS_TOPICS,
-            "qrels": anserini.NFCORPUS_QRELS,
-            "registry_entry": None,
-            "ready": False,
-        },
-        "evaluation": {
-            "ran": False,
-            "fresh": False,
-            "rerun_count": 0,
-            "metrics": {},
-            "comparison": [],
-            "overall_status": "pending",
-            "run_path": None,
-            "eval_path": None,
-            "elapsed_seconds": None,
-            "ran_at": None,
-        },
-        "cache_dir": cache_dir,
-    }
+_REST_PROC: subprocess.Popen | None = None
 
 
-def _evaluate(
-    state: Dict[str, Any],
-    fresh: bool,
-    threads: int = 4,
-) -> None:
-    cache_dir = state["cache_dir"]
-    os.makedirs(cache_dir, exist_ok=True)
-    run_path = os.path.join(cache_dir, "run.beir.bm25.nfcorpus.txt")
-    eval_path = os.path.join(cache_dir, "eval.beir.bm25.nfcorpus.txt")
-
-    # 1. SearchCollection -> TREC run file.
-    state["phase"] = "searching"
-    _log(state, f"Running SearchCollection (threads={threads}) over NFCorpus")
-    search_result = anserini.search_collection(
-        output_path=run_path,
-        threads=threads,
-    )
-    _record(state, "search_collection", search_result)
-    if search_result["returncode"] != 0 or not os.path.isfile(run_path):
-        state["errors"].append("SearchCollection failed; see commands.search_collection")
-        state["phase"] = "failed"
+def _terminate_rest_proc() -> None:
+    global _REST_PROC
+    p = _REST_PROC
+    if p is None:
         return
+    if p.poll() is None:
+        try:
+            p.terminate()
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.kill()
+        except Exception:
+            pass
+    _REST_PROC = None
 
-    _log(state, f"Run file written ({search_result['run_file_lines']} lines)")
 
-    # 2. TrecEval -> observed metrics.
-    state["phase"] = "evaluating"
-    metric_args = ["-m", "ndcg_cut.10"]
-    target = state["reproduction"].get("target") or {}
-    metric_defs = target.get("metric_definitions") or {}
-    # The reproduction YAML gives metric definitions like "-c -m ndcg_cut.10".
-    # We always pass `-c`, so strip duplicates and forward the rest.
-    for raw in metric_defs.values():
-        parts = (raw or "").split()
-        if "-m" in parts:
-            idx = parts.index("-m")
-            if idx + 1 < len(parts):
-                value = parts[idx + 1]
-                if value not in metric_args:
-                    metric_args.extend(["-m", value])
-    eval_result = anserini.trec_eval(
-        run_path=run_path,
-        qrels_key=anserini.NFCORPUS_QRELS,
-        metric_args=metric_args,
+atexit.register(_terminate_rest_proc)
+
+
+def java_cmd(*args: str) -> list[str]:
+    """Build a `java -cp $ANSERINI_JAR ...` command line per anserini-cli skill."""
+    return [
+        "java",
+        "-Xms256M",
+        "-Xmx1500M",
+        "-Dslf4j.internal.verbosity=WARN",
+        "--add-modules", "jdk.incubator.vector",
+        "-cp", str(FATJAR_PATH),
+        *args,
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Stage 1: verify Java runtime
+# ---------------------------------------------------------------------------
+def verify_java() -> bool:
+    STATE.phase = "verifying-java"
+    rec = run_command(["java", "-version"], label="verify java runtime")
+    out = (rec.stderr_preview or "") + (rec.stdout_preview or "")
+    m = re.search(r'version "(\d+)', out)
+    if rec.exit_code == 0 and m and int(m.group(1)) >= 21:
+        STATE.java.state = "ok"
+        STATE.java.value = f"Java {m.group(1)} present"
+        STATE.java.detail = out.strip().splitlines()[0] if out.strip() else "java -version OK"
+        return True
+    STATE.java.state = "error"
+    STATE.java.value = "Missing or unsupported Java"
+    STATE.java.detail = (out.strip() or "java -version failed").splitlines()[0]
+    STATE.add_error("Java 21+ is required (per install-anserini-fatjar skill).")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: locate or download fatjar
+# ---------------------------------------------------------------------------
+def ensure_fatjar() -> bool:
+    STATE.phase = "preparing-fatjar"
+    STATE.anserini_version = ANSERINI_VERSION
+    STATE.fatjar_path = str(FATJAR_PATH)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if FATJAR_PATH.exists() and FATJAR_PATH.stat().st_size > 50_000_000:
+        STATE.fatjar.state = "ok"
+        STATE.fatjar.value = f"anserini-{ANSERINI_VERSION}-fatjar.jar"
+        STATE.fatjar.detail = f"{FATJAR_PATH.stat().st_size // (1024*1024)} MB at {FATJAR_PATH}"
+        STATE.log(f"fatjar cached at {FATJAR_PATH}")
+        return True
+
+    url = (
+        "https://repo1.maven.org/maven2/io/anserini/anserini/"
+        f"{ANSERINI_VERSION}/anserini-{ANSERINI_VERSION}-fatjar.jar"
     )
-    _record(state, "trec_eval", eval_result)
-    # Persist a copy of the evaluation output next to the run file.
-    try:
-        with open(eval_path, "w") as fh:
-            fh.write(eval_result.get("stdout") or "")
-    except OSError:
-        pass
-
-    if eval_result["returncode"] != 0 or not eval_result["metrics"]:
-        state["errors"].append("TrecEval failed or produced no parsed metrics")
-        state["phase"] = "failed"
-        return
-
-    expected = (target.get("expected_scores") or {}) if target else {}
-    comparison = anserini.compare_metrics(eval_result["metrics"], expected)
-    overall = "match" if comparison and all(r["status"] == "match" for r in comparison) else (
-        "close" if comparison and all(r["status"] in {"match", "close"} for r in comparison) else (
-            "fail" if comparison else "no-expected"
-        )
+    STATE.log(f"downloading {url}")
+    rec = run_command(
+        ["curl", "-fL", "-o", str(FATJAR_PATH), url],
+        label="download anserini fatjar from Maven Central",
+        timeout=600,
     )
-    if not expected:
-        overall = "observed-only"
+    if rec.exit_code != 0 or not FATJAR_PATH.exists():
+        STATE.fatjar.state = "error"
+        STATE.fatjar.value = "download failed"
+        STATE.fatjar.detail = rec.stderr_preview[-200:]
+        STATE.add_error("Failed to download Anserini fatjar; check network egress.")
+        return False
+    STATE.fatjar.state = "ok"
+    STATE.fatjar.value = f"anserini-{ANSERINI_VERSION}-fatjar.jar"
+    STATE.fatjar.detail = f"{FATJAR_PATH.stat().st_size // (1024*1024)} MB at {FATJAR_PATH}"
+    return True
 
-    state["evaluation"] = {
-        "ran": True,
-        "fresh": fresh,
-        "rerun_count": state["evaluation"].get("rerun_count", 0) + (1 if fresh else 0),
-        "metrics": eval_result["metrics"],
-        "comparison": comparison,
-        "overall_status": overall,
-        "run_path": run_path,
-        "eval_path": eval_path,
-        "elapsed_seconds": round(
-            (search_result.get("elapsed_seconds") or 0)
-            + (eval_result.get("elapsed_seconds") or 0),
-            3,
+
+# ---------------------------------------------------------------------------
+# Stage 3: reproduction discovery (anserini-reproduction skill)
+# ---------------------------------------------------------------------------
+def discover_reproduction() -> bool:
+    STATE.phase = "discovering-reproduction"
+    rec = run_command(
+        java_cmd(
+            "io.anserini.reproduce.ReproduceFromPrebuiltIndexes",
+            "--config", REPRODUCTION_CONFIG, "--show",
         ),
-        "ran_at": time.time(),
-        "metric_args": metric_args,
-    }
-    _log(state, f"Evaluation finished (overall={overall})")
+        label=f"reproduction config show ({REPRODUCTION_CONFIG})",
+        timeout=120,
+        full_stdout=True,
+    )
+    text = getattr(rec, "full_stdout", rec.stdout_preview) or ""
+    if rec.exit_code != 0 or "nfcorpus" not in text:
+        STATE.reproduction.state = "error"
+        STATE.reproduction.value = "discovery failed"
+        STATE.reproduction.detail = rec.stderr_preview[-200:] or "no nfcorpus entry"
+        STATE.add_error("ReproduceFromPrebuiltIndexes --show did not return NFCorpus.")
+        return False
+
+    nfc_block = _slice_topic_block(text, "nfcorpus")
+    expected: dict[str, dict] = {}
+    if nfc_block:
+        ndcg_match = re.search(r"nDCG@10:\s*([0-9.]+)", nfc_block)
+        if ndcg_match:
+            expected["nDCG@10"] = {
+                "value": float(ndcg_match.group(1)),
+                "trec_eval_args": EXPECTED_METRICS["nDCG@10"]["trec_eval_args"],
+                "trec_eval_args_str": " ".join(EXPECTED_METRICS["nDCG@10"]["trec_eval_args"]),
+                "source": f"{REPRODUCTION_CONFIG} / nfcorpus / {REPRODUCTION_CONDITION}",
+            }
+    if not expected:
+        for name, meta in EXPECTED_METRICS.items():
+            expected[name] = {
+                "value": meta["value"],
+                "trec_eval_args": meta["trec_eval_args"],
+                "trec_eval_args_str": " ".join(meta["trec_eval_args"]),
+                "source": "EXPECTED_METRICS fallback",
+            }
+
+    # Also issue --dry-run so the command line shown to the user is the exact
+    # one the reproduction config emits for nfcorpus.
+    run_command(
+        java_cmd(
+            "io.anserini.reproduce.ReproduceFromPrebuiltIndexes",
+            "--config", REPRODUCTION_CONFIG, "--dry-run",
+        ),
+        label=f"reproduction dry-run ({REPRODUCTION_CONFIG})",
+        timeout=120,
+    )
+
+    STATE.expected_metrics_raw = expected
+    STATE.reproduction.state = "ok"
+    STATE.reproduction.value = f"config={REPRODUCTION_CONFIG} condition={REPRODUCTION_CONDITION}"
+    STATE.reproduction.detail = (
+        f"topics={TOPICS_KEY}  qrels={EVAL_KEY}  "
+        f"expected nDCG@10={expected.get('nDCG@10', {}).get('value', '?')}"
+    )
+    return True
 
 
-def run_setup(state: Dict[str, Any]) -> None:
-    """Drive the full setup pipeline. Mutates `state` in place."""
+def _slice_topic_block(text: str, topic_key: str) -> str:
+    """Return the YAML snippet for one topic block from --show output."""
+    m = re.search(rf"- topic_key:\s*{re.escape(topic_key)}\b", text)
+    if not m:
+        return ""
+    start = m.start()
+    nxt = re.search(r"\n      - topic_key:", text[start + 1 :])
+    end = start + 1 + nxt.start() if nxt else len(text)
+    return text[start:end]
 
-    # Phase 1: Java.
-    state["phase"] = "verifying-java"
-    _log(state, "Checking Java runtime")
-    jv = anserini.java_version()
-    _record(state, "java_version", jv)
-    state["java"]["available"] = jv["returncode"] == 0
-    state["java"]["major"] = jv.get("major")
-    if not state["java"]["available"]:
-        state["errors"].append("Java not available on PATH")
-        state["phase"] = "failed"
-        return
-    if state["java"]["major"] is not None and state["java"]["major"] < 21:
-        state["errors"].append(
-            f"Java major {state['java']['major']} detected; Anserini requires Java 21"
-        )
-        # We still continue -- the CACM smoke test path documented in
-        # install-anserini-fatjar would fail later anyway, but on hosted
-        # containers the Dockerfile pins JDK 21 so this branch is informational.
 
-    # Phase 2: fatjar registry verification.
-    state["phase"] = "verifying-fatjar"
-    fatjar = state["fatjar"]
-    fatjar["exists"] = bool(fatjar["path"]) and os.path.isfile(fatjar["path"])
-    if not fatjar["exists"]:
-        state["errors"].append(
-            f"Anserini fatjar not found at ANSERINI_JAR={fatjar['path']}"
-        )
-        state["phase"] = "failed"
-        return
-    _log(state, f"Found fatjar at {fatjar['path']} ({os.path.getsize(fatjar['path'])} bytes)")
-    reg = anserini.verify_fatjar_registry()
-    _record(state, "verify_fatjar_registry", reg)
-    if reg["returncode"] != 0 or not reg.get("entry"):
-        state["errors"].append(
-            "PrebuiltIndexRegistry did not return an entry for "
-            f"{anserini.NFCORPUS_INDEX}"
-        )
-        state["phase"] = "failed"
-        return
-    fatjar["verified"] = True
-    state["nfcorpus"]["registry_entry"] = reg["entry"]
-    _log(state, f"NFCorpus index registered: {reg['entry'].get('filename')}")
+# ---------------------------------------------------------------------------
+# Stage 4: NFCorpus prebuilt index (priming via PrebuiltIndexRegistry filter)
+# ---------------------------------------------------------------------------
+def ensure_nfcorpus_index() -> bool:
+    STATE.phase = "preparing-nfcorpus"
+    rec = run_command(
+        java_cmd(
+            "io.anserini.cli.PrebuiltIndexRegistry",
+            "--list", "--filter", f"^{re.escape(INDEX_NAME)}$",
+        ),
+        label="PrebuiltIndexRegistry lookup NFCorpus",
+        timeout=120,
+    )
+    info = {}
+    try:
+        info = (json.loads(rec.stdout_preview) or [{}])[0]
+    except Exception:
+        info = {}
+    STATE.index_path = info.get("name", INDEX_NAME)
 
-    # Phase 3: reproduction discovery.
-    state["phase"] = "discovering"
-    _log(state, "Running ReproduceFromPrebuiltIndexes --show (skill: anserini-reproduction)")
-    show = anserini.reproduce_show()
-    _record(state, "reproduce_show", show)
-    parsed = show.get("parsed")
-    target: Optional[Dict[str, Any]] = None
-    if parsed:
-        target = anserini.extract_nfcorpus_target(parsed)
-    state["reproduction"]["target"] = target
-    state["reproduction"]["available"] = bool(target)
-    if target:
-        _log(
-            state,
-            f"Reproduction target found: condition={target['condition_name']}, "
-            f"expected={target['expected_scores']}",
-        )
+    # The first SearchCollection call below will download the small (~7 MB)
+    # NFCorpus prebuilt index to ~/.cache/pyserini/indexes if not yet cached.
+    # We do this implicitly during the startup evaluation pass.
+    STATE.nfcorpus.state = "ok"
+    STATE.nfcorpus.value = INDEX_NAME
+    docs = info.get("documents")
+    size = info.get("size")
+    detail_bits = []
+    if docs:
+        detail_bits.append(f"{docs} docs")
+    if size:
+        detail_bits.append(f"{int(size) // (1024 * 1024)} MB")
+    detail_bits.append("prebuilt; auto-downloads on first search")
+    STATE.nfcorpus.detail = " • ".join(detail_bits)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Stage 5: BM25 evaluation pass (SearchCollection + TrecEval)
+# ---------------------------------------------------------------------------
+def run_bm25_evaluation(source_label: str) -> EvaluationResult:
+    STATE.phase = "running-evaluation"
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    run_path = RUNS_DIR / f"run.{REPRODUCTION_CONFIG}.{REPRODUCTION_CONDITION}.nfcorpus.txt"
+    eval_path = RUNS_DIR / f"eval.{REPRODUCTION_CONFIG}.{REPRODUCTION_CONDITION}.nfcorpus.txt"
+
+    result = EvaluationResult(
+        status="running",
+        source=source_label,
+        run_path=str(run_path),
+        eval_path=str(eval_path),
+        rerun_count=STATE.evaluation.rerun_count,
+    )
+    STATE.evaluation = result
+    started = time.time()
+
+    search_argv = java_cmd(
+        "io.anserini.search.SearchCollection",
+        "-threads", "2",
+        "-index", INDEX_NAME,
+        "-topics", TOPICS_KEY,
+        "-output", str(run_path),
+        "-bm25",
+        "-removeQuery",
+    )
+    rec = run_command(search_argv, label="BM25 SearchCollection over NFCorpus", timeout=900)
+    if rec.exit_code != 0 or not run_path.exists():
+        result.status = "failed"
+        result.error = f"SearchCollection exit={rec.exit_code}: {rec.stderr_preview[-300:]}"
+        result.elapsed_seconds = time.time() - started
+        STATE.evaluation_card.state = "error"
+        STATE.evaluation_card.value = "SearchCollection failed"
+        STATE.evaluation_card.detail = result.error[:200]
+        STATE.add_error(result.error)
+        return result
+
+    # One TrecEval per expected metric.
+    metrics: list[MetricRow] = []
+    expected = STATE.expected_metrics_raw or EXPECTED_METRICS
+    for name, meta in expected.items():
+        args = meta["trec_eval_args"] if isinstance(meta, dict) else meta
+        expected_value = meta["value"] if isinstance(meta, dict) else None
+        eval_argv = java_cmd("io.anserini.eval.TrecEval", *args, EVAL_KEY, str(run_path))
+        eval_rec = run_command(eval_argv, label=f"TrecEval {name}", timeout=120)
+        observed = _parse_trec_eval_value(eval_rec.stdout_preview)
+        eval_path.write_text(eval_rec.stdout_preview or "")
+        if observed is None:
+            metrics.append(MetricRow(
+                name=name,
+                trec_eval_args=" ".join(args),
+                expected=expected_value,
+                observed=None,
+                delta=None,
+                status="fail",
+            ))
+            continue
+        delta = None if expected_value is None else round(observed - expected_value, 4)
+        status = "match"
+        if expected_value is not None:
+            abs_d = abs(observed - expected_value)
+            if abs_d <= 5e-5:
+                status = "match"
+            elif abs_d <= 5e-3:
+                status = "close"
+            else:
+                status = "fail"
+        metrics.append(MetricRow(
+            name=name,
+            trec_eval_args=" ".join(args),
+            expected=expected_value,
+            observed=round(observed, 4),
+            delta=delta,
+            status=status,
+        ))
+
+    result.metrics = metrics
+    result.status = "done"
+    result.elapsed_seconds = round(time.time() - started, 3)
+    result.last_finished_at = time.time()
+
+    # Overall card status.
+    has_fail = any(m.status == "fail" for m in metrics)
+    has_close = any(m.status == "close" for m in metrics)
+    if has_fail:
+        STATE.evaluation_card.state = "error"
+        STATE.evaluation_card.value = "deviates from expected"
+    elif has_close:
+        STATE.evaluation_card.state = "warn"
+        STATE.evaluation_card.value = "close to expected"
     else:
-        state["errors"].append("Reproduction discovery did not surface an NFCorpus target")
+        STATE.evaluation_card.state = "ok"
+        STATE.evaluation_card.value = "matches expected"
+    primary = metrics[0] if metrics else None
+    if primary is not None:
+        STATE.evaluation_card.detail = (
+            f"{primary.name} observed={primary.observed} expected={primary.expected} "
+            f"Δ={primary.delta} in {result.elapsed_seconds}s"
+        )
+    return result
 
-    # Dry-run capture (best-effort).
-    _log(state, "Capturing reproduction --dry-run (exact commands)")
-    dry = anserini.reproduce_dry_run()
-    _record(state, "reproduce_dry_run", dry)
-    nfcorpus_dry_lines: list = []
-    if dry["returncode"] == 0:
-        capture = False
-        for line in (dry.get("stdout") or "").splitlines():
-            if "topic_key: nfcorpus" in line:
-                capture = True
-                nfcorpus_dry_lines.append(line.strip())
+
+def _parse_trec_eval_value(text: str) -> float | None:
+    if not text:
+        return None
+    for line in text.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[1] == "all":
+            try:
+                return float(parts[2])
+            except ValueError:
                 continue
-            if capture:
-                if line.startswith("  - topic_key:"):
-                    break
-                if line.strip():
-                    nfcorpus_dry_lines.append(line.strip())
-                if len(nfcorpus_dry_lines) > 12:
-                    break
-    state["reproduction"]["dry_run_excerpt"] = nfcorpus_dry_lines
-
-    # Phase 4 + 5: Search + Eval (cached startup pass).
-    _evaluate(state, fresh=False)
-    if state["phase"] == "failed":
-        return
-
-    state["nfcorpus"]["ready"] = True
-    state["phase"] = "ready"
-    state["ok"] = True
-    state["finished_at"] = time.time()
-    _log(state, "Setup complete; live search and evaluation available")
+    return None
 
 
-def rerun_evaluation(state: Dict[str, Any], threads: int = 4) -> Dict[str, Any]:
-    """Re-execute SearchCollection + TrecEval against the cached NFCorpus index.
+# ---------------------------------------------------------------------------
+# Stage 6: spawn Anserini REST server for live search
+# ---------------------------------------------------------------------------
+def start_rest_server() -> bool:
+    global _REST_PROC
+    STATE.phase = "starting-rest"
+    if _port_in_use(ANSERINI_REST_PORT):
+        STATE.search.state = "warn"
+        STATE.search.value = "port busy; reusing existing REST server"
+        STATE.search.detail = f"127.0.0.1:{ANSERINI_REST_PORT}"
+        STATE.rest_url = f"http://127.0.0.1:{ANSERINI_REST_PORT}"
+        return True
+    log_path = LOGS_DIR / "anserini-rest.log"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    argv = java_cmd(
+        "io.anserini.api.RestServer",
+        "--host", "127.0.0.1",
+        "--port", str(ANSERINI_REST_PORT),
+    )
+    STATE.log(f"spawning REST server: {cmd_for_display(argv)}")
+    # Record the command line in commands so the UI exposes it.
+    from .state import CommandRecord
+    STATE.record_command(CommandRecord(
+        label="Anserini REST server (background)",
+        argv=argv,
+        display=cmd_for_display(argv),
+        cwd=str(Path.cwd()),
+        exit_code=None,
+        stdout_preview=f"-> logs piped to {log_path}",
+        stderr_preview="",
+        started_at=time.time(),
+        finished_at=0.0,
+    ))
+    fh = open(log_path, "ab")
+    _REST_PROC = subprocess.Popen(
+        argv,
+        stdout=fh,
+        stderr=subprocess.STDOUT,
+        cwd=str(CACHE_DIR),
+    )
+    if not _wait_for_port("127.0.0.1", ANSERINI_REST_PORT, timeout=60):
+        STATE.search.state = "error"
+        STATE.search.value = "REST server failed to bind"
+        STATE.search.detail = f"see {log_path}"
+        STATE.add_error("Anserini RestServer did not become reachable.")
+        return False
+    STATE.rest_url = f"http://127.0.0.1:{ANSERINI_REST_PORT}"
+    STATE.search.state = "ok"
+    STATE.search.value = "Anserini REST server ready"
+    STATE.search.detail = f"{STATE.rest_url}/v1/{INDEX_NAME}/search"
+    return True
 
-    Distinct from the startup pass so the UI can label results as 'fresh rerun'.
-    """
-    if not state["fatjar"].get("verified"):
-        return {"ok": False, "error": "Anserini fatjar has not been verified yet"}
-    if not state["nfcorpus"].get("registry_entry"):
-        return {"ok": False, "error": "NFCorpus prebuilt index not registered"}
-    _log(state, "Manual rerun requested")
-    state["phase"] = "rerunning"
-    _evaluate(state, fresh=True, threads=threads)
-    if state["phase"] != "failed":
-        state["phase"] = "ready"
-        state["ok"] = True
-    return {
-        "ok": state["phase"] != "failed",
-        "evaluation": state["evaluation"],
-        "errors": state["errors"],
-    }
+
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.2)
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def start_background(state: Dict[str, Any]) -> threading.Thread:
-    thread = threading.Thread(target=run_setup, args=(state,), daemon=True, name="anserini-setup")
-    thread.start()
-    return thread
+def _wait_for_port(host: str, port: int, timeout: float = 30.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            if s.connect_ex((host, port)) == 0:
+                return True
+        time.sleep(0.4)
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Public entry point used by main.py at process startup
+# ---------------------------------------------------------------------------
+def bootstrap_in_background() -> None:
+    """Schedule the full setup pipeline in a daemon thread."""
+    STATE.sample_queries = list(SAMPLE_QUERIES)
+    t = threading.Thread(target=_bootstrap_pipeline, name="workbench-bootstrap", daemon=True)
+    t.start()
+
+
+def _bootstrap_pipeline() -> None:
+    try:
+        if not verify_java():
+            STATE.phase = "failed:java"
+            return
+        if not ensure_fatjar():
+            STATE.phase = "failed:fatjar"
+            return
+        if not discover_reproduction():
+            STATE.phase = "failed:reproduction"
+            return
+        if not ensure_nfcorpus_index():
+            STATE.phase = "failed:nfcorpus"
+            return
+        STATE.phase = "running-initial-evaluation"
+        STATE.evaluation_card.state = "pending"
+        STATE.evaluation_card.value = "running…"
+        result = run_bm25_evaluation(source_label="cached startup pass")
+        if result.status != "done":
+            STATE.phase = "failed:evaluation"
+            return
+        if not start_rest_server():
+            STATE.phase = "failed:rest"
+            return
+        STATE.phase = "ready"
+        STATE.log("workbench ready: live search + evaluation available.")
+    except Exception as e:  # noqa: BLE001
+        STATE.add_error(f"bootstrap crashed: {e!r}")
+        STATE.phase = "failed:exception"
+
+
+def trigger_rerun() -> EvaluationResult:
+    """Run a fresh SearchCollection + TrecEval pass on demand."""
+    STATE.evaluation.rerun_count = (STATE.evaluation.rerun_count or 0) + 1
+    return run_bm25_evaluation(source_label=f"fresh rerun #{STATE.evaluation.rerun_count}")

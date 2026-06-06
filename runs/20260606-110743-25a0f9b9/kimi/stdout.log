@@ -1,0 +1,355 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] grep
+
+[tool end] grep: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] grep
+
+[tool end] grep: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] grep
+
+[tool end] grep: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Done. I built the **NFCorpus Live Retrieval Diagnostics Workbench** exactly per the PRD.
+
+### What was created
+
+| File | Purpose |
+|------|---------|
+| `app.py` | Flask backend: `/health`, `/api/status`, `/api/search`, `/api/evaluate`, `/api/commands`, `/api/artifacts`, plus Anserini setup/verification |
+| `templates/index.html` | Diagnostics dashboard with readiness panel, live search, BM25 evaluation metrics, commands/artifacts drawers |
+| `Dockerfile` | Render-deployable Docker image using `eclipse-temurin:21-jre` + Python, pre-downloading the Anserini fatjar at build time |
+| `entrypoint.sh` | Respects `$PORT` at runtime (defaults to `10000`) |
+| `requirements.txt` | `flask`, `gunicorn`, `pytest`, `pytest-playwright`, `requests` |
+| `test_app.py` | Playwright end-to-end test that proves real Anserini-backed search and evaluation (not mocked) |
+| `README.md` | Setup, Docker, Render deployment, and endpoint documentation |
+| `.dockerignore` / `pytest.ini` | Supporting files |
+
+### How it satisfies the PRD
+
+- **Skills used** as source of truth:
+  - `install-anserini-fatjar` → download/verify fatjar, CACM smoke test
+  - `anserini-cli` → `PrebuiltIndexRegistry`, `TopicsRegistry`, `Search` CLI
+  - `anserini-reproduction` → `ReproduceFromPrebuiltIndexes --list`, `--show`, `--dry-run` to discover expected nDCG@10 = `0.3218`
+- **NFCorpus-only scope**: uses the `beir-v1.0.0-nfcorpus.flat` prebuilt index (~6.5 MB). No full-BEIR download.
+- **Real Anserini commands**: every search hits `io.anserini.cli.Search`, evaluation runs `SearchCollection` + `trec_eval`, and exact command strings are exposed in the UI/API.
+- **Live search**: returns `docid`, `score`, `title`, and `text` snippet.
+- **BM25 evaluation**: run at startup, cached, and rerunnable from the browser. Shows observed, expected, delta, and pass/close/fail status.
+- **Health endpoint**: returns `status`, `anserini_available`, `nfcorpus_ready`, `search_available`, `evaluation_available`.
+- **Docker/Render ready**: binds `0.0.0.0`, uses `$PORT`, no interactive setup.
+- **Browser test passes**: verifies the real workflow end-to-end and fails on mocked results.
+
+### Test result
+
+```
+test_app.py::test_health_endpoint PASSED
+test_app.py::test_full_workflow PASSED
+```

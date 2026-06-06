@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NFCorpus Live Retrieval Diagnostics Workbench</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header>
+  <h1>NFCorpus Live Retrieval Diagnostics Workbench</h1>
+  <div class="sub">Anserini-backed BM25 over the BEIR NFCorpus prebuilt index.
+    <span id="dataset-badge" class="badge">dataset: nfcorpus</span>
+  </div>
+</header>
+
+<section id="readiness-panel" class="card">
+  <h2>Readiness</h2>
+  <div id="readiness-grid" class="grid">
+    <div class="cell"><div class="k">Java</div><div class="v" id="r-java">–</div></div>
+    <div class="cell"><div class="k">Anserini fatjar</div><div class="v" id="r-jar">–</div></div>
+    <div class="cell"><div class="k">NFCorpus index</div><div class="v" id="r-index">–</div></div>
+    <div class="cell"><div class="k">Reproduction discovery</div><div class="v" id="r-reproduction">–</div></div>
+    <div class="cell"><div class="k">Live search</div><div class="v" id="r-search">–</div></div>
+    <div class="cell"><div class="k">Evaluation</div><div class="v" id="r-eval">–</div></div>
+  </div>
+  <div id="readiness-errors"></div>
+  <div class="muted">Render/Docker contract:
+    server binds <code>0.0.0.0</code> on the <code>PORT</code> env var
+    (default <code>10000</code>); cache dir is <code>./data</code> inside the
+    container; <code>/health</code> returns app, Anserini, NFCorpus, search and
+    eval status as JSON. See README.md for the full deployment contract.</div>
+</section>
+
+<section id="search-panel" class="card">
+  <h2>Live NFCorpus search</h2>
+  <form id="search-form" autocomplete="off">
+    <input id="q" name="q" type="text" placeholder="type an NFCorpus query and hit enter" />
+    <button type="submit">Search</button>
+  </form>
+  <div id="sample-queries" class="samples"></div>
+  <div id="search-meta" class="muted"></div>
+  <ol id="results"></ol>
+</section>
+
+<section id="eval-panel" class="card">
+  <h2>BM25 evaluation</h2>
+  <div id="eval-summary" class="grid">
+    <div class="cell"><div class="k">Status</div><div class="v" id="e-status">–</div></div>
+    <div class="cell"><div class="k">Elapsed</div><div class="v" id="e-elapsed">–</div></div>
+    <div class="cell"><div class="k">Source</div><div class="v" id="e-source">–</div></div>
+  </div>
+  <table id="metrics-table">
+    <thead><tr>
+      <th>Metric</th><th>Expected</th><th>Observed</th><th>Δ</th><th>Status</th>
+    </tr></thead>
+    <tbody id="metrics-body"></tbody>
+  </table>
+  <button id="rerun-btn" type="button">Verify / Rerun evaluation</button>
+  <div id="eval-error" class="error"></div>
+</section>
+
+<section id="drawer" class="card">
+  <h2>Commands &amp; artifacts</h2>
+  <div class="muted">Exact Anserini commands executed by this app (no mocks).</div>
+  <div id="commands"></div>
+  <h3>Artifacts</h3>
+  <div id="artifacts"></div>
+  <h3>Output previews</h3>
+  <div id="previews"></div>
+</section>
+
+<footer>
+  <span>Reproduction config <code id="repro-config">beir.core</code>,
+    condition <code id="repro-condition">flat</code>.
+    Expected nDCG@10 from
+    <code>io.anserini.reproduce.ReproduceFromPrebuiltIndexes --config beir.core --show</code>.</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

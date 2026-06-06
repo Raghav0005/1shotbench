@@ -1,0 +1,6 @@
+*.jar
+__pycache__/
+*.pyc
+data/
+node_modules/
+.py-bench-rewrites/

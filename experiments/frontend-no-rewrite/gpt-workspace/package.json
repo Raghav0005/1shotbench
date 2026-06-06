@@ -1,0 +1,25 @@
+{
+  "name": "msmarco-passage-search-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backend": "bash -lc 'set -a; [ ! -f .env.local ] || . ./.env.local; set +a; java -cp \"${ANSERINI_JAR:-./anserini-2.1.1-fatjar.jar}\" io.anserini.api.RestServer --port \"${ANSERINI_BACKEND_PORT:-8080}\"'",
+    "dev:frontend": "bash -lc 'set -a; [ ! -f .env.local ] || . ./.env.local; set +a; next dev -p \"${FRONTEND_PORT:-3000}\"'",
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm run backend\" \"npm run dev:frontend\"",
+    "build": "next build",
+    "start": "bash -lc 'set -a; [ ! -f .env.local ] || . ./.env.local; set +a; next start -p \"${FRONTEND_PORT:-3000}\"'",
+    "check:anserini": "bash -lc 'set -a; [ ! -f .env.local ] || . ./.env.local; set +a; test -f \"${ANSERINI_JAR:-./anserini-2.1.1-fatjar.jar}\" && java -cp \"${ANSERINI_JAR:-./anserini-2.1.1-fatjar.jar}\" io.anserini.cli.PrebuiltIndexRegistry --list --filter \"^msmarco-v1-passage$\"'"
+  },
+  "dependencies": {
+    "@next/env": "latest",
+    "concurrently": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "eslint": "latest",
+    "eslint-config-next": "latest"
+  }
+}

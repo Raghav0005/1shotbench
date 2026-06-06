@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: nfcorpus-workbench
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: ANSERINI_VERSION
+        value: 2.1.1
+      - key: ANSERINI_CACHE_DIR
+        value: /data/pyserini
+      - key: APP_DATA_DIR
+        value: /data/workbench
+      - key: LOGS_DIR
+        value: /data/workbench/logs
+      - key: PYSERINI_CACHE
+        value: /data/pyserini
+    disk:
+      name: nfcorpus-cache
+      mountPath: /data
+      sizeGB: 2

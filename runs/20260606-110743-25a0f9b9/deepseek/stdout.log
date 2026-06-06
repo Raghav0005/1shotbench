@@ -1,0 +1,376 @@
+
+[tool start] read
+
+[tool end] read: ok
+Let me start by reading the Anserini skill files to understand the workflows.
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now let me explore the current workspace and check for NFCorpus-specific reproduction support.
+[tool start] ls
+
+[tool start] bash
+
+[tool end] ls: ok
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+Let me download the Anserini fatjar and discover NFCorpus support.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have all the information needed. Let me build the complete application. I'll create:
+
+1. A Flask backend server
+2. An HTML/JS frontend dashboard
+3. A Dockerfile for Render
+4. A Playwright browser test
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now the frontend template:
+[tool start] write
+
+[tool end] write: ok
+Now let me create the Dockerfile and requirements:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Let me verify the NFCorpus index works before building further:
+[tool start] bash
+
+[tool end] bash: ok
+Search works. Now let me test the evaluation workflow:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+All metrics match exactly. Let me refine the app with the correct metric parsing and content extraction:
+[tool start] edit
+
+[tool end] edit: ok
+Now let me update the app to use gunicorn and improve startup robustness:
+[tool start] edit
+
+[tool end] edit: ok
+Update Dockerfile to use gunicorn:
+[tool start] edit
+
+[tool end] edit: ok
+Let me update the app to run startup at module load time for gunicorn compatibility:
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+Now let me create the Playwright browser test and README:
+[tool start] write
+
+[tool end] write: ok
+Now the README:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Let me install dependencies and do a quick smoke test:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me restructure the app startup to be non-blocking for the dev server:
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+Now let me also properly thread the `api/eval?action=run` endpoint:
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+The core Anserini workflow verifies perfectly. Let me try using gunicorn directly:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+Let me fix the app structure - the module-level automatic startup was causing issues. I'll make it explicit:
+[tool start] read
+
+[tool end] read: ok
+Found the deadlock! `setup_nfcorpus()` is called inside `with state_lock` and itself calls `update_state()` which also acquires the lock with a non-reentrant `threading.Lock()`. Fix:
+[tool start] edit
+
+[tool end] edit: ok
+Now let me test the app with Flask test client:
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+All API endpoints work correctly. Let me verify the HTML page renders:
+[tool start] bash
+
+[tool end] bash: error
+Let me add a deployment info section to the page:
+[tool start] edit
+
+[tool end] edit: ok
+Now let me also add the WSGI entry point and ensure gunicorn config is good. Let me also update the Dockerfile to use the proper CMD:
+[tool start] read
+
+[tool end] read: ok
+Let me do a final review of all files and run the complete test:
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+Now let me run the comprehensive verification:
+[tool start] bash
+
+[tool end] bash: ok
+All verifications pass. Let me list the final project structure:
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+The project is complete. Here's a summary of what was built:
+
+---
+
+## NFCorpus Live Retrieval Diagnostics Workbench — Complete
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `app.py` | Flask backend: Anserini CLI wrapper, search/eval endpoints, readiness checks |
+| `templates/index.html` | Full dashboard UI with readiness panel, live search, eval comparison, commands/artifacts tabs |
+| `Dockerfile` | Render-ready container with Java 21, Anserini 2.1.1 fatjar, CACM smoke test, NFCorpus index pre-warm |
+| `requirements.txt` | Python dependencies (Flask, gunicorn) |
+| `README.md` | Full deployment docs, metric table, test instructions |
+| `tests/test_browser.py` | Playwright E2E browser test (19 tests across 5 test classes) |
+| `.gitignore` | Excludes jars, caches, run files, pycache |
+
+### Verified End-to-End (All Passed)
+
+- **Readiness**: Java 21, fatjar, CACM smoke test (MAP=0.3123, P30=0.1942), NFCorpus index
+- **Live Search**: 3 distinct queries return different ranked results with doc IDs, scores, and full-text content from real Anserini commands
+- **BM25 Evaluation**:
+
+  | Metric | Expected | Observed | Status |
+  |--------|----------|----------|--------|
+  | nDCG@10 | 0.3218 | 0.3218 | PASS |
+  | R@100 | 0.2457 | 0.2457 | PASS |
+  | R@1000 | 0.3704 | 0.3704 | PASS |
+
+- **Commands**: All 7 Anserini CLI invocations recorded (setup, search, eval)
+- **Artifacts**: TREC run file path tracked
+- **Health**: `GET /health` returns correct JSON with all required fields
+- **Deployment contract**: Binds `0.0.0.0:${PORT:-10000}`, documented in page and README
+
+### Deployment
+
+```bash
+docker build -t nfcorpus-workbench .
+docker run -p 10000:10000 nfcorpus-workbench
+```
+
+On Render: Docker web service at the repo root, health check path `/health`, auto-detected `PORT`.

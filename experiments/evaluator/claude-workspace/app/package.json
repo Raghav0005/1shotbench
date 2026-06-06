@@ -1,0 +1,17 @@
+{
+  "name": "anserini-prebuilt-evaluator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local web app for browsing Anserini's prebuilt Lucene inverted indexes and running real retrieval evaluations.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

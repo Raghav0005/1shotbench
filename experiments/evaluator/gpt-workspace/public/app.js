@@ -1,206 +1,202 @@
 const state = {
-  catalog: [],
-  selected: null
+  catalog: null,
+  selected: null,
+  filter: ''
 };
 
+const $ = (id) => document.getElementById(id);
 const els = {
-  health: document.getElementById('health'),
-  error: document.getElementById('error'),
-  catalogSummary: document.getElementById('catalogSummary'),
-  catalogSource: document.getElementById('catalogSource'),
-  filter: document.getElementById('filter'),
-  list: document.getElementById('indexList'),
-  refresh: document.getElementById('refreshCatalog'),
-  selection: document.getElementById('selection'),
-  form: document.getElementById('evalForm'),
-  metric: document.getElementById('metric'),
-  runButton: document.getElementById('runButton'),
-  runStatus: document.getElementById('runStatus'),
-  result: document.getElementById('result'),
-  score: document.getElementById('score'),
-  metaIndex: document.getElementById('metaIndex'),
-  metaTopics: document.getElementById('metaTopics'),
-  metaQrels: document.getElementById('metaQrels'),
-  metaMetric: document.getElementById('metaMetric'),
-  metaElapsed: document.getElementById('metaElapsed'),
-  metaRunFile: document.getElementById('metaRunFile'),
-  metaEvalFile: document.getElementById('metaEvalFile'),
-  evalPreview: document.getElementById('evalPreview'),
-  runPreview: document.getElementById('runPreview')
+  environment: $('environment'),
+  errorPanel: $('errorPanel'),
+  catalogSummary: $('catalogSummary'),
+  catalogRows: $('catalogRows'),
+  filterInput: $('filterInput'),
+  refreshCatalog: $('refreshCatalog'),
+  selectedIndex: $('selectedIndex'),
+  metricSelect: $('metricSelect'),
+  runButton: $('runButton'),
+  status: $('status'),
+  resultPanel: $('resultPanel'),
+  scoreValue: $('scoreValue'),
+  scoreMetric: $('scoreMetric'),
+  metaIndex: $('metaIndex'),
+  metaTopics: $('metaTopics'),
+  metaQrels: $('metaQrels'),
+  metaMetric: $('metaMetric'),
+  metaStatus: $('metaStatus'),
+  metaElapsed: $('metaElapsed'),
+  metaRunFile: $('metaRunFile'),
+  metaEvalFile: $('metaEvalFile'),
+  evalPreview: $('evalPreview')
 };
 
 function showError(message) {
-  els.error.textContent = message;
-  els.error.hidden = false;
+  els.errorPanel.textContent = message || '';
+  els.errorPanel.classList.toggle('hidden', !message);
 }
 
-function clearError() {
-  els.error.hidden = true;
-  els.error.textContent = '';
+function formatInt(value) {
+  return typeof value === 'number' ? new Intl.NumberFormat().format(value) : '—';
 }
 
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return 'unknown size';
+function formatBytes(value) {
+  if (typeof value !== 'number') return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
-  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
-function escapeHtml(text) {
-  return String(text ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  let n = value;
+  let u = 0;
+  while (n >= 1024 && u < units.length - 1) { n /= 1024; u += 1; }
+  return `${n.toFixed(n >= 10 || u === 0 ? 0 : 1)} ${units[u]}`;
 }
 
 async function fetchJson(url, options) {
-  const res = await fetch(url, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `Request failed: ${res.status}`);
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const details = data.stderr || data.details || data.stdout || '';
+    throw new Error(`${data.error || response.statusText}${details ? `\n${details}` : ''}`);
   }
   return data;
 }
 
-async function checkHealth() {
+async function loadEnvironment() {
   try {
-    const health = await fetchJson('/api/health');
-    els.health.className = 'status-pill ok';
-    els.health.textContent = `Ready: Java + Anserini fatjar\n${health.jar}`;
+    const env = await fetchJson('/api/environment');
+    if (!env.ok) throw new Error('Anserini fatjar not found.');
+    const javaLine = (env.java || '').split(/\r?\n/)[0];
+    els.environment.innerHTML = `<strong>Ready</strong><br>Fatjar: <code>${env.jar}</code><br>${javaLine}`;
   } catch (err) {
-    els.health.className = 'status-pill bad';
-    els.health.textContent = 'Setup problem';
+    els.environment.innerHTML = `<strong>Environment issue</strong><br>${err.message}<br>Run <code>npm run setup:anserini</code>.`;
+  }
+}
+
+async function loadCatalog(force = false) {
+  els.catalogSummary.textContent = 'Loading registry from Anserini CLI…';
+  els.status.textContent = 'Loading catalog.';
+  els.refreshCatalog.disabled = true;
+  showError('');
+  try {
+    state.catalog = await fetchJson(`/api/catalog${force ? '?refresh=1' : ''}`);
+    const ready = state.catalog.indexes.filter(i => i.evaluable).length;
+    els.catalogSummary.textContent = `${state.catalog.indexes.length} registry-derived inverted indexes; ${state.catalog.topics.length} topic sets discovered; ${ready} ready for browser evaluation. Generated ${new Date(state.catalog.generatedAt).toLocaleString()}.`;
+    state.selected = state.catalog.indexes.find(i => i.name === 'cacm' && i.evaluable) || state.catalog.indexes.find(i => i.evaluable) || state.catalog.indexes[0] || null;
+    renderCatalog();
+    renderSelection();
+  } catch (err) {
     showError(err.message);
+    els.catalogSummary.textContent = 'Could not load Anserini registry.';
+    els.status.textContent = 'Catalog failed to load.';
+  } finally {
+    els.refreshCatalog.disabled = false;
   }
 }
 
 function renderCatalog() {
-  const query = els.filter.value.trim().toLowerCase();
-  const filtered = state.catalog.filter((idx) => {
-    const haystack = `${idx.name} ${idx.description || ''} ${idx.type || ''}`.toLowerCase();
-    return haystack.includes(query);
+  if (!state.catalog) return;
+  const filter = state.filter.trim().toLowerCase();
+  const rows = state.catalog.indexes.filter(index => {
+    if (!filter) return true;
+    return [index.name, index.type, index.description, index.status].some(v => String(v || '').toLowerCase().includes(filter));
   });
-  els.list.innerHTML = '';
-  for (const idx of filtered.slice(0, 80)) {
-    const li = document.createElement('li');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `index-card ${state.selected?.name === idx.name ? 'selected' : ''}`;
-    button.dataset.indexName = idx.name;
-    button.innerHTML = `
-      <h3>${escapeHtml(idx.name)}</h3>
-      <p>${escapeHtml(idx.description || 'No description available')}</p>
-      <p>${escapeHtml(idx.type || 'unknown')} · ${formatBytes(idx.size)}${idx.documents ? ` · ${idx.documents.toLocaleString()} docs` : ''}</p>
-      <div class="badges">
-        <span class="badge ${idx.evaluable ? 'ok' : 'warn'}">${idx.evaluable ? 'Ready for evaluation' : 'Catalog-only'}</span>
-        ${idx.evaluation ? `<span class="badge">topics: ${escapeHtml(idx.evaluation.topics)}</span>` : ''}
-      </div>
-    `;
-    button.addEventListener('click', () => {
-      state.selected = idx;
+
+  els.catalogRows.innerHTML = '';
+  for (const index of rows) {
+    const tr = document.createElement('tr');
+    tr.dataset.indexName = index.name;
+    tr.className = state.selected && state.selected.name === index.name ? 'selected' : '';
+    tr.innerHTML = `
+      <td class="name-cell">${index.name}</td>
+      <td>${index.type || '—'}</td>
+      <td><span class="badge ${index.evaluable ? 'ready' : 'catalog'}">${index.evaluable ? 'Ready' : 'Catalog-only'}</span></td>
+      <td title="Size: ${formatBytes(index.size)}">${formatInt(index.documents)}</td>
+      <td class="desc-cell">${index.description || 'No description available.'}</td>`;
+    tr.addEventListener('click', () => {
+      state.selected = index;
       renderCatalog();
       renderSelection();
     });
-    li.appendChild(button);
-    els.list.appendChild(li);
-  }
-  if (filtered.length === 0) {
-    const li = document.createElement('li');
-    li.textContent = 'No registry indexes match the filter.';
-    els.list.appendChild(li);
+    els.catalogRows.appendChild(tr);
   }
 }
 
 function renderSelection() {
-  const idx = state.selected;
-  els.result.hidden = true;
-  if (!idx) {
-    els.selection.innerHTML = '<p>No index selected.</p>';
+  const index = state.selected;
+  els.metricSelect.innerHTML = '';
+  els.resultPanel.classList.add('hidden');
+  if (!index) {
+    els.selectedIndex.textContent = 'No index selected.';
     els.runButton.disabled = true;
+    els.status.textContent = 'No index selected.';
     return;
   }
 
-  if (!idx.evaluable) {
-    els.selection.innerHTML = `
-      <h3>${escapeHtml(idx.name)}</h3>
-      <p><strong>Catalog-only.</strong> ${escapeHtml(idx.catalogOnlyReason || 'No automatic pairing is available.')}</p>
-      <p>This keeps the registry visible without launching unknown or large downloads.</p>
-    `;
-    els.metric.innerHTML = '';
+  if (!index.evaluable || !index.pairing) {
+    els.selectedIndex.innerHTML = `
+      <h3>${index.name}</h3>
+      <p><span class="badge catalog">Catalog-only</span></p>
+      <p>${index.description || ''}</p>
+      <p><strong>Why disabled:</strong> ${index.catalogOnlyReason}</p>`;
     els.runButton.disabled = true;
+    els.status.textContent = 'Selected index is visible in the registry but not automatically evaluable.';
     return;
   }
 
-  const evaluation = idx.evaluation;
-  els.selection.innerHTML = `
-    <h3>${escapeHtml(idx.name)} is ready for evaluation</h3>
-    <p><strong>Topics:</strong> ${escapeHtml(evaluation.topics)}</p>
-    <p><strong>Qrels/eval source:</strong> ${escapeHtml(evaluation.qrelsLabel)}</p>
-    <p><strong>Retrieval:</strong> ${escapeHtml(evaluation.searchModel)}</p>
-    <p>${escapeHtml(evaluation.reason)}</p>
-  `;
-  els.metric.innerHTML = evaluation.metrics.map((m) => `<option value="${escapeHtml(m.value)}">${escapeHtml(m.label)} (${escapeHtml(m.value)})</option>`).join('');
-  els.metric.value = evaluation.defaultMetric;
+  els.selectedIndex.innerHTML = `
+    <h3>${index.name}</h3>
+    <p><span class="badge ready">Ready for evaluation</span></p>
+    <p>${index.description || ''}</p>
+    <p><strong>Topics:</strong> <code>${index.pairing.topics}</code></p>
+    <p><strong>Qrels/eval source:</strong> <code>${index.pairing.qrels}</code> — ${index.pairing.qrelsSource}</p>
+    <p><strong>Inferred from:</strong> ${index.readyReason}</p>`;
+  for (const metric of index.pairing.metrics) {
+    const option = document.createElement('option');
+    option.value = metric.id;
+    option.textContent = `${metric.label} (${metric.id})`;
+    els.metricSelect.appendChild(option);
+  }
   els.runButton.disabled = false;
+  els.status.textContent = 'Ready to run retrieval and TrecEval.';
 }
 
-async function loadCatalog(force = false) {
-  clearError();
-  els.catalogSummary.textContent = 'Loading PrebuiltIndexRegistry and TopicsRegistry…';
-  els.refresh.disabled = true;
-  try {
-    const catalog = await fetchJson(`/api/catalog${force ? '?refresh=1' : ''}`);
-    state.catalog = catalog.indexes;
-    state.selected = state.catalog.find((idx) => idx.name === 'cacm') || state.catalog.find((idx) => idx.evaluable) || state.catalog[0];
-    els.catalogSummary.textContent = `${state.catalog.length} Lucene inverted indexes from registry · ${catalog.topicsCount} topic sets discovered`;
-    els.catalogSource.textContent = `${catalog.source}. Jar: ${catalog.jar}`;
-    renderCatalog();
-    renderSelection();
-  } catch (err) {
-    showError(`Catalog discovery failed. ${err.message}`);
-    els.catalogSummary.textContent = 'Catalog discovery failed';
-  } finally {
-    els.refresh.disabled = false;
-  }
-}
-
-async function runEvaluation(event) {
-  event.preventDefault();
-  if (!state.selected?.evaluable) return;
-  clearError();
-  els.result.hidden = true;
+async function runEvaluation() {
+  if (!state.selected || !state.selected.evaluable) return;
+  const metricId = els.metricSelect.value;
   els.runButton.disabled = true;
-  els.runStatus.className = 'run-status running';
-  els.runStatus.textContent = 'Running Anserini SearchCollection and TrecEval…';
+  els.status.textContent = 'Running Anserini SearchCollection and TrecEval…';
+  els.resultPanel.classList.add('hidden');
+  showError('');
   try {
     const result = await fetchJson('/api/evaluate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ index: state.selected.name, metric: els.metric.value })
+      body: JSON.stringify({ indexName: state.selected.name, metricId })
     });
-    els.runStatus.className = 'run-status done';
-    els.runStatus.textContent = 'Evaluation completed with real Anserini artifacts.';
-    els.score.textContent = result.score.toFixed(4);
-    els.metaIndex.textContent = result.index;
+    els.scoreValue.textContent = Number(result.score).toFixed(4);
+    els.scoreMetric.textContent = `${result.metric.label} / ${result.metric.id}`;
+    els.metaIndex.textContent = result.selectedIndex;
     els.metaTopics.textContent = result.topics;
-    els.metaQrels.textContent = result.qrelsLabel;
-    els.metaMetric.textContent = `${result.selectedMetricLabel} (${result.measure})`;
-    els.metaElapsed.textContent = `${(result.elapsedMs / 1000).toFixed(2)}s`;
-    els.metaRunFile.textContent = result.artifacts.runFile;
-    els.metaEvalFile.textContent = result.artifacts.evalFile;
-    els.evalPreview.textContent = result.evaluationOutput;
-    els.runPreview.textContent = result.runPreview;
-    els.result.hidden = false;
+    els.metaQrels.textContent = `${result.qrels} (${result.qrelsSource})`;
+    els.metaMetric.textContent = `${result.metric.label} (${result.metric.id})`;
+    els.metaStatus.textContent = result.status;
+    els.metaElapsed.textContent = `${(result.elapsedMs / 1000).toFixed(2)} s`;
+    els.metaRunFile.textContent = result.runFile;
+    els.metaEvalFile.textContent = result.evaluationOutputFile;
+    els.evalPreview.textContent = result.evaluationPreview || result.scoreLine || '';
+    els.resultPanel.classList.remove('hidden');
+    els.status.textContent = 'Evaluation completed.';
   } catch (err) {
-    els.runStatus.className = 'run-status failed';
-    els.runStatus.textContent = `Evaluation failed: ${err.message}`;
+    showError(err.message);
+    els.status.textContent = 'Evaluation failed.';
   } finally {
-    els.runButton.disabled = !state.selected?.evaluable;
+    els.runButton.disabled = !state.selected || !state.selected.evaluable;
   }
 }
 
-els.filter.addEventListener('input', renderCatalog);
-els.refresh.addEventListener('click', () => loadCatalog(true));
-els.form.addEventListener('submit', runEvaluation);
+els.filterInput.addEventListener('input', event => {
+  state.filter = event.target.value;
+  renderCatalog();
+});
+els.refreshCatalog.addEventListener('click', () => loadCatalog(true));
+els.runButton.addEventListener('click', runEvaluation);
 
-checkHealth();
+loadEnvironment();
 loadCatalog();

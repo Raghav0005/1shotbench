@@ -1,7 +1,9 @@
+.runtime/
+.runtime-*/
+.runtime-playwright/
 node_modules/
-data/
-.cache/
 playwright-report/
 test-results/
-*.log
+__pycache__/
+*.pyc
 .DS_Store

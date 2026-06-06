@@ -1,0 +1,257 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have a clear picture. Let me build the workbench. Plan:
+
+- **Backend**: FastAPI (Python). On startup: verify Java/fatjar, start Anserini `RestServer` subprocess for live search, run BM25 NFCorpus eval in the background, expose JSON endpoints.
+- **Live search**: proxy to Anserini's `RestServer` at `127.0.0.1:8081` (uses `beir-v1.0.0-nfcorpus.flat` prebuilt index).
+- **Eval**: real `io.anserini.search.SearchCollection` + `io.anserini.eval.TrecEval` against `beir-v1.0.0-nfcorpus.test` qrels; expected nDCG@10 = 0.3218 (from `beir.core` `flat` config discovered via `ReproduceFromPrebuiltIndexes --show`).
+- **Frontend**: single HTML page (vanilla JS) with readiness panel, search box, results, evaluation panel, command/artifact drawer.
+- **Docker**: `eclipse-temurin:21-jdk` + Python; download fatjar at build time; bind `0.0.0.0:$PORT` (default 10000); `/health` JSON.
+- **E2E**: Playwright (Python) test that exercises the live flow.
+
+Let me also verify the eval reproduction command actually runs end-to-end with the local index to get real expected numbers we can compare to.
+[tool start] bash
+
+[tool end] bash: ok
+Excellent — observed nDCG@10 = 0.3218 exactly matches the expected reproduction value. Now let me build the app.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now the static frontend.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now Dockerfile, README, and the Playwright E2E test.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now the Playwright E2E test:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now let's smoke test the app locally to find bugs.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Everything works end-to-end. Observed nDCG@10 = 0.3218 matches expected 0.3218 exactly. Let me fix one polish issue: the `nfcorpus_index` artifact path falls back to a placeholder because, on this host, the cached prebuilt index already lives under the real `$HOME/.cache/pyserini/indexes` from an earlier run (the `HOME` redirect to `/data` won't help if the index is already cached elsewhere). Let me also check both locations.
+[tool start] edit
+
+[tool end] edit: ok
+Now let me run the Playwright E2E test to validate everything.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+The test assertion checking `"anserini.jar" in txt` is too literal — the real jar path is `anserini-2.1.1-fatjar.jar`. Let me fix the assertion:
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Both tests pass. Let me also verify that the Dockerfile is valid by doing a static check (skipping a full build since it would download ~110 MB of fatjar):
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+All deliverables are in place. Here's a summary of what was built:
+
+## What I built
+
+A complete **NFCorpus Live Retrieval Diagnostics Workbench** that satisfies every requirement in `PRD.md`.
+
+### File layout
+```
+Dockerfile              # eclipse-temurin:21 + python; downloads Anserini fatjar at build
+render.yaml             # Render Docker web-service manifest (binds 0.0.0.0:$PORT, /data disk)
+requirements.txt        # fastapi, uvicorn, httpx, pydantic
+README.md               # full Render/Docker contract + skill references
+pytest.ini
+.dockerignore / .gitignore
+app/
+  main.py               # FastAPI app: /, /health, /api/state, /api/search, /api/eval/rerun
+  anserini.py           # All Anserini subprocess orchestration (no mocks)
+  static/
+    index.html          # Readiness, search, eval, commands/artifacts drawer
+    app.js              # Live polling, sample queries, rerun button, test hooks
+    style.css
+tests/
+  test_e2e.py           # Playwright end-to-end test (passes)
+```
+
+### How it follows the required skills
+- **`install-anserini-fatjar`** — Dockerfile downloads `anserini-${VERSION}-fatjar.jar` from Maven Central; startup runs `PrebuiltIndexRegistry --list --filter '^beir-v1.0.0-nfcorpus.flat$'` as the functional smoke check.
+- **`anserini-cli`** — live single-query search via `io.anserini.api.RestServer` on `127.0.0.1:8081`; CLI `io.anserini.cli.Search --json` shown as the equivalent command.
+- **`anserini-reproduction`** — startup runs `io.anserini.reproduce.ReproduceFromPrebuiltIndexes --config beir.core --show`; expected nDCG@10 (0.3218) is parsed out of that real output, not hard-coded as a reproduction lookup.
+
+### Real numbers observed at local runtime
+- `/health` reports `eval_status: ok` within ~10 s.
+- Live search for `diabetes` returns NFCorpus doc `MED-2000` (score 2.185) with full title + 400-char snippet via Anserini's REST server.
+- Real `TrecEval` output: `map 0.1504`, `recall_100 0.2457`, `ndcg_cut_10 0.3218` — **matches the expected 0.3218 exactly** (delta 0.0000, status `match`).
+
+### Tests
+```
+tests/test_e2e.py::test_e2e_workflow      PASSED
+tests/test_e2e.py::test_health_contract   PASSED
+```
+
+The E2E test starts the server, drives a real browser, asserts:
+- readiness panel shows NFCorpus + Anserini as active,
+- the page surfaces the `PORT`, `0.0.0.0`, and `/health` contract,
+- a sample query produces ≥3 ranked results with `MED-\d+` docids, positive scores, and ≥60-char snippets (rejecting mocks),
+- the evaluation panel shows numeric observed nDCG@10 in (0, 1], expected ≈ 0.3218, and a numeric delta,
+- the commands drawer contains the real `io.anserini.*` class names with a real resolved jar path (no `$ANSERINI_JAR` placeholders),
+- the eval output preview contains a real `ndcg_cut_10 all …` `TrecEval` line,
+- the **Verify / Rerun** button produces a `fresh` evaluation that completes strictly after the cached one.
+
+### Render/Docker readiness contract (also documented in README and rendered in the UI)
+- Single Docker image; binds `0.0.0.0` on `$PORT` (default `10000`).
+- `/health` returns JSON with `app`, `anserini_available`, `nfcorpus_ready`, `search_available`, `eval_available`, `eval_status`, `errors`.
+- No interactive setup; index download + first eval happen in background.
+- Persistent cache at `/data` (mountable on Render).
+- No BEIR-wide, MS MARCO, or dense downloads; the only network fetch is the ~6 MB NFCorpus prebuilt index.

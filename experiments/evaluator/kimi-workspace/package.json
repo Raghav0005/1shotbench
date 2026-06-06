@@ -1,10 +1,17 @@
 {
-  "name": "anserini-evaluator",
+  "name": "anserini-prebuilt-evaluator",
   "version": "1.0.0",
+  "description": "Local web app for browsing Anserini prebuilt indexes and running retrieval evaluations",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "test:e2e": "playwright test"
   },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  },
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.44.0"
   }
 }

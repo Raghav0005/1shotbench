@@ -1,21 +1,8 @@
-# Runtime data
-app/data/
-data/
 *.jar
-runs/
+data/
 __pycache__/
 *.pyc
-.pytest_cache/
-
-# Screenshots
-test_screenshot.png
-
-# Node
 node_modules/
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
+.py-bench-rewrites/
+run.*.txt
+eval.*.txt

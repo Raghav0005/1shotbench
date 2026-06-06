@@ -1,0 +1,15 @@
+node_modules/
+app/node_modules/
+**/logs/
+**/*.log
+**/run*.txt
+**/eval*.txt
+app/data/
+data/
+cache/
+.env
+.env.*
+.DS_Store
+test-results/
+playwright-report/
+playwright/.cache/

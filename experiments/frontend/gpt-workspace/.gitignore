@@ -3,13 +3,8 @@ node_modules/
 out/
 .env*.local
 .DS_Store
-*.log
-*.pid
-anserini-*-fatjar.jar
-run.*.txt
-eval.*.txt
-rest-*.json
-msmarco-v1-passage-dev.json
-
+rest.log
+rest.pid
+topics.raw
+topics.err
 tsconfig.tsbuildinfo
-next-api-*.json

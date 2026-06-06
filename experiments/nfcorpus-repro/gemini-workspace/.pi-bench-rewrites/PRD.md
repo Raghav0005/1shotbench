@@ -1,114 +1,117 @@
-# PRD: NFCorpus Live Retrieval Diagnostics Workbench
+# Project Requirements Document
 
-## Summary
-Develop a containerized web application suitable for deployment on Render. It will act as a live retrieval diagnostic tool for NFCorpus using Anserini. The application must leverage specific Anserini skills to set up and validate the retrieval environment, conduct live searches against NFCorpus, execute or verify BM25 evaluation against expected metrics, and display exact commands, artifacts, and observed-vs-expected results in the user interface.
+## Project Title
+NFCorpus Live Retrieval Diagnostics Workbench
 
-Scope is strictly limited to NFCorpus to ensure it can run on modest hosted containers. Do not build a general BEIR dashboard or download all BEIR corpora.
+## Overview
+Develop a web application that provides live retrieval diagnostics for NFCorpus using Anserini. The application must be containerized via Docker and capable of being deployed on Render. It is required to utilize Anserini skills to configure and validate an NFCorpus retrieval environment, execute live searches exclusively over NFCorpus, and perform or validate a BM25 evaluation against expected metrics. The web interface must present the exact CLI commands used, generated artifacts, and a comparison between expected and observed results. The project is strictly limited to NFCorpus to ensure it runs efficiently on a standard hosted container, explicitly avoiding general BEIR dashboards or downloading all BEIR corpora.
 
 ## Problem Statement
-The Anserini workflow for reproducing and evaluating retrieval baselines is distributed across skill docs, CLI discovery, run files, qrels, evaluator outputs, and deployment concerns. A self-contained, hosted demonstration is needed to make a real Information Retrieval (IR) workflow inspectable. Users must be able to perform live searches on NFCorpus, view the dataset preparation steps, and verify if Anserini's observed evaluation metrics align with expected reproduction targets.
+While Anserini supports reproducing and evaluating retrieval baselines, its workflow is currently fragmented across documentation, CLI commands, run files, qrels, and evaluation outputs. There is a need for a compact, hosted demonstration that exposes a tangible Information Retrieval (IR) workflow. Users need the ability to search NFCorpus in real-time, comprehend the dataset preparation process, and verify if the evaluation metrics observed via Anserini align with the expected reproduction targets.
 
-## Goals
-- Utilize repo-local Anserini skills as the primary source for setup, CLI syntax, reproduction discovery, search, and evaluation.
-- Implement a live web application deployable as a Render Docker web service.
-- Restrict required datasets to NFCorpus only.
-- Enable live query search over NFCorpus through a backend powered by Anserini.
-- Execute or verify a BM25 NFCorpus evaluation using authentic Anserini commands and qrels.
-- Display expected metrics, observed metrics, deltas, commands used, and paths to generated artifacts.
-- Incorporate browser-driven verification to confirm the application uses real, not mocked, search and evaluation results.
+## Objectives
+- Act as the source of truth for setup, CLI syntax, reproduction discovery, searching, and evaluation by relying on the repository-local Anserini skills.
+- Create a real-time web application suitable for deployment as a Render Docker web service.
+- Constrain the required dataset exclusively to NFCorpus.
+- Enable live search queries against NFCorpus via a backend powered by Anserini.
+- Execute or validate a BM25 evaluation on NFCorpus utilizing actual Anserini commands and qrel files.
+- Display expected and observed metrics, the differences (deltas) between them, the specific commands executed, and the paths to generated artifacts.
+- Implement browser-based verification to ensure the application utilizes genuine search and evaluation processes rather than mocked data.
 
-## Non-Goals
-- Support for all BEIR datasets.
+## Out of Scope
+- Expanding support to encompass all BEIR datasets.
 - Downloading the complete BEIR corpus archive.
-- Demos for MS MARCO or other large corpora.
-- Dense retrieval, neural reranking, or model training functionalities.
-- User account management, authentication, or multi-user job management.
-- Implementation of custom retrieval engines.
-- Utilizing `GetDocument` if search results already contain sufficient document content.
-- Requiring deployment on Vercel.
+- Creating demonstrations for MS MARCO or other massive corpora.
+- Implementing dense retrieval, neural reranking, or training of models.
+- Building features for user accounts, authentication, or multi-tenant job management.
+- Developing custom retrieval engines from scratch.
+- Using `GetDocument` if the search results already contain sufficient document content.
+- Making Vercel deployment a requirement.
 
-## Users
-- IR researchers seeking a lightweight live retrieval-quality demonstration.
-- Developers verifying Anserini's setup and evaluation workflows for NFCorpus.
-- Demo users comparing live search outcomes with measured retrieval metrics.
-- Operators deploying benchmark outputs to Render.
+## Target Audience
+- IR researchers seeking a compact, live demonstration of retrieval quality.
+- Developers needing to validate the configuration and evaluation workflows of Anserini for NFCorpus.
+- Viewers of the demo who wish to compare real-time search outputs with quantified retrieval metrics.
+- Systems operators tasked with deploying benchmark results to Render.
 
-## Core Requirements
-- Use the following repo-local skills to formulate commands:
+## Core Technical Requirements
+- Prior to constructing any commands, consult the following repo-local skills:
   - `install-anserini-fatjar`
   - `anserini-cli`
   - `anserini-reproduction`
-- Install or locate an Anserini fatjar and validate it using the runtime checks provided by the skills.
-- Discover NFCorpus-related reproduction details utilizing the Anserini reproduction workflow. Employ reproduction listing/show/dry-run capabilities where possible to extract NFCorpus commands, expected metrics, qrels/eval keys, and setup requirements.
-- Strictly avoid downloading all BEIR corpora. Any downloading or caching must be specific to NFCorpus and documented within the UI.
-- Prefer prebuilt/cached NFCorpus indices or NFCorpus-specific artifacts when provided by Anserini. If none are available, the application may build or prepare the index solely for NFCorpus.
-- Execute real Anserini commands for setup, search, and evaluation operations. Hardcoding or mocking search results, run files, qrels, scores, or expected metrics is prohibited.
-- The backend must support live query search over NFCorpus, backed by Anserini (e.g., Anserini REST server or CLI-backed endpoint), not a custom search implementation.
-- Search results must display rank, document ID, score, and sufficient document content or snippet text for user inspection.
-- The BM25 evaluation workflow for NFCorpus must include:
-  - Executing `SearchCollection` or equivalent reproduction-provided commands.
-  - Writing a TREC-format run file.
-  - Evaluating using the appropriate Anserini/TrecEval command.
-  - Parsing the observed metric values.
-  - Comparing observed values against expected values (if provided by the reproduction).
-- If live evaluation performance is insufficient for hosted use, the app may run the evaluation during setup/startup. It should then provide a "Verify/Rerun" action in the browser that reuses cached NFCorpus artifacts. The UI must clearly differentiate between cached results and fresh reruns.
-- Display a readiness panel indicating the status of Java/fatjar, NFCorpus artifacts/index, reproduction discovery, and the app's readiness for live search and evaluation.
-- Show the exact command lines executed for:
+- Download or locate an Anserini fatjar, validating it using the runtime checks provided by the corresponding skill.
+- Utilize the Anserini reproduction workflow to identify NFCorpus-specific reproduction details. Leverage reproduction listing, displaying, or dry-run functionalities (where available) to extract NFCorpus commands, expected metrics, qrel/evaluation keys, and setup prerequisites.
+- Strictly avoid downloading all BEIR corpora. Any downloading or caching steps must be explicitly limited to NFCorpus and clearly documented within the user interface.
+- Opt for prebuilt or cached NFCorpus indexes or NFCorpus-specific artifacts whenever Anserini provides them. If prebuilt options are absent, the application is permitted to build or prepare the index exclusively for NFCorpus.
+- Ensure all setup, search, and evaluation processes use real Anserini commands. Hardcoding or mocking search results, run files, qrels, scores, or expected metrics is strictly prohibited.
+- Implement a backend facilitating live queries against NFCorpus. This backend may utilize the Anserini REST server or an endpoint that interfaces with the CLI, provided the underlying search mechanism is Anserini and not a custom implementation.
+- Ensure search results return the rank, document ID, score, and adequate document snippet/content text for user inspection.
+- Build a BM25 evaluation workflow specific to NFCorpus that:
+  - Executes `SearchCollection` or its reproduction-equivalent command.
+  - Generates a run file in TREC format.
+  - Evaluates the run using the correct Anserini/TrecEval command.
+  - Parses the resulting observed metric values.
+  - Compares these observed values against the expected metrics extracted from the reproduction workflow, when available.
+- In cases where live evaluation proves too slow for a hosted environment, the application may execute the evaluation during the initial setup/startup phase. It must then offer a "Verify/Rerun" action in the browser that leverages the cached NFCorpus artifacts. The UI must unambiguously differentiate between a fresh rerun and cached setup results.
+- Display a readiness/status panel indicating the health of Java/the fatjar, the NFCorpus index/artifacts, the reproduction discovery process, and the overall readiness for live search and evaluation.
+- Present the exact command-line strings utilized for:
   - Fatjar verification.
-  - Reproduction discovery/dry-run.
+  - Reproduction discovery and dry-runs.
   - NFCorpus search setup.
-  - BM25 retrieval.
-  - Evaluation.
-- Show artifact paths for generated run files, evaluation outputs, setup logs, and any cached NFCorpus data.
-- Gracefully handle and display clear user-visible errors for: missing Java, missing fatjar, unsupported Anserini version, missing NFCorpus artifacts, command failures, unavailable expected metrics, port conflicts, and evaluation failures.
+  - BM25 retrieval operations.
+  - Evaluation execution.
+- Display the file paths for any produced artifacts, including generated run files, evaluation outputs, setup logs, and cached NFCorpus data.
+- Gracefully handle and display clear user-facing errors for scenarios including missing Java installations, missing fatjars, unsupported versions of Anserini, absent NFCorpus artifacts, command execution failures, missing expected metrics, port conflicts, and evaluation errors.
 
-## Deployment Requirements
-- The application must be deployable as a single Docker web service suitable for Render.
-- Include a Dockerfile (or equivalent generated project files) in the implementation.
-- The container must bind HTTP to `0.0.0.0` and utilize the `PORT` environment variable, falling back to `10000` if unset.
-- Provide a `/health` endpoint returning a JSON response that includes at least:
-  - Application status.
-  - Anserini availability.
-  - NFCorpus readiness.
-  - Search availability status.
-  - Evaluation availability status.
-- The application must not require interactive setup after the container has started.
-- Large generated files must not be committed to source control. Runtime caches should be stored in a documented cache/data directory. Document the mount path if persistent storage is required on Render.
-- The default demo must remain small enough for a modest Render service, avoiding full-BEIR downloads, MS MARCO downloads, and heavy dense-vector artifacts.
+## Deployment Specifications
+- The application must be packaged as a single Docker web service, ready for deployment on Render.
+- Implementation must include a `Dockerfile` or the equivalent generated project configuration files.
+- The Docker container is required to bind its HTTP server to `0.0.0.0` and utilize the `PORT` environment variable. If `PORT` is not set, it should default to `10000`.
+- Implement a `/health` endpoint that outputs JSON containing at least:
+  - Overall application status.
+  - Availability of Anserini.
+  - Readiness of NFCorpus.
+  - Availability of the search function.
+  - Availability of the evaluation function.
+- The application must start up and operate without requiring any interactive setup post-container initialization.
+- Exclude large generated files from source control. Runtime caches and data must reside in a clearly documented cache or data directory. If Render requires persistent storage, the expected mount path must be documented.
+- Maintain a lightweight footprint for the default demo to fit within the constraints of a modest Render service. Prevent full BEIR downloads, MS MARCO downloads, or the generation of heavy dense-vector artifacts.
 
-## UX (User Experience)
-Upon page load, the user should be presented with a compact diagnostics dashboard featuring:
-- A readiness/status panel for Anserini and NFCorpus.
-- A live search box pre-populated with NFCorpus sample queries or topics.
-- A ranked result list displaying ranks, document IDs, scores, and snippets/document text.
-- An evaluation panel displaying BM25 metrics, expected metrics, observed metrics, deltas, pass/close/fail status, elapsed time, and artifact paths.
-- A command/artifact drawer exposing the exact Anserini commands and output previews used to generate the displayed results.
+## User Experience (UX)
+Upon loading the page, users must be presented with a consolidated diagnostics dashboard containing:
 
-Users must be able to type a query or click a sample NFCorpus query to initiate a live search. They can also inspect the BM25 evaluation status and trigger a verification/rerun if the implementation supports it.
+- A status and readiness panel detailing the health of Anserini and NFCorpus.
+- A functional live search input field prepopulated with several sample queries or topics specific to NFCorpus.
+- A list of ranked search results displaying ranks, document IDs, scores, and textual snippets or document content.
+- An evaluation panel detailing BM25 metrics, expected metrics, observed metrics, the delta between them, a pass/close/fail status, the elapsed execution time, and paths to relevant artifacts.
+- A designated section (e.g., a drawer or panel) that reveals the exact Anserini commands executed and provides previews of the outputs generated to produce the displayed results.
+
+Users must be able to input custom queries or select from the sample NFCorpus queries to execute a live search. Furthermore, users should have the ability to review the BM25 evaluation status and initiate a verification or rerun process, provided the implementation supports it.
 
 ## End-to-End Verification
-Include a browser test (e.g., Playwright) that launches the application and verifies the core workflow.
-The test must:
-- Open the application.
-- Verify the appearance of the health/readiness panel.
-- Verify that NFCorpus is identified as the active dataset.
-- Verify that Anserini setup status is visible.
-- Run or select a live NFCorpus query.
-- Verify that ranked search results appear, including document IDs, ranks, scores, and text/snippets.
-- Verify that the evaluation panel displays at least one numeric observed metric.
-- Verify that expected metric information is visible when exposed by reproduction discovery.
-- Verify that observed-vs-expected comparison status or delta is shown.
-- Verify that exact command text and artifact paths/previews are visible.
-- Verify that the Docker/Render readiness contract is documented within the app or README, including the `PORT` binding details.
+Provide a browser-based test suite that launches the application and validates the primary workflow.
 
-The test must fail if the application displays mocked search results, mocked evaluation outputs, or hardcoded metric values without having executed Anserini-backed setup/search/evaluation commands.
+The test suite must automatically:
+- Access the web application.
+- Confirm the visibility of the health and readiness panel.
+- Confirm that NFCorpus is recognized as the active dataset.
+- Confirm the Anserini setup status is displayed.
+- Execute or select a live query against NFCorpus.
+- Confirm that the ranked search results populate with document IDs, ranks, scores, and text/snippets.
+- Confirm that the evaluation panel renders at least one numeric observed metric.
+- Confirm that expected metric data is displayed when it is accessible via reproduction discovery.
+- Confirm the visibility of the observed-versus-expected comparison status or delta.
+- Confirm that the exact CLI commands and artifact paths/previews are visible in the UI.
+- Confirm that the Docker and Render readiness requirements are documented (either within the app or a README), explicitly noting the `PORT` binding behavior.
+
+The test suite is required to fail if the application exhibits mocked search results, mocked evaluation data, or hardcoded metric values instead of relying on the actual execution of Anserini-backed setup, search, and evaluation commands.
 
 ## Success Criteria
-- The application runs locally in Docker and serves HTTP traffic on the configured `PORT`.
-- The application can be deployed as a Docker web service on Render.
-- Live NFCorpus search can be performed from the browser.
-- Real Anserini-backed NFCorpus evaluation metrics can be inspected by users.
-- Users can view expected-vs-observed metric comparisons when expected metrics are discoverable.
-- The application avoids full-BEIR and large-corpus downloads by default.
-- Command lines, artifacts, and failure states are transparent enough to facilitate debugging.
-- The browser test passes and demonstrates that the genuine Anserini workflow is executed.
+- The application runs successfully in a local Docker environment and serves HTTP traffic on the specified `PORT`.
+- The application is structurally ready for deployment as a Docker web service on Render.
+- Users can successfully conduct live NFCorpus searches via the browser interface.
+- Users can view and inspect actual evaluation metrics for NFCorpus, powered by Anserini.
+- Users can view a comparison between expected and observed metrics, provided expected metrics are discoverable.
+- The application strictly avoids full-BEIR and large-corpus downloads under default conditions.
+- The UI transparently presents command lines, artifacts, and error states to facilitate debugging.
+- The Playwright or corresponding browser test suite passes, demonstrably exercising the genuine Anserini workflow.

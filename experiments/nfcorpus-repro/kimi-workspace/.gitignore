@@ -1,15 +1,17 @@
-.cache/
-data/
-indexes/
-runs/
+# Runtime caches and generated artifacts
+cache/
 *.log
-*.pid
-app.log
-app.pid
-prebuilt.txt
-run.cacm.bm25.txt
-eval.cacm.bm25.txt
-qrels.nfcorpus.test.txt
+
+# Anserini artifacts downloaded during local testing
+anserini-*-fatjar.jar
+run.nfcorpus.bm25.txt
+eval.nfcorpus.bm25.txt
+
+# Python
 __pycache__/
+*.pyc
 .pytest_cache/
-node_modules/
+
+# Playwright
+playwright-report/
+test-results/

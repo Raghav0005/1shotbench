@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.DS_Store
+*.log
+logs/
+!logs/.gitkeep
+data/
+!data/msmarco-v1-passage.dev.json
+!data/.gitkeep
+run.cacm.bm25.txt
+run.*.txt
+eval.*.txt
+anserini-*-fatjar.jar

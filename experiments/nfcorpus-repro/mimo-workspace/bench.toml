@@ -4,4 +4,3 @@ model = "mimo-v2.5-pro"
 thinking = "high"
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 required_skills = ["install-anserini-fatjar", "anserini-cli", "anserini-reproduction"]
-

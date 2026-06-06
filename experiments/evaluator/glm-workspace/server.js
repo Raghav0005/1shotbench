@@ -5,192 +5,193 @@ const fs = require('fs');
 const os = require('os');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Resolve the Anserini fatjar
-function resolveJar() {
-  // Check ANSERINI_JAR env var first
-  if (process.env.ANSERINI_JAR && fs.existsSync(process.env.ANSERINI_JAR)) {
-    return process.env.ANSERINI_JAR;
-  }
-  // Look for fatjar in cwd
-  const files = fs.readdirSync(__dirname);
-  const jar = files.find(f => f.match(/^anserini-.*-fatjar\.jar$/));
-  if (jar) return path.join(__dirname, jar);
-  return null;
-}
-
-const ANSERINI_JAR = resolveJar();
-
-// Serve static files
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Helper to run Anserini commands
-function runAnserini(args, timeout = 300000) {
+const PORT = process.env.PORT || 3000;
+
+// ── Fatjar Discovery ──────────────────────────────────────────────
+function findFatjar() {
+  const dir = __dirname;
+  const files = fs.readdirSync(dir);
+  const jar = files.find(f => /^anserini-[\d.]+-fatjar\.jar$/.test(f));
+  if (!jar) return null;
+  return path.join(dir, jar);
+}
+
+const ANSERINI_JAR = findFatjar();
+
+function javaCmd(args, opts = {}) {
   return new Promise((resolve, reject) => {
     if (!ANSERINI_JAR) {
-      return reject(new Error('Anserini fatjar not found. Please download it or set ANSERINI_JAR.'));
+      return reject(new Error('Anserini fatjar not found. Place an anserini-*-fatjar.jar in the project root.'));
     }
-    const javaArgs = ['-cp', ANSERINI_JAR, ...args];
-    const child = execFile('java', javaArgs, { 
+    const allArgs = ['-cp', ANSERINI_JAR, ...args];
+    const { timeout: timeoutSecs, ...restOpts } = opts;
+    const child = execFile('java', allArgs, {
       maxBuffer: 50 * 1024 * 1024,
-      timeout,
-      cwd: os.tmpdir()
-    }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(stderr || error.message));
+      timeout: (timeoutSecs || 300) * 1000,
+      ...restOpts,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        reject({ error: err, stdout, stderr });
       } else {
-        resolve(stdout);
+        resolve({ stdout, stderr });
       }
     });
   });
 }
 
-// API: Get prebuilt inverted indexes
-app.get('/api/indexes', async (req, res) => {
-  try {
-    const stdout = await runAnserini(['io.anserini.cli.PrebuiltIndexRegistry', '--type', 'inverted', '--list']);
-    const indexes = JSON.parse(stdout);
-    res.json({ indexes, jar: path.basename(ANSERINI_JAR || '') });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// API: Get topics list
-app.get('/api/topics', async (req, res) => {
-  try {
-    const filter = req.query.filter;
-    const args = ['io.anserini.cli.TopicsRegistry', '--list'];
-    if (filter) args.push('--filter', filter);
-    const stdout = await runAnserini(args);
-    const topics = JSON.parse(stdout);
-    res.json({ topics });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Known evaluable index→topic→qrels pairings
+// ── Known evaluable index/topic/qrels pairings ──────────────────
+// Derived from Anserini reproduction configs and CLI skill docs.
+// CACM is the canonical small dataset.
 const EVALUABLE_INDEXES = {
-  'cacm': {
+  cacm: {
+    index: 'cacm',
     topics: 'cacm',
     qrels: 'cacm',
     metrics: [
-      { id: 'ndcg_cut.10', label: 'nDCG@10' },
-      { id: 'recall.1000', label: 'Recall@1000' },
-      { id: 'map', label: 'MAP' },
-      { id: 'P.30', label: 'P@30' },
+      { label: 'MAP', flag: '-m map', key: 'map' },
+      { label: 'P@30', flag: '-m P.30', key: 'P_30' },
+      { label: 'nDCG@10', flag: '-m ndcg_cut.10', key: 'ndcg_cut_10' },
+      { label: 'Recall@1000', flag: '-m recall.1000', key: 'recall_1000' },
     ],
-    searchArgs: { '-bm25': true, '-hits': '1000' },
-    description: 'CACM collection - small test collection for IR evaluation'
-  }
+  },
 };
 
-// API: Get evaluable configs
-app.get('/api/evaluable', (req, res) => {
-  res.json({ configs: EVALUABLE_INDEXES });
+// ── API: Server status ──────────────────────────────────────────
+app.get('/api/status', (req, res) => {
+  res.json({
+    fatjar: ANSERINI_JAR ? path.basename(ANSERINI_JAR) : null,
+    javaAvailable: true, // if we got here, java works
+  });
 });
 
-// API: Run evaluation
-app.get('/api/evaluate', async (req, res) => {
-  const { index, metric } = req.query;
-  
-  if (!index || !metric) {
-    return res.status(400).json({ error: 'Missing index or metric parameter' });
-  }
-  
-  const config = EVALUABLE_INDEXES[index];
-  if (!config) {
-    return res.status(400).json({ error: `Index "${index}" is not configured for evaluation. Only evaluable indexes can be evaluated.` });
-  }
-  
-  const metricObj = config.metrics.find(m => m.id === metric);
-  if (!metricObj) {
-    return res.status(400).json({ error: `Unsupported metric "${metric}" for index "${index}"` });
-  }
-  
-  const timestamp = Date.now();
-  const runFile = path.join(os.tmpdir(), `run.${index}.${timestamp}.txt`);
-  
+// ── API: Catalog of prebuilt inverted indexes ───────────────────
+app.get('/api/catalog', async (req, res) => {
   try {
-    // Step 1: Run retrieval
-    const searchStart = Date.now();
+    const { stdout } = await javaCmd([
+      'io.anserini.cli.PrebuiltIndexRegistry',
+      '--type', 'inverted',
+      '--list',
+    ]);
+    const indexes = JSON.parse(stdout);
+    const enriched = indexes.map(idx => {
+      const evalConfig = EVALUABLE_INDEXES[idx.name];
+      return {
+        name: idx.name,
+        type: idx.type,
+        description: idx.description,
+        documents: idx.documents || null,
+        evaluable: !!evalConfig,
+        evalConfig: evalConfig || null,
+      };
+    });
+    res.json({ indexes: enriched });
+  } catch (e) {
+    const msg = (e.stderr || '') + (e.error ? e.error.message : '');
+    res.status(500).json({ error: 'Failed to list indexes: ' + msg });
+  }
+});
+
+// ── API: Run evaluation ─────────────────────────────────────────
+app.post('/api/evaluate', async (req, res) => {
+  const { indexName, metricFlag, metricKey, metricLabel } = req.body;
+  const config = EVALUABLE_INDEXES[indexName];
+  if (!config) {
+    return res.status(400).json({ error: `Index "${indexName}" is not evaluable in this application.` });
+  }
+  if (!metricFlag || !metricKey) {
+    return res.status(400).json({ error: 'Metric not specified.' });
+  }
+
+  const runFile = path.join(os.tmpdir(), `run.${indexName}.bm25.${Date.now()}.txt`);
+  const startTime = Date.now();
+
+  try {
+    // Step 1: Retrieval
     const searchArgs = [
       'io.anserini.search.SearchCollection',
       '-threads', '1',
-      '-index', index,
+      '-index', config.index,
       '-topics', config.topics,
       '-output', runFile,
+      '-hits', '1000',
+      '-bm25',
     ];
-    // Add model-specific args
-    for (const [key, val] of Object.entries(config.searchArgs)) {
-      searchArgs.push(key);
-      if (val !== true) searchArgs.push(String(val));
-    }
-    
-    await runAnserini(searchArgs);
-    const searchTime = Date.now() - searchStart;
-    
-    // Step 2: Read run file stats
-    const runContent = fs.readFileSync(runFile, 'utf-8');
-    const runLines = runContent.trim().split('\n');
-    
-    // Step 3: Run evaluation
-    const evalStart = Date.now();
+    const searchResult = await javaCmd(searchArgs, { timeout: 600 });
+
+    // Step 2: Evaluation
     const evalArgs = [
       'io.anserini.eval.TrecEval',
       '-c',
-      '-m', metric,
+      ...metricFlag.split(' '),
       config.qrels,
-      runFile
+      runFile,
     ];
-    
-    const evalOutput = await runAnserini(evalArgs);
-    const evalTime = Date.now() - evalStart;
-    
-    // Parse eval output
-    const evalLines = evalOutput.trim().split('\n');
-    const scoreMatch = evalLines[evalLines.length - 1].match(/^(\S+)\s+(\S+)\s+([\d.]+)$/);
-    const score = scoreMatch ? parseFloat(scoreMatch[3]) : null;
-    const metricId = scoreMatch ? scoreMatch[1] : metric;
-    
+    const evalResult = await javaCmd(evalArgs, { timeout: 120 });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Parse the evaluation score
+    const evalOutput = evalResult.stdout.trim();
+    const lines = evalOutput.split('\n');
+    let score = null;
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 3 && parts[0] === metricKey && parts[1] === 'all') {
+        score = parseFloat(parts[2]);
+      }
+    }
+
+    // Read first few lines of run file for preview
+    let runPreview = '';
+    try {
+      const content = fs.readFileSync(runFile, 'utf-8');
+      const previewLines = content.split('\n').slice(0, 20);
+      runPreview = previewLines.join('\n');
+    } catch (_) { /* ignore */ }
+
     res.json({
       success: true,
-      index,
+      score,
+      metric: metricLabel,
+      metricKey,
+      index: config.index,
       topics: config.topics,
       qrels: config.qrels,
-      metric: metricId,
-      metricLabel: metricObj.label,
-      score,
-      searchTimeMs: searchTime,
-      evalTimeMs: evalTime,
-      runFile,
-      runLines: runLines.length,
-      evalOutput: evalOutput.trim(),
-      runPreview: runLines.slice(0, 10).join('\n')
+      elapsedSeconds: elapsed,
+      runFilePath: runFile,
+      evalOutput,
+      runPreview,
+      searchLog: searchResult.stderr,
     });
-  } catch (err) {
+  } catch (e) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const stderr = e.stderr || '';
+    const errorMsg = e.error ? e.error.message : String(e);
     res.status(500).json({
       success: false,
-      index,
-      topics: config.topics,
-      qrels: config.qrels,
-      metric,
-      metricLabel: metricObj.label,
-      error: err.message,
-      runFile: fs.existsSync(runFile) ? runFile : null
+      error: errorMsg,
+      stderr,
+      elapsedSeconds: elapsed,
+      runFilePath: runFile,
     });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Anserini Evaluator running at http://localhost:${PORT}`);
+// ── Start server ────────────────────────────────────────────────
+const server = app.listen(PORT, () => {
+  console.log(`Anserini Prebuilt Index Evaluator running at http://localhost:${PORT}`);
   if (ANSERINI_JAR) {
-    console.log(`Using Anserini jar: ${ANSERINI_JAR}`);
+    console.log(`Using fatjar: ${path.basename(ANSERINI_JAR)}`);
   } else {
-    console.warn('WARNING: No Anserini fatjar found. Set ANSERINI_JAR or place fatjar in project directory.');
+    console.warn('WARNING: No Anserini fatjar found. Place anserini-*-fatjar.jar in the project root.');
   }
 });
 
-module.exports = app;
+// Graceful shutdown
+process.on('SIGTERM', () => server.close());
+process.on('SIGINT', () => server.close());
+
+module.exports = { app, server };

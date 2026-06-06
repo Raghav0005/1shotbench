@@ -1,0 +1,22 @@
+[
+  { "id": 1, "query": "what is a lobster roll" },
+  { "id": 2, "query": "define gravitational force" },
+  { "id": 3, "query": "what is the difference between a 401k and an ira" },
+  { "id": 4, "query": "what is the definition of a civil right" },
+  { "id": 5, "query": "what is the difference between a hurricane and a typhoon" },
+  { "id": 6, "query": "what is the average cost of a wedding" },
+  { "id": 7, "query": "what is the definition of socialism" },
+  { "id": 8, "query": "what does a neurologist do" },
+  { "id": 9, "query": "what is the most spoken language in the world" },
+  { "id": 10, "query": "what is the definition of a noun" },
+  { "id": 11, "query": "what is the difference between weather and climate" },
+  { "id": 12, "query": "what does a chiropractor do" },
+  { "id": 13, "query": "what is the definition of a pronoun" },
+  { "id": 14, "query": "what is the difference between a crocodile and an alligator" },
+  { "id": 15, "query": "what is the capital of france" },
+  { "id": 16, "query": "what is the definition of a verb" },
+  { "id": 17, "query": "what is the difference between a recession and a depression" },
+  { "id": 18, "query": "what does a physical therapist do" },
+  { "id": 19, "query": "what is the definition of democracy" },
+  { "id": 20, "query": "what is the difference between a virus and a bacteria" }
+]

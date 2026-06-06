@@ -46,6 +46,16 @@ When a web eval result looks wrong, inspect artifacts before changing code:
 
 If an implementation appears broken, report that directly. If the implementation works manually but the judge reports failure, fix the harness only at the general mechanism that caused the false negative.
 
+For screenshot-only comparison runs, do not treat a generic capture script's
+`not_runnable` result as final. Inspect the app log and workspace files first,
+then try the documented README/package/manual startup path where reasonable.
+Common fair runtime fixes include setting documented environment variables such
+as `PORT`, `HOST`, `DATA_DIR`, or `ANSERINI_JAR`, running package/module entry
+points from the correct working directory, and installing declared dependencies.
+Record these as runtime setup choices, not code fixes. Only mark a workspace as
+failed after the documented/manual route also fails or the workspace lacks an
+app implementation to run.
+
 ## Screenshot and Visual Artifacts
 
 When producing screenshots for comparison, reports, or user-facing artifacts, make the source captures sharp enough before composing them. Prefer real PNG captures from a browser/runtime that can control viewport and device scale; avoid relying on screenshot APIs that silently return JPEG-compressed image data.

@@ -1,0 +1,226 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] find
+
+[tool end] find: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Implemented the PRD.
+
+Key files:
+- `server.js` — Express app using real Anserini CLI commands only.
+- `public/` — browser dashboard UI.
+- `tests/anserini-evaluation.spec.js` — Playwright e2e test that runs CACM retrieval/evaluation and verifies generated artifacts.
+- `scripts/setup-anserini.sh` — downloads/finds Anserini fatjar.
+- `scripts/smoke-anserini.sh` — CACM CLI smoke test.
+- `README.md` — usage instructions.
+
+Verified:
+- Downloaded Anserini fatjar: `.anserini/anserini-2.1.1-fatjar.jar`
+- Ran Anserini CACM smoke test successfully.
+- Ran Playwright e2e successfully.
+
+Commands passing:
+```bash
+npm run smoke:anserini
+npm test
+```
+
+Run the app:
+```bash
+npm start
+```
+Then open `http://localhost:3000`.

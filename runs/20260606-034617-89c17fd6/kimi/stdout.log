@@ -1,0 +1,293 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] ls
+
+[tool end] ls: ok
+Done. Here's what was built in `/Users/lily/dev/pi-bench/experiments/evaluator/kimi-workspace`:
+
+**Application structure**
+- `server.js` — Express backend that drives Anserini CLI commands (`PrebuiltIndexRegistry`, `TopicsRegistry`, `ReproduceFromPrebuiltIndexes`, `SearchCollection`, `TrecEval`) with no mocked data.
+- `public/index.html`, `public/style.css`, `public/app.js` — Browser UI with searchable catalog, evaluable-vs-catalog-only badges, topic/qrels pairing, metric selector, and evaluation results with artifact paths.
+- `tests/e2e.spec.js` — Playwright end-to-end test.
+- `playwright.config.js` — Playwright config with local web server setup.
+- `package.json` — Dependencies (`express`, `cors`, `@playwright/test`).
+
+**Key behaviors**
+- Catalog loads 272 prebuilt indexes from `PrebuiltIndexRegistry --list`.
+- Evaluable mappings are parsed live from `ReproduceFromPrebuiltIndexes` reproduction configs.
+- CACM is preselected by default and works end-to-end.
+- Metrics include `nDCG@10`, `Recall@1000` (and `R@1K`), `MAP`, `P30`, `MRR@10`, etc., when the dataset supports them.
+- Run files and evaluation outputs are written to `./runs/` and surfaced in the UI.
+
+**Run it**
+```bash
+npm install
+npm start        # http://localhost:3000
+npm run test:e2e # Playwright test
+```
+
+**Test result**
+```
+✓  1 [chromium] › tests/e2e.spec.js:4:3 › should load, show catalog, and run CACM evaluation
+```
+
+The Playwright test validates real registry-derived catalog data, real CACM retrieval/evaluation, numeric score appearance, run metadata, artifact paths, and the presence of catalog-only indexes.

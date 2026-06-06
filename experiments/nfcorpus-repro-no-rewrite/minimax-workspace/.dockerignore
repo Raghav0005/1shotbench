@@ -1,0 +1,24 @@
+# Files that should never end up in the Docker image.
+.git
+.gitignore
+.github
+.cache
+node_modules
+**/node_modules
+**/logs
+**/*.log
+**/run*.txt
+**/eval*.txt
+tests
+**/__pycache__
+**/.DS_Store
+**/Thumbs.db
+PRD.md
+bench.toml
+**/data
+**/cache
+README.md
+.dockerignore
+Dockerfile
+docker-compose.yml
+render.yaml

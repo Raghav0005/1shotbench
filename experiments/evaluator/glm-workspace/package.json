@@ -1,9 +1,15 @@
 {
-  "name": "anserini-evaluator",
+  "name": "anserini-prebuilt-evaluator",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "start": "node server.js",
     "test": "npx playwright test"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
   }
 }

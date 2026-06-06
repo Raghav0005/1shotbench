@@ -1,37 +1,12 @@
-# Python
+# Local caches and generated artifacts.
+data/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# Virtual environments
+*.pyc
+.venv/
 venv/
-env/
-.env
-
-# Logs
-*.log
-logs/
-
-# Generated artifacts
-runs/
-cache/
-*.txt
-*.json
-
-# Java
-*.jar
-
-# Node (for any future frontend deps)
-node_modules/
-.next/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Testing
 .pytest_cache/
-playwright-report/
-test-results/
+.mypy_cache/
+.DS_Store
+e2e/.pytest_cache/
+e2e/__pycache__/
+*.log

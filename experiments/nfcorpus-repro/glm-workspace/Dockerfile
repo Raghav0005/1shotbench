@@ -1,25 +1,33 @@
-FROM eclipse-temurin:21-jdk AS base
+# NFCorpus Live Retrieval Diagnostics Workbench
+# Render-compatible Docker web service
+FROM eclipse-temurin:21-jdk
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install Python and pip
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip python3-venv curl && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /opt/workbench
 
-COPY app/requirements.txt .
+# Copy requirements and install Python deps
+COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-COPY app/ .
-COPY run.sh .
-RUN chmod +x run.sh
+# Copy application
+COPY app/ ./app/
 
-ENV PORT=10000
+# Runtime data directory
+RUN mkdir -p /opt/workbench/data
+
+# Environment
+ENV WORKBENCH_HOME=/opt/workbench
 ENV ANSERINI_VERSION=2.1.1
-ENV DATA_DIR=/app/data
-ENV CACHE_DIR=/app/data/cache
-
-RUN mkdir -p ${DATA_DIR} ${CACHE_DIR}
-
+ENV PORT=10000
 EXPOSE ${PORT}
 
-CMD ["./run.sh"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+  CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Start the application
+CMD ["python3", "app/server.py"]

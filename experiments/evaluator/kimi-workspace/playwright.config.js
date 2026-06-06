@@ -1,17 +1,16 @@
-// @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
-  testDir: './tests',
-  fullyParallel: true,
+  testDir: 'tests',
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'list',
-  timeout: 120000,
   use: {
-    baseURL: 'http://127.0.0.1:5000',
+    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
+    headless: true,
   },
   projects: [
     {
@@ -20,9 +19,9 @@ module.exports = defineConfig({
     },
   ],
   webServer: {
-    command: 'python3 app.py',
-    url: 'http://127.0.0.1:5000',
+    command: 'node server.js',
+    url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    timeout: 120 * 1000,
   },
 });

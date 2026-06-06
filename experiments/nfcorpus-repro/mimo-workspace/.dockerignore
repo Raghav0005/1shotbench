@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.env
+node_modules
+tests/
+*.md
+!README.md
+data/

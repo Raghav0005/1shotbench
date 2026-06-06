@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anserini Prebuilt Index Evaluator</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #f5f7fa; color: #1a1a1a; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  h1 { margin: 0 0 8px; font-size: 24px; }
+  .subtitle { color: #666; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .panel h2 { margin: 0 0 12px; font-size: 18px; }
+  .search-box { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+  .index-list { max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+  .index-item { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; align-items: flex-start; gap: 10px; }
+  .index-item:last-child { border-bottom: none; }
+  .index-item:hover { background: #f9fafb; }
+  .index-item.selected { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  .index-item.catalog-only { opacity: 0.7; }
+  .index-item.catalog-only .badge { background: #e5e7eb; color: #374151; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; white-space: nowrap; }
+  .index-name { font-weight: 600; font-size: 14px; }
+  .index-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .index-meta { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .control-group { margin-bottom: 16px; }
+  .control-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+  select, button { width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+  select { border: 1px solid #d1d5db; background: #fff; }
+  button { border: none; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #93c5fd; cursor: not-allowed; }
+  .secondary-btn { background: #f3f4f6; color: #1f2937; border: 1px solid #d1d5db; margin-top: 8px; }
+  .result-box { margin-top: 16px; padding: 16px; border-radius: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .result-box.error { background: #fef2f2; border-color: #fecaca; }
+  .result-box.pending { background: #fffbeb; border-color: #fde68a; }
+  .score { font-size: 32px; font-weight: 700; color: #166534; }
+  .result-box.error .score { color: #991b1b; }
+  .meta { font-size: 12px; color: #4b5563; margin-top: 8px; }
+  .meta pre { background: #f9fafb; padding: 8px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  .status { font-size: 12px; font-weight: 600; margin-top: 4px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .health { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+  .health.ok { color: #166534; }
+  .health.fail { color: #991b1b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Anserini Prebuilt Index Evaluator</h1>
+  <div class="subtitle">Browse prebuilt Lucene inverted indexes and run reproducible retrieval evaluations.</div>
+  <div id="health" class="health">Checking Anserini jar…</div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Index Catalog</h2>
+      <input id="search" class="search-box" type="text" placeholder="Search indexes by name or description…" autocomplete="off">
+      <div id="indexList" class="index-list">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Evaluation</h2>
+      <div id="evalPanel">
+        <div class="control-group">
+          <label>Selected Index</label>
+          <div id="selectedIndex" style="padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:14px;">None</div>
+        </div>
+        <div class="control-group">
+          <label>Topic Set</label>
+          <select id="topicSelect"><option value="">Select an evaluable index first</option></select>
+        </div>
+        <div class="control-group">
+          <label>Metric</label>
+          <select id="metricSelect"><option value="">Select a topic first</option></select>
+        </div>
+        <button id="runBtn" disabled>Run Evaluation</button>
+        <div id="resultBox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let indexes = [];
+  let pairings = [];
+  let selectedIndex = null;
+  let currentRunId = null;
+  let pollInterval = null;
+
+  async function loadHealth() {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      const el = document.getElementById('health');
+      if (data.jar_exists) {
+        el.textContent = `Anserini jar ready: ${data.jar}`;
+        el.className = 'health ok';
+      } else {
+        el.textContent = `Anserini jar missing: ${data.jar}`;
+        el.className = 'health fail';
+      }
+    } catch (e) {
+      document.getElementById('health').textContent = 'Health check failed: ' + e.message;
+      document.getElementById('health').className = 'health fail';
+    }
+  }
+
+  async function loadIndexes() {
+    const res = await fetch('/api/indexes');
+    indexes = await res.json();
+    renderIndexes();
+    // Default to CACM if available
+    const cacm = indexes.find(i => i.name === 'cacm');
+    if (cacm) selectIndex(cacm.name);
+  }
+
+  function renderIndexes() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const list = document.getElementById('indexList');
+    const filtered = indexes.filter(i =>
+      i.name.toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q)
+    );
+    if (!filtered.length) {
+      list.innerHTML = '<div style="padding:12px;color:#6b7280;font-size:13px;">No indexes found.</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(i => {
+      const cls = ['index-item', i.name === selectedIndex ? 'selected' : '', i.evaluable ? '' : 'catalog-only'].join(' ');
+      const badge = i.evaluable ? '<span class="badge">Evaluable</span>' : '<span class="badge">Catalog only</span>';
+      return `<div class="${cls}" data-name="${escapeHtml(i.name)}" onclick="selectIndex('${escapeHtml(i.name)}')">
+        <div style="flex:1">
+          <div class="index-name">${escapeHtml(i.name)} ${badge}</div>
+          <div class="index-desc">${escapeHtml(i.description || '')}</div>
+          <div class="index-meta">Docs: ${i.documents != null ? i.documents.toLocaleString() : 'N/A'} | Size: ${i.size != null ? formatBytes(i.size) : 'N/A'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function selectIndex(name) {
+    selectedIndex = name;
+    renderIndexes();
+    const idx = indexes.find(i => i.name === name);
+    document.getElementById('selectedIndex').textContent = idx ? idx.name : 'None';
+    document.getElementById('topicSelect').innerHTML = '<option value="">Loading…</option>';
+    document.getElementById('metricSelect').innerHTML = '<option value="">Select a topic first</option>';
+    document.getElementById('runBtn').disabled = true;
+    pairings = [];
+    if (!idx || !idx.evaluable) {
+      document.getElementById('topicSelect').innerHTML = '<option value="">No automatically discovered topics/qrels for this index</option>';
+      return;
+    }
+    try {
+      const res = await fetch('/api/pairings/' + encodeURIComponent(name));
+      pairings = await res.json();
+    } catch (e) {
+      document.getElementById('topicSelect').innerHTML = '<option value="">Error loading pairings</option>';
+      return;
+    }
+    if (!pairings.length) {
+      document.getElementById('topicSelect').innerHTML = '<option value="">No pairings found</option>';
+      return;
+    }
+    // Deduplicate topics by topic_key, prefer first condition
+    const seen = new Set();
+    const unique = [];
+    for (const p of pairings) {
+      if (!seen.has(p.topic_key)) {
+        seen.add(p.topic_key);
+        unique.push(p);
+      }
+    }
+    document.getElementById('topicSelect').innerHTML =
+      unique.map((p, i) => `<option value="${i}">${escapeHtml(p.topic_key)} (qrels: ${escapeHtml(p.eval_key)})</option>`).join('');
+    if (unique.length > 0) {
+      document.getElementById('topicSelect').value = "0";
+    }
+    onTopicChange();
+  }
+
+  function onTopicChange() {
+    const sel = document.getElementById('topicSelect');
+    const idx = parseInt(sel.value, 10);
+    const metricSelect = document.getElementById('metricSelect');
+    if (isNaN(idx)) {
+      metricSelect.innerHTML = '<option value="">Select a topic first</option>';
+      document.getElementById('runBtn').disabled = true;
+      return;
+    }
+    const p = pairings[idx];
+    const metrics = Object.entries(p.metrics);
+    // Prefer nDCG@10 or Recall@1000 when available
+    metrics.sort((a, b) => {
+      const order = { 'nDCG@10': 0, 'Recall@1000': 1, 'R@1K': 1, 'MAP': 2, 'P30': 3, 'P.30': 3 };
+      return (order[a[0]] ?? 99) - (order[b[0]] ?? 99);
+    });
+    metricSelect.innerHTML = metrics.map(([name, args], i) =>
+      `<option value="${escapeHtml(args)}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+    ).join('');
+    document.getElementById('runBtn').disabled = false;
+  }
+
+  async function runEvaluation() {
+    const topicSel = document.getElementById('topicSelect');
+    const metricSel = document.getElementById('metricSelect');
+    const pIndex = parseInt(topicSel.value, 10);
+    if (isNaN(pIndex)) return;
+    const p = pairings[pIndex];
+    const metricArgs = metricSel.value;
+    const metricName = metricSel.options[metricSel.selectedIndex].dataset.name;
+
+    document.getElementById('runBtn').disabled = true;
+    document.getElementById('resultBox').innerHTML = '<div class="result-box pending"><span class="spinner"></span>Running retrieval and evaluation…</div>';
+
+    try {
+      const res = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          index: selectedIndex,
+          topic_key: p.topic_key,
+          eval_key: p.eval_key,
+          metric: metricName,
+          metric_args: metricArgs
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      currentRunId = data.run_id;
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(pollRun, 800);
+    } catch (e) {
+      document.getElementById('resultBox').innerHTML = '<div class="result-box error"><div class="score">Error</div><div class="meta">' + escapeHtml(e.message) + '</div></div>';
+      document.getElementById('runBtn').disabled = false;
+    }
+  }
+
+  async function pollRun() {
+    if (!currentRunId) return;
+    const res = await fetch('/api/run/' + encodeURIComponent(currentRunId));
+    const run = await res.json();
+    if (run.error && !run.status) {
+      document.getElementById('resultBox').innerHTML = '<div class="result-box error"><div class="score">Error</div><div class="meta">' + escapeHtml(run.error) + '</div></div>';
+      clearInterval(pollInterval);
+      document.getElementById('runBtn').disabled = false;
+      return;
+    }
+    if (run.status === 'running') {
+      document.getElementById('resultBox').innerHTML = '<div class="result-box pending"><span class="spinner"></span>Running… (' + run.elapsed_ms + ' ms elapsed)</div>';
+      return;
+    }
+    clearInterval(pollInterval);
+    document.getElementById('runBtn').disabled = false;
+    if (run.status === 'completed') {
+      document.getElementById('resultBox').innerHTML =
+        '<div class="result-box">' +
+        '<div class="score">' + (run.score != null ? run.score.toFixed(4) : 'N/A') + '</div>' +
+        '<div class="status">Completed in ' + run.elapsed_ms + ' ms</div>' +
+        '<div class="meta">' +
+        '<div><strong>Index:</strong> ' + escapeHtml(run.index) + '</div>' +
+        '<div><strong>Topics:</strong> ' + escapeHtml(run.topic_key) + '</div>' +
+        '<div><strong>Qrels:</strong> ' + escapeHtml(run.eval_key) + '</div>' +
+        '<div><strong>Metric:</strong> ' + escapeHtml(run.metric) + '</div>' +
+        '<div><strong>Run file:</strong> ' + escapeHtml(run.run_file) + '</div>' +
+        '<div><strong>Eval file:</strong> ' + escapeHtml(run.eval_file) + '</div>' +
+        '<pre>' + escapeHtml(run.eval_output || '') + '</pre>' +
+        '</div></div>';
+    } else {
+      document.getElementById('resultBox').innerHTML =
+        '<div class="result-box error"><div class="score">Failed</div>' +
+        '<div class="meta">' + escapeHtml(run.error || 'Unknown error') + '</div></div>';
+    }
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatBytes(b) {
+    if (b === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  document.getElementById('search').addEventListener('input', renderIndexes);
+  document.getElementById('topicSelect').addEventListener('change', onTopicChange);
+  document.getElementById('runBtn').addEventListener('click', runEvaluation);
+
+  loadHealth();
+  loadIndexes();
+</script>
+</body>
+</html>

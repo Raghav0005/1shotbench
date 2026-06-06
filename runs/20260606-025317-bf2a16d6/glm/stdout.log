@@ -1,0 +1,211 @@
+
+[tool start] read
+
+[tool end] read: ok
+I'll start by reading the relevant Anserini skill files to understand the setup and API.
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now I have a clear picture. Let me start implementing. First, let me check the workspace and install the Anserini fatjar.
+[tool start] ls
+
+[tool start] bash
+
+[tool end] ls: ok
+
+[tool end] bash: ok
+Good, Java 21 is available. Now let me download and verify the Anserini fatjar.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+Fatjar installed and verified. Now let me fetch the MS MARCO dev queries to embed as sample queries, then build the Next.js app.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I can see the topic format. Now let me extract sample queries and build the Next.js app. Let me parse the topics file to get a curated set.
+[tool start] bash
+
+[tool end] bash: ok
+Good. Now I have a clear picture of the data. Let me build the Next.js application. I'll create:
+1. A backend startup script
+2. A Next.js frontend with proper search functionality
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me create the application. First, let me copy the queries into the frontend and build the main page.
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+Now let me create the main page component and supporting files:
+[tool start] write
+
+[tool end] write: ok
+Now create the Next.js config to allow the backend API proxy:
+[tool start] write
+
+[tool end] write: ok
+Now let me write the main page with all the search functionality:
+[tool start] write
+
+[tool end] write: ok
+Now let me create the backend startup script:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now let me write a comprehensive README:
+[tool start] write
+
+[tool end] write: ok
+Now let me verify the Next.js app builds correctly:
+[tool start] bash
+
+[tool end] bash: ok
+The build succeeds. Now let me start the backend and do an end-to-end test:
+[tool start] bash
+
+[tool end] bash: ok
+The REST API is working. I see the response shape uses `candidates` array with objects that have `docid`, `score`, `rank`, and `doc` (as a string, not nested). Let me update the frontend code to match the actual API response format:
+[tool start] read
+
+[tool end] read: ok
+I need to update the `SearchResult` interface and the rendering to match the actual API response. The `doc` field is a string, not an object with `raw`:
+[tool start] edit
+
+[tool end] edit: ok
+Now rebuild to verify:
+[tool start] bash
+
+[tool end] bash: ok
+Build succeeds. Now let me do a quick end-to-end test with the frontend dev server:
+[tool start] bash
+
+[tool end] bash: ok
+Everything is working end-to-end. Let me clean up the test processes:
+[tool start] bash
+
+[tool end] bash: ok
+Let me clean up the temporary files:
+[tool start] bash
+
+[tool end] bash: ok
+Let me verify the final state of all files:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me do a final review of all the key files:
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+Everything looks good. Let me provide a summary of what was built:
+
+## Summary
+
+I've built the **MS MARCO Passage Search App** as specified in the PRD. Here's what was done:
+
+### 1. Anserini Fatjar Installation & Verification
+- Downloaded `anserini-2.1.1-fatjar.jar` from Maven Central
+- Verified with CACM smoke test: MAP=0.3123, P30=0.1942 ✓
+
+### 2. Backend (Anserini REST API)
+- **Startup script**: `start-backend.sh` — starts `io.anserini.api.RestServer` on port `8080` (overridable via `BACKEND_PORT`)
+- Serves the `msmarco-v1-passage` prebuilt index
+- Search endpoint: `GET /v1/msmarco-v1-passage/search?query=...&hits=...`
+
+### 3. Frontend (Next.js)
+- **Startup script**: `start-frontend.sh` — starts Next.js on port `3000` (overridable via `FRONTEND_PORT`)
+- **`next.config.ts`**: API proxy rewrite to the backend (respects `BACKEND_PORT`)
+- **`page.tsx`**: Client component with:
+  - Search input with submit button
+  - 10 random sample queries from the MS MARCO passage dev set (6,980 queries loaded, randomized on each page load)
+  - Clickable sample queries that auto-populate and execute search
+  - Ranked results display with rank number, doc ID, score, and passage text
+  - Error handling for empty queries, zero results, and backend connection failures
+- Built with TypeScript + Tailwind CSS
+
+### Files Created/Modified
+| File | Purpose |
+|---|---|
+| `anserini-2.1.1-fatjar.jar` | Anserini runtime |
+| `start-backend.sh` | Backend startup script |
+| `start-frontend.sh` | Frontend startup script |
+| `README.md` | Full documentation |
+| `frontend/next.config.ts` | API proxy config |
+| `frontend/src/app/page.tsx` | Main search UI |
+| `frontend/src/app/layout.tsx` | Root layout |
+| `frontend/src/app/sample_queries.json` | 6,980 MS MARCO dev queries |

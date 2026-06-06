@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFCorpus Diagnostics Workbench</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: #f4f6f8; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        .panel { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2, h3 { margin-top: 0; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .status-item { padding: 10px; border-radius: 4px; background: #e9ecef; font-weight: bold; }
+        .status-item.ok { background: #d4edda; color: #155724; }
+        .status-item.error { background: #f8d7da; color: #721c24; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 15px; border: none; background: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .samples { font-size: 0.9em; color: #666; margin-bottom: 20px; }
+        .samples span { color: #007bff; cursor: pointer; text-decoration: underline; margin-right: 10px; }
+        .result-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .result-item:last-child { border-bottom: none; }
+        .rank { font-weight: bold; color: #007bff; margin-right: 10px; }
+        .score { color: #28a745; font-size: 0.9em; margin-right: 10px; }
+        .docid { background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-right: 10px; }
+        .snippet { margin-top: 5px; font-size: 0.95em; color: #444; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; text-align: center; }
+        .metric-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .metric-value { font-size: 1.5em; font-weight: bold; margin-top: 5px; }
+        .drawer { background: #343a40; color: #f8f9fa; border-radius: 8px; padding: 20px; font-family: monospace; overflow-x: auto; white-space: pre-wrap; font-size: 0.9em; }
+        .drawer h3 { color: #17a2b8; margin-bottom: 10px; border-bottom: 1px solid #495057; padding-bottom: 5px; }
+        .cmd-section { margin-bottom: 20px; }
+        .cmd-line { background: #212529; padding: 8px; border-radius: 4px; margin: 5px 0; color: #e83e8c; }
+        .cmd-output { color: #adb5bd; padding-left: 10px; border-left: 2px solid #6c757d; margin-top: 5px; }
+        .hidden { display: none; }
+        .pass { color: #28a745; }
+        .fail { color: #dc3545; }
+        .close { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NFCorpus Diagnostics Workbench</h1>
+        
+        <div class="panel" id="readiness-panel">
+            <h2>System Readiness</h2>
+            <div class="status-grid" id="status-grid">
+                <div class="status-item">Loading...</div>
+            </div>
+        </div>
+
+        <div class="panel" id="search-panel">
+            <h2>Live NFCorpus Search</h2>
+            <div class="search-box">
+                <input type="text" id="query-input" placeholder="Enter query for NFCorpus...">
+                <button onclick="runSearch()">Search</button>
+            </div>
+            <div class="samples">
+                Samples: 
+                <span onclick="setQuery('breast cancer treatment')">breast cancer treatment</span>
+                <span onclick="setQuery('statin use after diagnosis')">statin use after diagnosis</span>
+                <span onclick="setQuery('dietary phytoconstituents')">dietary phytoconstituents</span>
+            </div>
+            <div id="search-results"></div>
+        </div>
+
+        <div class="panel" id="eval-panel">
+            <h2>BM25 Evaluation</h2>
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div>Expected nDCG@10</div>
+                    <div class="metric-value" id="eval-expected">-</div>
+                </div>
+                <div class="metric-box">
+                    <div>Observed nDCG@10</div>
+                    <div class="metric-value" id="eval-observed">-</div>
+                </div>
+                <div class="metric-box">
+                    <div>Delta</div>
+                    <div class="metric-value" id="eval-delta">-</div>
+                </div>
+                <div class="metric-box">
+                    <div>Status</div>
+                    <div class="metric-value" id="eval-status">-</div>
+                </div>
+            </div>
+            <div>
+                <button onclick="runEvaluation()">Verify / Rerun Evaluation</button>
+                <span id="eval-loading" class="hidden" style="margin-left: 10px;">Running...</span>
+            </div>
+        </div>
+
+        <div class="panel drawer" id="command-drawer">
+            <h2>Command & Artifact Drawer</h2>
+            <div id="drawer-content">Loading commands...</div>
+        </div>
+    </div>
+
+    <script>
+        let appState = {};
+
+        async function fetchHealth() {
+            try {
+                const res = await fetch('/health');
+                const data = await res.json();
+                appState = data;
+                renderStatus();
+                renderDrawer();
+                if (data.evaluationMetrics) {
+                    renderEval(data.evaluationMetrics);
+                }
+                
+                // Keep polling if starting
+                if (data.app === 'starting') {
+                    setTimeout(fetchHealth, 2000);
+                }
+            } catch (err) {
+                document.getElementById('status-grid').innerHTML = '<div class="status-item error">Backend disconnected</div>';
+            }
+        }
+
+        function renderStatus() {
+            const grid = document.getElementById('status-grid');
+            grid.innerHTML = `
+                <div class="status-item ${appState.java ? 'ok' : 'error'}">Java 21: ${appState.java ? 'OK' : 'Fail'}</div>
+                <div class="status-item ${appState.anserini ? 'ok' : 'error'}">Fatjar: ${appState.anserini ? 'OK' : 'Fail'}</div>
+                <div class="status-item ${appState.nfcorpusIndex ? 'ok' : 'error'}">NFCorpus Index: ${appState.nfcorpusIndex ? 'Ready' : 'Not Found'}</div>
+                <div class="status-item ${appState.reproductionDiscovery ? 'ok' : 'error'}">Repro Discovery: ${appState.reproductionDiscovery ? 'OK' : 'Fail'}</div>
+                <div class="status-item ${appState.search ? 'ok' : 'error'}">Search Ready: ${appState.search ? 'Yes' : 'No'}</div>
+            `;
+            
+            if (appState.expectedMetrics) {
+                document.getElementById('eval-expected').innerText = appState.expectedMetrics['nDCG@10'] || '-';
+            }
+            if (!appState.evaluationMetrics && appState.search && !appState.evalRunning) {
+                appState.evalRunning = true;
+                runEvaluation();
+            }
+        }
+
+        function renderDrawer() {
+            const drawer = document.getElementById('drawer-content');
+            let html = '';
+            for (const [key, val] of Object.entries(appState.commands || {})) {
+                html += `
+                    <div class="cmd-section">
+                        <h3>${key}</h3>
+                        <div class="cmd-line">${val.command}</div>
+                        <div class="cmd-output">${escapeHtml(val.output || '')}</div>
+                    </div>
+                `;
+            }
+            if (appState.evaluationMetrics && appState.evaluationMetrics.commands) {
+                html += `
+                    <div class="cmd-section">
+                        <h3>SearchCollection</h3>
+                        <div class="cmd-line">${appState.evaluationMetrics.commands.search}</div>
+                    </div>
+                    <div class="cmd-section">
+                        <h3>TrecEval</h3>
+                        <div class="cmd-line">${appState.evaluationMetrics.commands.eval}</div>
+                        <div class="cmd-output">${escapeHtml(appState.evaluationMetrics.evalOutput || '')}</div>
+                        <div class="cmd-output">Artifact Path: ${appState.evaluationMetrics.artifact}</div>
+                    </div>
+                `;
+            }
+            drawer.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+        }
+
+        function setQuery(q) {
+            document.getElementById('query-input').value = q;
+            runSearch();
+        }
+
+        async function runSearch() {
+            const query = document.getElementById('query-input').value;
+            if (!query) return;
+            const resDiv = document.getElementById('search-results');
+            resDiv.innerHTML = 'Searching...';
+            
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+                
+                appState.commands = appState.commands || {};
+                appState.commands.lastSearch = {
+                    command: data.command,
+                    output: `Found ${data.hits ? data.hits.length : 0} results in ${data.time}ms`
+                };
+                renderDrawer();
+
+                if (data.error) {
+                    resDiv.innerHTML = `<div style="color:red">Error: ${escapeHtml(data.error)}</div>`;
+                    return;
+                }
+
+                if (!data.hits || data.hits.length === 0) {
+                    resDiv.innerHTML = '<div>No results found.</div>';
+                    return;
+                }
+
+                let html = '';
+                data.hits.forEach((hit, idx) => {
+                    let title = hit.doc && hit.doc.title ? hit.doc.title : '';
+                    let text = hit.doc && hit.doc.text ? hit.doc.text : '';
+                    if (!text && hit.doc && hit.doc.contents) {
+                        text = hit.doc.contents;
+                    }
+                    html += `
+                        <div class="result-item">
+                            <div>
+                                <span class="rank">#${idx + 1}</span>
+                                <span class="docid">${hit.docid}</span>
+                                <span class="score">Score: ${hit.score.toFixed(4)}</span>
+                            </div>
+                            <div style="font-weight:bold; margin-top:5px;">${title}</div>
+                            <div class="snippet">${text.substring(0, 300)}...</div>
+                        </div>
+                    `;
+                });
+                resDiv.innerHTML = html;
+            } catch (err) {
+                resDiv.innerHTML = `<div style="color:red">Network error</div>`;
+            }
+        }
+
+        async function runEvaluation() {
+            document.getElementById('eval-loading').classList.remove('hidden');
+            try {
+                const res = await fetch('/api/evaluate', { method: 'POST' });
+                const data = await res.json();
+                appState.evaluationMetrics = data;
+                renderEval(data);
+                renderDrawer();
+            } catch (err) {
+                console.error(err);
+            } finally {
+                document.getElementById('eval-loading').classList.add('hidden');
+            }
+        }
+
+        function renderEval(data) {
+            document.getElementById('eval-observed').innerText = data.observedMetric ? data.observedMetric.toFixed(4) : '-';
+            
+            const deltaEl = document.getElementById('eval-delta');
+            const statusEl = document.getElementById('eval-status');
+            
+            if (data.delta !== null && data.delta !== undefined) {
+                const diff = Math.abs(data.delta);
+                let isPass = false;
+                let isClose = false;
+                
+                if (diff < 0.0001) isPass = true;
+                else if (diff < 0.01) isClose = true;
+
+                deltaEl.innerText = (data.delta > 0 ? '+' : '') + data.delta.toFixed(4);
+                
+                if (isPass) {
+                    statusEl.innerText = 'PASS';
+                    statusEl.className = 'metric-value pass';
+                    deltaEl.className = 'metric-value pass';
+                } else if (isClose) {
+                    statusEl.innerText = 'CLOSE';
+                    statusEl.className = 'metric-value close';
+                    deltaEl.className = 'metric-value close';
+                } else {
+                    statusEl.innerText = 'FAIL';
+                    statusEl.className = 'metric-value fail';
+                    deltaEl.className = 'metric-value fail';
+                }
+            }
+        }
+
+        fetchHealth();
+    </script>
+</body>
+</html>

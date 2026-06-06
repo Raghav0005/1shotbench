@@ -1,73 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Anserini Prebuilt Index Evaluator</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main class="shell">
     <header class="hero">
       <div>
-        <p class="eyebrow">Local Anserini fatjar workflow</p>
+        <p class="eyebrow">Local Anserini CLI dashboard</p>
         <h1>Anserini Prebuilt Index Evaluator</h1>
-        <p>Browse the registry-derived Lucene inverted-index catalog and run a real CACM retrieval evaluation.</p>
+        <p>Browse prebuilt Lucene inverted indexes from Anserini's registry and run real retrieval/evaluation workflows.</p>
       </div>
-      <div id="health" class="status-pill">Checking Java and fatjar…</div>
+      <div id="environment" class="env-card" aria-live="polite">Checking Java and fatjar…</div>
     </header>
 
-    <section id="error" class="error" hidden></section>
+    <section id="errorPanel" class="error hidden" role="alert"></section>
 
     <section class="grid">
-      <aside class="panel catalog-panel">
-        <div class="panel-head">
+      <div class="panel catalog-panel">
+        <div class="panel-header">
           <div>
-            <h2>Index catalog</h2>
-            <p id="catalogSummary">Loading PrebuiltIndexRegistry…</p>
+            <h2>Prebuilt inverted-index catalog</h2>
+            <p id="catalogSummary">Loading registry…</p>
           </div>
           <button id="refreshCatalog" type="button">Refresh</button>
         </div>
-        <label class="search-label" for="filter">Filter indexes</label>
-        <input id="filter" type="search" placeholder="Try cacm, msmarco, beir…" />
-        <div id="catalogSource" class="source-note"></div>
-        <ul id="indexList" class="index-list" aria-label="Prebuilt inverted indexes"></ul>
-      </aside>
+        <label class="filter-label" for="filterInput">Search or filter indexes</label>
+        <input id="filterInput" type="search" placeholder="e.g., cacm, msmarco, beir" autocomplete="off">
+        <div class="table-wrap">
+          <table aria-label="Anserini prebuilt inverted index catalog">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Documents</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="catalogRows"></tbody>
+          </table>
+        </div>
+      </div>
 
-      <section class="panel evaluator-panel">
-        <h2>Evaluation</h2>
-        <div id="selection" class="selection-card">
-          <p>Loading CACM pairing…</p>
+      <div class="panel workflow-panel">
+        <h2>Evaluation workflow</h2>
+        <div id="selectedIndex" class="selected-card">Select an evaluable index.</div>
+
+        <div class="field-row">
+          <label for="metricSelect">Metric</label>
+          <select id="metricSelect"></select>
         </div>
 
-        <form id="evalForm" class="eval-form">
-          <label for="metric">Metric</label>
-          <select id="metric" name="metric"></select>
-          <button id="runButton" type="submit">Run Evaluation</button>
-        </form>
+        <button id="runButton" class="primary" type="button" disabled>Run Evaluation</button>
+        <div id="status" class="status" aria-live="polite">Waiting for catalog.</div>
 
-        <div id="runStatus" class="run-status idle">Ready</div>
-
-        <section id="result" class="result" hidden>
-          <div class="score-card">
-            <span>Score</span>
-            <strong id="score"></strong>
-          </div>
+        <section id="resultPanel" class="result hidden" aria-live="polite">
+          <h3>Evaluation result</h3>
+          <div class="score-line"><span id="scoreValue">—</span><span id="scoreMetric"></span></div>
           <dl class="metadata">
-            <dt>Index</dt><dd id="metaIndex"></dd>
-            <dt>Topics</dt><dd id="metaTopics"></dd>
-            <dt>Qrels / eval source</dt><dd id="metaQrels"></dd>
-            <dt>Metric</dt><dd id="metaMetric"></dd>
-            <dt>Elapsed</dt><dd id="metaElapsed"></dd>
-            <dt>Run file</dt><dd><code id="metaRunFile"></code></dd>
-            <dt>Evaluation output</dt><dd><code id="metaEvalFile"></code></dd>
+            <div><dt>Index</dt><dd id="metaIndex"></dd></div>
+            <div><dt>Topics</dt><dd id="metaTopics"></dd></div>
+            <div><dt>Qrels / eval source</dt><dd id="metaQrels"></dd></div>
+            <div><dt>Metric</dt><dd id="metaMetric"></dd></div>
+            <div><dt>Status</dt><dd id="metaStatus"></dd></div>
+            <div><dt>Elapsed</dt><dd id="metaElapsed"></dd></div>
+            <div><dt>Run file</dt><dd><code id="metaRunFile"></code></dd></div>
+            <div><dt>Evaluation output</dt><dd><code id="metaEvalFile"></code></dd></div>
           </dl>
-          <h3>Evaluation output preview</h3>
-          <pre id="evalPreview"></pre>
-          <h3>Run file preview</h3>
-          <pre id="runPreview"></pre>
+          <details open>
+            <summary>Evaluation output preview</summary>
+            <pre id="evalPreview"></pre>
+          </details>
         </section>
-      </section>
+      </div>
     </section>
   </main>
   <script src="/app.js"></script>

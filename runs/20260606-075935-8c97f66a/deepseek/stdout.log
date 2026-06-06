@@ -1,0 +1,217 @@
+
+[tool start] read
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool end] read: ok
+Let me read the relevant skill docs first.
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now I have a clear picture. Let me start with Step 1: install the Anserini fatjar.
+[tool start] bash
+
+[tool end] bash: ok
+Java 21 is ready. Let me find and download the latest Anserini fatjar.
+[tool start] bash
+
+[tool end] bash: ok
+Latest is 2.1.1. Downloading the fatjar:
+[tool start] bash
+
+[tool end] bash: ok
+Fatjar downloaded. Let me run the CACM smoke test and get sample queries in parallel.
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+CACM search worked. Let me evaluate and get the dev topics:
+[tool start] bash
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool end] bash: ok
+Let me check the TopicsRegistry output more carefully and try the version with a dot:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now I have the topics format. Let me extract a good set of sample queries and build the Next.js app:
+[tool start] bash
+
+[tool end] bash: ok
+Let me quickly test the REST API response shape before building the frontend:
+[tool start] bash
+
+[tool end] bash: ok
+Now I know the exact response shape. Let me check node/npm and scaffold the Next.js app:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Next.js app created. Let me check the structure and build the app:
+[tool start] ls
+
+[tool start] read
+
+[tool start] read
+
+[tool start] read
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+Now I have everything I need. Let me create all the files at once:
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+
+[tool end] write: ok
+Now let me verify the app builds:
+[tool start] bash
+
+[tool end] bash: ok
+Build succeeded. Let me verify the smoke test scores mechanically and then do a full end-to-end test:
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Anserini fatjar smoke test verified. Now let me do a full end-to-end test. Let me start the REST server and the Next.js frontend:
+[tool start] bash
+
+[tool end] bash: ok
+All tests pass. Let me stop the background processes and create a convenience startup script:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me clean up smoke test artifacts and verify the final directory structure:
+[tool start] bash
+
+[tool start] ls
+
+[tool end] ls: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Let me verify the frontend structure and do a final build check:
+[tool start] ls
+
+[tool start] bash
+
+[tool end] ls: ok
+
+[tool end] bash: ok
+Everything builds cleanly. Here's a summary of what was completed:
+
+---
+
+## Completed: MS MARCO Passage Search App
+
+### What was built
+
+**Backend**: Anserini 2.1.1 fatjar with REST API server on port `8080` (configurable via `BACKEND_PORT` env var)
+- Index: `msmarco-v1-passage` (MS MARCO V1 passage corpus)
+- Endpoint: `GET /v1/msmarco-v1-passage/search?query=...&hits=...`
+- Response includes `docid`, `score`, `rank`, and `doc` (passage text)
+
+**Frontend**: Next.js 16 (Turbopack) on port `3000` (configurable via `FRONTEND_PORT` env var)
+- `src/app/page.tsx` — Main page with search input, 5 randomly selected sample queries (from a pool of 10 MS MARCO passage dev queries), and ranked result display
+- `src/app/api/search/route.ts` — API proxy that forwards requests to the Anserini REST server
+- Handles empty queries (400), no results, and backend errors (502/503)
+
+**Sample queries** (hardcoded from `msmarco-v1-passage.dev`):
+- "what is disease models", "types of java fonts", "how does genome editing work", "price chopper locations in ct", etc.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| Java 21 runtime | ✓ |
+| Anserini 2.1.1 fatjar downloaded | ✓ (112MB) |
+| CACM smoke test — MAP 0.3123 | ✓ |
+| CACM smoke test — P30 0.1942 | ✓ |
+| Next.js build | ✓ (no errors) |
+| REST API search ("what is anserini") | ✓ (2 results) |
+| Empty query → 400 error | ✓ |
+| Missing query param → 400 error | ✓ |
+| Proxy through Next.js API route | ✓ |
+
+### How to run
+
+```bash
+cd /Users/lily/dev/pi-bench/experiments/frontend-no-rewrite/deepseek-workspace
+./start.sh
+```
+
+Or manually:
+
+```bash
+# Terminal 1 — Backend
+java -cp anserini-2.1.1-fatjar.jar io.anserini.api.RestServer --port 8080
+
+# Terminal 2 — Frontend
+cd frontend && npm run dev -- -p 3000
+```
+
+Then open **http://localhost:3000**.

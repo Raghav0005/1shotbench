@@ -1,0 +1,34 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] ls
+
+[tool start] read
+
+[tool start] read
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash

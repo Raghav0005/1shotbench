@@ -1,0 +1,8 @@
+# NFCorpus Workbench
+*.pyc
+__pycache__/
+data/
+run.*.txt
+eval.*.txt
+*.jar
+node_modules/

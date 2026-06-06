@@ -1,0 +1,16 @@
+{
+  "name": "anserini-prebuilt-index-evaluator",
+  "version": "1.0.0",
+  "description": "Browse Anserini prebuilt indexes and run retrieval evaluations",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "npx playwright test"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Anserini Prebuilt Index Evaluator</h1>
+      <p class="subtitle">Browse Anserini’s prebuilt Lucene inverted indexes and run reproducible retrieval evaluations.</p>
+      <div id="health-status" class="health-status">Checking environment…</div>
+    </header>
+
+    <main>
+      <section class="catalog-section">
+        <div class="section-header">
+          <h2>Index Catalog</h2>
+          <input type="text" id="index-search" placeholder="Search indexes…" aria-label="Search indexes">
+        </div>
+        <div id="index-list" class="index-list">Loading…</div>
+      </section>
+
+      <section class="evaluation-section" id="evaluation-section">
+        <h2>Evaluation</h2>
+        <div id="evaluation-empty" class="evaluation-empty">Select an evaluable index to begin.</div>
+        <div id="evaluation-form" class="evaluation-form hidden">
+          <div class="form-row">
+            <label>Selected Index</label>
+            <div id="selected-index-name" class="selected-name"></div>
+          </div>
+          <div class="form-row">
+            <label for="topic-select">Topic Set</label>
+            <select id="topic-select"></select>
+          </div>
+          <div class="form-row">
+            <label for="metric-select">Metric</label>
+            <select id="metric-select"></select>
+          </div>
+          <div class="form-row">
+            <label>Qrels / Eval Key</label>
+            <div id="eval-key-display" class="selected-name"></div>
+          </div>
+          <button id="run-evaluation" class="btn-primary">Run Evaluation</button>
+          <div id="evaluation-loading" class="loading hidden">Running retrieval and evaluation…</div>
+          <div id="evaluation-result" class="evaluation-result hidden">
+            <h3>Result</h3>
+            <div class="score-card">
+              <div class="score-value" id="result-score">—</div>
+              <div class="score-metric" id="result-metric"></div>
+            </div>
+            <div class="metadata">
+              <div><strong>Index:</strong> <span id="meta-index"></span></div>
+              <div><strong>Topics:</strong> <span id="meta-topic"></span></div>
+              <div><strong>Qrels:</strong> <span id="meta-qrels"></span></div>
+              <div><strong>Metric:</strong> <span id="meta-metric"></span></div>
+              <div><strong>Status:</strong> <span id="meta-status"></span></div>
+              <div><strong>Elapsed:</strong> <span id="meta-elapsed"></span></div>
+              <div><strong>Run file:</strong> <code id="meta-runfile"></code></div>
+              <div><strong>Eval output:</strong> <code id="meta-evalfile"></code></div>
+            </div>
+            <details>
+              <summary>Evaluation output preview</summary>
+              <pre id="eval-preview"></pre>
+            </details>
+          </div>
+          <div id="evaluation-error" class="evaluation-error hidden"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

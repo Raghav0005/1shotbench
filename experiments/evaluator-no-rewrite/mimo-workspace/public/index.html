@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 20px 0;
+      margin-bottom: 30px;
+    }
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+    }
+    header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+    .status-bar {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+    .status-dot.healthy { background: #34a853; }
+    .status-dot.error { background: #ea4335; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .card-header {
+      background: #f8f9fa;
+      padding: 14px 18px;
+      border-bottom: 1px solid #e8eaed;
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-body {
+      padding: 18px;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+    }
+    .index-list {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid #e8eaed;
+      border-radius: 6px;
+    }
+    .index-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .index-item:last-child { border-bottom: none; }
+    .index-item:hover { background: #f8f9fa; }
+    .index-item.selected {
+      background: #e8f0fe;
+      border-left: 3px solid #1a73e8;
+    }
+    .index-item.catalog-only {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .index-item .name {
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .index-item .badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+    .badge.evaluable {
+      background: #e6f4ea;
+      color: #137333;
+    }
+    .badge.catalog {
+      background: #f0f0f0;
+      color: #666;
+    }
+    .index-item .meta {
+      font-size: 0.82rem;
+      color: #666;
+      margin-top: 2px;
+    }
+    .eval-panel {
+      position: sticky;
+      top: 20px;
+    }
+    .eval-section {
+      margin-bottom: 16px;
+    }
+    .eval-section label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .eval-section select, .eval-section input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      background: white;
+    }
+    .eval-section select:disabled {
+      background: #f5f5f5;
+      color: #999;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: white;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #1557b0;
+    }
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .results-card {
+      margin-top: 20px;
+    }
+    .result-score {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #1a73e8;
+      text-align: center;
+      padding: 20px;
+    }
+    .result-metric {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: -10px;
+    }
+    .result-meta {
+      margin-top: 16px;
+      padding: 14px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+    }
+    .result-meta dt {
+      color: #666;
+      display: inline;
+    }
+    .result-meta dd {
+      display: inline;
+      margin-left: 4px;
+      font-weight: 500;
+    }
+    .result-meta .pair {
+      display: block;
+    }
+    .error-box {
+      background: #fce8e6;
+      border: 1px solid #ea4335;
+      border-radius: 6px;
+      padding: 14px;
+      color: #c5221f;
+      font-size: 0.9rem;
+    }
+    .run-preview {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 14px;
+      border-radius: 6px;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: pre;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .loading-box {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .loading-box .spinner {
+      width: 32px;
+      height: 32px;
+      border-color: #e8eaed;
+      border-top-color: #1a73e8;
+    }
+    .loading-box p {
+      margin-top: 12px;
+      color: #666;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Anserini Prebuilt Index Evaluator</h1>
+      <p>Browse prebuilt Lucene inverted indexes and run reproducible retrieval evaluations</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Checking environment...</span>
+    </div>
+
+    <div class="grid">
+      <!-- Left: Index Catalog -->
+      <div class="card">
+        <div class="card-header">
+          <span>Index Catalog</span>
+          <span id="indexCount" style="font-size:0.85rem;color:#666;font-weight:400">Loading...</span>
+        </div>
+        <div class="card-body">
+          <input type="text" class="search-input" id="indexSearch" placeholder="Search indexes...">
+          <div class="index-list" id="indexList">
+            <div style="padding:20px;text-align:center;color:#999">Loading indexes...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Evaluation Panel -->
+      <div class="eval-panel">
+        <div class="card">
+          <div class="card-header">Evaluation Configuration</div>
+          <div class="card-body">
+            <div class="eval-section">
+              <label>Selected Index</label>
+              <input type="text" id="selectedIndex" disabled value="Select an evaluable index from the catalog" style="background:#f5f5f5">
+            </div>
+
+            <div class="eval-section">
+              <label>Topics</label>
+              <select id="topicsSelect" disabled>
+                <option value="">Select an index first</option>
+              </select>
+            </div>
+
+            <div class="eval-section">
+              <label>Evaluation Metric</label>
+              <select id="metricSelect" disabled>
+                <option value="">Select an index first</option>
+              </select>
+            </div>
+
+            <div class="eval-section" style="margin-top:20px">
+              <button class="btn btn-primary" id="runBtn" disabled>
+                <span id="runBtnText">Run Evaluation</span>
+                <span id="runBtnSpinner" class="spinner hidden"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card results-card hidden" id="resultsCard">
+          <div class="card-header">Evaluation Results</div>
+          <div class="card-body">
+            <div id="resultContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <p id="loadingText">Running retrieval and evaluation...</p>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    let indexes = [];
+    let selectedIndex = null;
+
+    // Check health
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API}/api/health`);
+        const data = await res.json();
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+        if (data.healthy) {
+          dot.className = 'status-dot healthy';
+          text.textContent = `Environment ready - Java ${data.java ? 'OK' : 'MISSING'}, Fatjar ${data.fatjar ? 'OK' : 'MISSING'}`;
+        } else {
+          dot.className = 'status-dot error';
+          text.textContent = `Environment issue - Java: ${data.java ? 'OK' : 'MISSING'}, Fatjar: ${data.fatjar ? 'OK' : 'MISSING'}`;
+        }
+      } catch (e) {
+        document.getElementById('statusDot').className = 'status-dot error';
+        document.getElementById('statusText').textContent = 'Failed to connect to server';
+      }
+    }
+
+    // Load indexes
+    async function loadIndexes() {
+      try {
+        const res = await fetch(`${API}/api/indexes?type=inverted`);
+        indexes = await res.json();
+        renderIndexList(indexes);
+        document.getElementById('indexCount').textContent = `${indexes.length} indexes`;
+        
+        // Auto-select CACM
+        const cacmIdx = indexes.find(i => i.name === 'cacm');
+        if (cacmIdx) {
+          selectIndex(cacmIdx);
+        }
+      } catch (e) {
+        document.getElementById('indexList').innerHTML = 
+          '<div style="padding:20px;text-align:center;color:#ea4335">Failed to load indexes</div>';
+      }
+    }
+
+    // Render index list
+    function renderIndexList(list) {
+      const container = document.getElementById('indexList');
+      if (list.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:#999">No indexes found</div>';
+        return;
+      }
+
+      container.innerHTML = list.map(idx => `
+        <div class="index-item ${idx.evaluable ? '' : 'catalog-only'} ${selectedIndex?.name === idx.name ? 'selected' : ''}" 
+             data-name="${idx.name}" 
+             onclick="window.handleIndexClick('${idx.name}')">
+          <div>
+            <div class="name">${idx.name}</div>
+            <div class="meta">${idx.description || idx.type || 'No description'}${idx.documents ? ` · ${idx.documents.toLocaleString()} docs` : ''}</div>
+          </div>
+          <span class="badge ${idx.evaluable ? 'evaluable' : 'catalog'}">
+            ${idx.evaluable ? 'Evaluable' : 'Catalog Only'}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    // Handle index click
+    window.handleIndexClick = function(name) {
+      const idx = indexes.find(i => i.name === name);
+      if (idx && idx.evaluable) {
+        selectIndex(idx);
+      }
+    };
+
+    // Select index
+    function selectIndex(idx) {
+      selectedIndex = idx;
+      
+      // Update selected state in list
+      document.querySelectorAll('.index-item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.name === idx.name);
+      });
+
+      // Update form
+      document.getElementById('selectedIndex').value = `${idx.name} - ${idx.description || idx.type}`;
+
+      if (idx.evaluable && idx.evalConfig) {
+        const config = idx.evalConfig;
+        
+        // Set topics
+        const topicsSelect = document.getElementById('topicsSelect');
+        topicsSelect.innerHTML = `<option value="${config.topics}">${config.topics}</option>`;
+        topicsSelect.disabled = false;
+
+        // Set metrics
+        const metricSelect = document.getElementById('metricSelect');
+        metricSelect.innerHTML = `
+          <option value="ndcg_cut.10">nDCG@10</option>
+          <option value="recall.1000">Recall@1000</option>
+          <option value="map">MAP</option>
+          <option value="P.30">P@30</option>
+          <option value="P.10">P@10</option>
+          <option value="P.20">P@20</option>
+          <option value="recall.100">Recall@100</option>
+          <option value="recall.200">Recall@200</option>
+          <option value="recall.500">Recall@500</option>
+        `;
+        metricSelect.value = 'ndcg_cut.10';
+        metricSelect.disabled = false;
+
+        document.getElementById('runBtn').disabled = false;
+      } else {
+        document.getElementById('topicsSelect').innerHTML = '<option value="">Not available for this index</option>';
+        document.getElementById('topicsSelect').disabled = true;
+        document.getElementById('metricSelect').innerHTML = '<option value="">Not available for this index</option>';
+        document.getElementById('metricSelect').disabled = true;
+        document.getElementById('runBtn').disabled = true;
+      }
+    }
+
+    // Run evaluation
+    document.getElementById('runBtn').addEventListener('click', async () => {
+      if (!selectedIndex) return;
+
+      const indexName = selectedIndex.name;
+      const topicsName = document.getElementById('topicsSelect').value;
+      const metric = document.getElementById('metricSelect').value;
+
+      if (!topicsName || !metric) return;
+
+      // Show loading
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingText').textContent = `Running ${indexName} retrieval with BM25...`;
+      document.getElementById('runBtn').disabled = true;
+      document.getElementById('runBtnText').textContent = 'Running...';
+      document.getElementById('runBtnSpinner').classList.remove('hidden');
+
+      try {
+        const res = await fetch(`${API}/api/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indexName, topicsName, metric })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          showResults(data);
+        } else {
+          showError(data.error, data.details);
+        }
+      } catch (e) {
+        showError('Request failed', e.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('runBtnText').textContent = 'Run Evaluation';
+        document.getElementById('runBtnSpinner').classList.add('hidden');
+      }
+    });
+
+    // Show results
+    function showResults(data) {
+      const card = document.getElementById('resultsCard');
+      card.classList.remove('hidden');
+
+      const metricLabel = {
+        'ndcg_cut.10': 'nDCG@10',
+        'recall.1000': 'Recall@1000',
+        'map': 'MAP',
+        'P.30': 'P@30',
+        'P.10': 'P@10',
+        'P.20': 'P@20',
+        'recall.100': 'Recall@100',
+        'recall.200': 'Recall@200',
+        'recall.500': 'Recall@500'
+      }[data.metric] || data.metric;
+
+      const scoreKey = Object.keys(data.scores)[0];
+      const score = scoreKey ? data.scores[scoreKey] : 'N/A';
+
+      document.getElementById('resultContent').innerHTML = `
+        <div class="result-score">${typeof score === 'number' ? score.toFixed(4) : score}</div>
+        <div class="result-metric">${metricLabel}</div>
+        <div class="result-meta">
+          <span class="pair"><dt>Index:</dt> <dd>${data.indexName}</dd></span>
+          <span class="pair"><dt>Topics:</dt> <dd>${data.topicsName}</dd></span>
+          <span class="pair"><dt>Qrels:</dt> <dd>${data.indexName}</dd></span>
+          <span class="pair"><dt>Metric:</dt> <dd>${metricLabel} (${data.metric})</dd></span>
+          <span class="pair"><dt>Status:</dt> <dd style="color:#34a853">Success</dd></span>
+          <span class="pair"><dt>Elapsed:</dt> <dd>${(data.elapsed / 1000).toFixed(1)}s</dd></span>
+          <span class="pair"><dt>Run File:</dt> <dd>${data.runFile}</dd></span>
+          <span class="pair"><dt>Run Size:</dt> <dd>${(data.runFileSize / 1024).toFixed(1)} KB</dd></span>
+          <span class="pair"><dt>Eval File:</dt> <dd>${data.evalFile}</dd></span>
+        </div>
+        <div style="margin-top:16px">
+          <strong style="font-size:0.85rem;color:#666">Evaluation Output:</strong>
+          <div class="run-preview">${escapeHtml(data.evalOutput)}</div>
+        </div>
+        <div style="margin-top:12px">
+          <strong style="font-size:0.85rem;color:#666">Run File Preview (first 20 lines):</strong>
+          <div class="run-preview">${escapeHtml(data.runPreview)}</div>
+        </div>
+      `;
+    }
+
+    // Show error
+    function showError(title, details) {
+      const card = document.getElementById('resultsCard');
+      card.classList.remove('hidden');
+
+      document.getElementById('resultContent').innerHTML = `
+        <div class="error-box">
+          <strong>${escapeHtml(title)}</strong>
+          ${details ? `<pre style="margin-top:8px;white-space:pre-wrap;font-size:0.85rem">${escapeHtml(details)}</pre>` : ''}
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Search filter
+    document.getElementById('indexSearch').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const filtered = indexes.filter(idx => 
+        idx.name.toLowerCase().includes(query) || 
+        (idx.description || '').toLowerCase().includes(query)
+      );
+      renderIndexList(filtered);
+    });
+
+    // Initialize
+    checkHealth();
+    loadIndexes();
+  </script>
+</body>
+</html>

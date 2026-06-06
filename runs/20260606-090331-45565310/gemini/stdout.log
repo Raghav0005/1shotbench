@@ -1,0 +1,212 @@
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool end] read: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: error
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] edit
+
+[tool end] edit: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have built the Anserini Prebuilt Index Evaluator web application as specified in your PRD.
+
+Here's a summary of the implementation:
+- **Framework**: Bootstrapped a Next.js (App Router) local web app with Tailwind CSS and Server Actions to handle interactions with the Anserini fatjar cleanly.
+- **Initialization**: Automatically downloaded and verified the `anserini-*-fatjar.jar` in the workspace root, as guided by the `install-anserini-fatjar` skill. The app dynamically locates the fatjar and surfaces a graceful error banner if the Java environment or jar is missing.
+- **Anserini CLI Integration**: Built Server Actions that execute pure `java -cp` shell commands locally, without mocking or relying on Anserini's REST API.
+- **Discovery**: Calls `io.anserini.cli.PrebuiltIndexRegistry` and `io.anserini.cli.TopicsRegistry` on load to pull the full, up-to-date catalog.
+- **Evaluation Engine**: Uses `SearchCollection` for retrieval writing to standard `run.index.topics.txt` files and `TrecEval` to evaluate with selected modern metrics (e.g. `nDCG@10`, `Recall@1000`, or classic `MAP`), accurately parsing and surfacing the generated scores alongside debugging metadata.
+- **UX**: Implemented a responsive dashboard that separates evaluable indexes from catalog-only entries. The `cacm` dataset is selected by default for out-of-the-box evaluations without extra configuration. Unsupported pairings remain visible for discovery but display a warning to prevent arbitrary query failures. 
+- **End-to-End Test**: Added a Playwright test under `e2e/eval.spec.ts` that spins up the Next.js app, clicks through an end-to-end CACM retrieval and metric (`nDCG@10`) evaluation flow, and explicitly verifies that the metric is calculated successfully and that the non-mocked `.txt` run artifact was actually written to disk.
+
+To run the app locally, enter the `anserini-evaluator` directory and use standard commands:
+```bash
+npm run dev
+```
+
+To run the Playwright verifications:
+```bash
+npx playwright test
+```

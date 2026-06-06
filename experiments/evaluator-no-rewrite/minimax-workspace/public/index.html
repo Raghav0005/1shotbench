@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anserini Prebuilt Index Evaluator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <h1>Anserini Prebuilt Index Evaluator</h1>
+        <p class="subtitle">
+          Browse Anserini's prebuilt Lucene inverted indexes and run
+          reproducible retrieval evaluations directly from the browser. Powered
+          by the
+          <a href="https://github.com/castorini/anserini" target="_blank" rel="noopener">Anserini</a>
+          fatjar &mdash; no mocked results.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-bar" id="statusBar">
+        <span class="status-pill" id="statusPill">Loading catalog&hellip;</span>
+        <span class="status-detail" id="statusDetail"></span>
+      </section>
+
+      <div class="layout">
+        <aside class="catalog">
+          <div class="catalog-header">
+            <h2>Prebuilt Index Catalog</h2>
+            <span class="catalog-count" id="catalogCount">0</span>
+          </div>
+          <div class="catalog-controls">
+            <input
+              type="search"
+              id="catalogFilter"
+              placeholder="Filter indexes (name or description)&hellip;"
+              autocomplete="off"
+            />
+            <label class="filter-toggle">
+              <input type="checkbox" id="showCatalogOnly" />
+              Show catalog-only indexes only
+            </label>
+          </div>
+          <ul class="catalog-list" id="catalogList"></ul>
+        </aside>
+
+        <section class="evaluation">
+          <div id="emptyState" class="empty-state">
+            <h2>Select an index from the catalog</h2>
+            <p>
+              The catalog is populated by calling
+              <code>io.anserini.cli.PrebuiltIndexRegistry --list</code>
+              against the local Anserini fatjar. Pairings with topics and qrels
+              are derived from the same fatjar's
+              <code>io.anserini.eval.Qrels</code> constants and the
+              <code>io.anserini.cli.TopicsRegistry</code> catalog.
+            </p>
+          </div>
+
+          <div id="datasetView" class="dataset-view" hidden>
+            <header class="dataset-header">
+              <h2 id="datasetTitle">Dataset</h2>
+              <span class="dataset-badges">
+                <span class="badge badge-eval" id="evaluableBadge">Evaluable</span>
+                <span class="badge badge-source" id="sourceBadge">From registry</span>
+              </span>
+            </header>
+
+            <p class="dataset-description" id="datasetDescription"></p>
+
+            <dl class="dataset-meta">
+              <div>
+                <dt>Index</dt>
+                <dd id="datasetIndex">&mdash;</dd>
+              </div>
+              <div>
+                <dt>Topics</dt>
+                <dd id="datasetTopics">&mdash;</dd>
+              </div>
+              <div>
+                <dt>Qrels</dt>
+                <dd id="datasetQrels">&mdash;</dd>
+              </div>
+              <div>
+                <dt>Catalog description</dt>
+                <dd id="datasetCatalogDescription">&mdash;</dd>
+              </div>
+            </dl>
+
+            <form id="runForm" class="run-form">
+              <div class="form-row">
+                <label for="topicsSelect">Topics</label>
+                <select id="topicsSelect"></select>
+              </div>
+              <div class="form-row">
+                <label for="metricSelect">Metric</label>
+                <select id="metricSelect"></select>
+                <span class="metric-help" id="metricHelp"></span>
+              </div>
+              <div class="form-actions">
+                <button type="submit" id="runButton" class="primary">
+                  Run Evaluation
+                </button>
+                <span class="form-status" id="formStatus"></span>
+              </div>
+            </form>
+
+            <section class="result" id="result" hidden>
+              <h3>Result</h3>
+              <div class="score">
+                <span class="score-value" id="scoreValue">&mdash;</span>
+                <span class="score-measure" id="scoreMeasure"></span>
+              </div>
+
+              <dl class="run-meta">
+                <div>
+                  <dt>Status</dt>
+                  <dd id="metaStatus">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Index</dt>
+                  <dd id="metaIndex">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Topics</dt>
+                  <dd id="metaTopics">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Qrels</dt>
+                  <dd id="metaQrels">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Metric</dt>
+                  <dd id="metaMetric">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Retrieval time</dt>
+                  <dd id="metaRetrievalMs">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Evaluation time</dt>
+                  <dd id="metaEvaluationMs">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Run file</dt>
+                  <dd id="metaRunFile" class="path">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Eval output</dt>
+                  <dd id="metaEvalFile" class="path">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Search command</dt>
+                  <dd id="metaSearchCmd" class="cmd">&mdash;</dd>
+                </div>
+                <div>
+                  <dt>Eval command</dt>
+                  <dd id="metaEvalCmd" class="cmd">&mdash;</dd>
+                </div>
+              </dl>
+
+              <details>
+                <summary>Run file preview (first 5 lines)</summary>
+                <pre id="runPreview"></pre>
+              </details>
+              <details>
+                <summary>Evaluation output</summary>
+                <pre id="evalOutput"></pre>
+              </details>
+            </section>
+
+            <section class="error" id="errorView" hidden>
+              <h3>Run failed</h3>
+              <pre id="errorMessage"></pre>
+            </section>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>
+        Catalog and topics come from
+        <code>io.anserini.cli.PrebuiltIndexRegistry</code> /
+        <code>io.anserini.cli.TopicsRegistry</code>; qrels are read from
+        <code>io.anserini.eval.Qrels</code> via <code>javap</code>. Retrieval
+        runs <code>io.anserini.search.SearchCollection</code>; scoring runs
+        <code>io.anserini.eval.TrecEval</code>.
+      </p>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

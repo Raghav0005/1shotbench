@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anserini Prebuilt Index Evaluator</title>
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --primary-dark: #1557b0;
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --border: #dadce0;
+      --text: #202124;
+      --text-secondary: #5f6368;
+      --success: #34a853;
+      --warning: #fbbc04;
+      --error: #ea4335;
+      --evaluable-bg: #e8f0fe;
+      --catalog-only-bg: #f1f3f4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header h1 { font-size: 20px; font-weight: 500; }
+    .header .subtitle { opacity: 0.85; font-size: 14px; }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2 .badge {
+      font-size: 11px;
+      background: var(--primary);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+    /* Status bar */
+    .status-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .status-bar.ready { background: #e6f4ea; color: #137333; }
+    .status-bar.error { background: #fce8e6; color: #c5221f; }
+    .status-bar.loading { background: #fef7e0; color: #b05a00; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-bar.ready .status-dot { background: var(--success); }
+    .status-bar.error .status-dot { background: var(--error); }
+    .status-bar.loading .status-dot { background: var(--warning); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Index catalog */
+    .catalog-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .catalog-controls input, .catalog-controls select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .catalog-controls input:focus, .catalog-controls select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+    }
+    .catalog-controls input { flex: 1; min-width: 200px; }
+
+    .index-list {
+      max-height: 480px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .index-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .index-item:last-child { border-bottom: none; }
+    .index-item:hover { background: #f0f4ff; }
+    .index-item.evaluable { background: var(--evaluable-bg); }
+    .index-item.evaluable:hover { background: #d2e3fc; }
+    .index-item.selected {
+      background: var(--primary);
+      color: white;
+    }
+    .index-item.catalog-only {
+      background: var(--catalog-only-bg);
+      opacity: 0.7;
+    }
+    .index-item.catalog-only:hover { opacity: 1; }
+    .index-item .idx-name { font-weight: 500; word-break: break-all; }
+    .index-item .idx-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .index-item.selected .idx-meta { color: rgba(255,255,255,0.8); }
+    .index-item .idx-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .idx-badge.evaluable { background: #34a853; color: white; }
+    .idx-badge.catalog-only { background: #9aa0a6; color: white; }
+    .index-item.selected .idx-badge.evaluable { background: rgba(255,255,255,0.3); }
+
+    /* Evaluation panel */
+    .eval-section { margin-bottom: 16px; }
+    .eval-section label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .eval-section .value {
+      font-size: 14px;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      word-break: break-all;
+      min-height: 36px;
+    }
+    .eval-section select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: white;
+    }
+    .btn-evaluate {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+    .btn-evaluate:hover { background: var(--primary-dark); }
+    .btn-evaluate:disabled {
+      background: #9aa0a6;
+      cursor: not-allowed;
+    }
+
+    /* Results */
+    .results-area { margin-top: 16px; }
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .result-header {
+      padding: 12px 16px;
+      font-weight: 500;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .result-header.success { background: #e6f4ea; color: #137333; }
+    .result-header.error { background: #fce8e6; color: #c5221f; }
+    .result-body {
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+    .score-display {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--primary);
+      text-align: center;
+      padding: 16px;
+    }
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 6px 12px;
+      font-size: 12px;
+    }
+    .metadata-grid .label { color: var(--text-secondary); font-weight: 500; }
+    .metadata-grid .value { word-break: break-all; }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #eee;
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .progress-bar .fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 2px;
+      animation: progress 2s ease-in-out infinite;
+    }
+    @keyframes progress {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.1);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg {
+      color: var(--error);
+      font-size: 13px;
+      padding: 8px 12px;
+      background: #fce8e6;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
+    .no-eval-msg {
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-style: italic;
+      padding: 16px;
+      text-align: center;
+    }
+    .result-count {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Anserini Prebuilt Index Evaluator</h1>
+      <div class="subtitle">Browse prebuilt Lucene inverted indexes and run retrieval evaluations</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="status-bar loading" id="statusBar">
+      <span class="status-dot"></span>
+      <span id="statusText">Checking environment...</span>
+    </div>
+
+    <!-- Index Catalog -->
+    <div class="card">
+      <h2>
+        Index Catalog
+        <span class="badge" id="indexCount">0</span>
+      </h2>
+      <div class="catalog-controls">
+        <input type="text" id="indexFilter" placeholder="Search indexes (regex supported)..." />
+        <select id="typeFilter">
+          <option value="">All Types</option>
+          <option value="inverted">Inverted</option>
+          <option value="flat">Flat</option>
+          <option value="hnsw">HNSW</option>
+          <option value="impact">Impact</option>
+        </select>
+      </div>
+      <div class="result-count" id="resultCount"></div>
+      <div class="index-list" id="indexList">
+        <div class="no-eval-msg">Loading indexes...</div>
+      </div>
+    </div>
+
+    <!-- Evaluation Panel -->
+    <div class="card">
+      <h2>Evaluation</h2>
+
+      <div class="eval-section">
+        <label>Selected Index</label>
+        <div class="value" id="selectedIndex">None selected</div>
+      </div>
+
+      <div class="eval-section">
+        <label>Topics</label>
+        <div class="value" id="selectedTopics">—</div>
+      </div>
+
+      <div class="eval-section">
+        <label>Qrels / Evaluation Source</label>
+        <div class="value" id="selectedQrels">—</div>
+      </div>
+
+      <div class="eval-section">
+        <label>Metric</label>
+        <select id="metricSelect" disabled>
+          <option value="">Select an evaluable index first</option>
+        </select>
+      </div>
+
+      <button class="btn-evaluate" id="btnEvaluate" disabled>
+        Run Evaluation
+      </button>
+
+      <div id="evalStatus" style="margin-top:12px"></div>
+
+      <div class="results-area" id="resultsArea"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    let allIndexes = [];
+    let selectedIndex = null;
+    let selectedConfig = null;
+    let metricsMap = {};
+
+    async function init() {
+      await checkStatus();
+      await Promise.all([loadIndexes(), loadMetrics()]);
+    }
+
+    async function checkStatus() {
+      const bar = document.getElementById('statusBar');
+      const text = document.getElementById('statusText');
+      try {
+        const res = await fetch(`${API}/api/status`);
+        const data = await res.json();
+        if (data.ready) {
+          bar.className = 'status-bar ready';
+          text.textContent = 'Environment ready: Java 21 and Anserini fatjar available';
+        } else {
+          bar.className = 'status-bar error';
+          text.textContent = `Error: ${data.error}`;
+        }
+      } catch (e) {
+        bar.className = 'status-bar error';
+        text.textContent = `Failed to check status: ${e.message}`;
+      }
+    }
+
+    async function loadMetrics() {
+      try {
+        const res = await fetch(`${API}/api/metrics`);
+        metricsMap = await res.json();
+      } catch (e) {
+        console.error('Failed to load metrics:', e);
+      }
+    }
+
+    async function loadIndexes() {
+      try {
+        const res = await fetch(`${API}/api/indexes`);
+        const data = await res.json();
+        allIndexes = data.indexes;
+        document.getElementById('indexCount').textContent = data.total;
+        renderIndexList();
+        // Auto-select CACM if available
+        const cacm = allIndexes.find(i => i.name === 'cacm');
+        if (cacm) selectIndex(cacm);
+      } catch (e) {
+        document.getElementById('indexList').innerHTML =
+          `<div class="error-msg">Failed to load indexes: ${e.message}</div>`;
+      }
+    }
+
+    function renderIndexList() {
+      const filter = document.getElementById('indexFilter').value;
+      const typeFilter = document.getElementById('typeFilter').value;
+      const list = document.getElementById('indexList');
+
+      let filtered = allIndexes;
+      if (filter) {
+        try {
+          const re = new RegExp(filter, 'i');
+          filtered = filtered.filter(i => re.test(i.name) || re.test(i.description || ''));
+        } catch (e) {
+          // invalid regex, show all
+        }
+      }
+      if (typeFilter) {
+        filtered = filtered.filter(i => i.type === typeFilter);
+      }
+
+      document.getElementById('resultCount').textContent =
+        `Showing ${filtered.length} of ${allIndexes.length} indexes`;
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="no-eval-msg">No indexes match your filter</div>';
+        return;
+      }
+
+      // Sort: evaluable first, then alphabetical
+      filtered.sort((a, b) => {
+        if (a.evaluable && !b.evaluable) return -1;
+        if (!a.evaluable && b.evaluable) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      list.innerHTML = filtered.map(idx => {
+        const cls = idx === selectedIndex ? 'selected' :
+                    idx.evaluable ? 'evaluable' : 'catalog-only';
+        const badgeCls = idx.evaluable ? 'evaluable' : 'catalog-only';
+        const badgeText = idx.evaluable ? 'Evaluable' : 'Catalog Only';
+        return `
+          <div class="index-item ${cls}" data-name="${idx.name}">
+            <div style="flex:1">
+              <div class="idx-name">${escHtml(idx.name)}</div>
+              <div class="idx-meta">${escHtml(idx.description || 'No description')} | Type: ${escHtml(idx.type)}</div>
+            </div>
+            <span class="idx-badge ${badgeCls}">${badgeText}</span>
+          </div>
+        `;
+      }).join('');
+
+      list.querySelectorAll('.index-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = allIndexes.find(i => i.name === el.dataset.name);
+          if (idx) selectIndex(idx);
+        });
+      });
+    }
+
+    function selectIndex(idx) {
+      selectedIndex = idx;
+      selectedConfig = idx.evalConfig;
+
+      document.getElementById('selectedIndex').textContent = idx.name;
+
+      if (selectedConfig) {
+        document.getElementById('selectedTopics').textContent = selectedConfig.topics;
+        document.getElementById('selectedQrels').textContent = selectedConfig.qrels;
+
+        const metricSelect = document.getElementById('metricSelect');
+        metricSelect.disabled = false;
+        metricSelect.innerHTML = selectedConfig.metrics.map(m =>
+          `<option value="${m}">${metricsMap[m] || m}</option>`
+        ).join('') || '<option value="">No metrics available</option>';
+
+        // Default to nDCG@10 if available, otherwise first metric
+        if (selectedConfig.metrics.includes('ndcg_cut.10')) {
+          metricSelect.value = 'ndcg_cut.10';
+        } else if (selectedConfig.metrics.includes('map')) {
+          metricSelect.value = 'map';
+        }
+
+        document.getElementById('btnEvaluate').disabled = false;
+      } else {
+        document.getElementById('selectedTopics').textContent = '—';
+        document.getElementById('selectedQrels').textContent = '—';
+        document.getElementById('metricSelect').disabled = true;
+        document.getElementById('metricSelect').innerHTML =
+          '<option value="">Index not evaluable — no topics/qrels discovered</option>';
+        document.getElementById('btnEvaluate').disabled = true;
+      }
+
+      renderIndexList();
+    }
+
+    document.getElementById('indexFilter').addEventListener('input', renderIndexList);
+    document.getElementById('typeFilter').addEventListener('change', renderIndexList);
+
+    document.getElementById('btnEvaluate').addEventListener('click', runEvaluation);
+
+    async function runEvaluation() {
+      const btn = document.getElementById('btnEvaluate');
+      const status = document.getElementById('evalStatus');
+      const results = document.getElementById('resultsArea');
+      const metric = document.getElementById('metricSelect').value;
+
+      if (!selectedIndex || !selectedConfig || !metric) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Running...';
+      status.innerHTML = `
+        <div class="progress-bar"><div class="fill"></div></div>
+        <div style="font-size:13px;color:var(--text-secondary)">
+          <span class="spinner"></span>
+          Running retrieval on <strong>${escHtml(selectedIndex.name)}</strong> with topics <strong>${escHtml(selectedConfig.topics)}</strong>...
+        </div>
+      `;
+      results.innerHTML = '';
+
+      try {
+        const res = await fetch(`${API}/api/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            indexName: selectedIndex.name,
+            topicsName: selectedConfig.topics,
+            metric
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          status.innerHTML = '';
+          results.innerHTML = `
+            <div class="result-card">
+              <div class="result-header success">
+                <span>✓ Evaluation Complete</span>
+                <span>${data.metadata.elapsed}ms</span>
+              </div>
+              <div class="result-body">
+                <div class="score-display">${data.score !== undefined ? data.score.toFixed(4) : 'N/A'}</div>
+                <div style="text-align:center;font-size:12px;color:var(--text-secondary);margin-bottom:16px">
+                  ${escHtml(data.metadata.metricLabel)}
+                </div>
+                ${Object.keys(data.scores).length > 1 ? `
+                  <div style="margin-bottom:16px">
+                    ${Object.entries(data.scores).map(([k,v]) =>
+                      `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eee">
+                        <span>${escHtml(k)}</span><span><strong>${v.toFixed(4)}</strong></span>
+                      </div>`
+                    ).join('')}
+                  </div>
+                ` : ''}
+                <div class="metadata-grid">
+                  <span class="label">Index</span>
+                  <span class="value">${escHtml(data.metadata.index)}</span>
+                  <span class="label">Topics</span>
+                  <span class="value">${escHtml(data.metadata.topics)}</span>
+                  <span class="label">Metric</span>
+                  <span class="value">${escHtml(data.metadata.metric)}</span>
+                  <span class="label">Run File</span>
+                  <span class="value">${escHtml(data.metadata.runFile)}</span>
+                  <span class="label">Run Lines</span>
+                  <span class="value">${data.metadata.runFileLines || '—'}</span>
+                  <span class="label">Eval File</span>
+                  <span class="value">${escHtml(data.metadata.evalFile)}</span>
+                  <span class="label">Elapsed</span>
+                  <span class="value">${data.metadata.elapsed}ms</span>
+                  <span class="label">Started</span>
+                  <span class="value">${escHtml(data.metadata.startTime)}</span>
+                  <span class="label">Completed</span>
+                  <span class="value">${escHtml(data.metadata.endTime)}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          status.innerHTML = '';
+          results.innerHTML = `
+            <div class="result-card">
+              <div class="result-header error">✗ Evaluation Failed</div>
+              <div class="result-body">
+                <div class="error-msg">${escHtml(data.error)}</div>
+                ${data.metadata ? `
+                  <div class="metadata-grid" style="margin-top:12px">
+                    <span class="label">Index</span>
+                    <span class="value">${escHtml(data.metadata.index)}</span>
+                    <span class="label">Topics</span>
+                    <span class="value">${escHtml(data.metadata.topics)}</span>
+                    <span class="label">Elapsed</span>
+                    <span class="value">${data.metadata.elapsed}ms</span>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        status.innerHTML = '';
+        results.innerHTML = `<div class="error-msg">Request failed: ${escHtml(e.message)}</div>`;
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Run Evaluation';
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>

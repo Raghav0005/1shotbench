@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  workbench:
+    build: .
+    image: nfcorpus-workbench:dev
+    container_name: nfcorpus-workbench
+    ports:
+      - "10000:10000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 10000
+      ANSERINI_VERSION: 2.1.1
+      ANSERINI_CACHE_DIR: /data/pyserini
+      APP_DATA_DIR: /data/workbench
+      LOGS_DIR: /data/workbench/logs
+      PYSERINI_CACHE: /data/pyserini
+    volumes:
+      - workbench-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:10000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+
+volumes:
+  workbench-data:

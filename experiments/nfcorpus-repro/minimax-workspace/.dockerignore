@@ -1,0 +1,19 @@
+# Exclude large generated files and local caches from the Docker build context.
+data/cache
+data/runs
+data/eval
+data/logs
+data/anserini-*-fatjar.jar
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.DS_Store
+node_modules
+e2e/.pytest_cache
+e2e/__pycache__

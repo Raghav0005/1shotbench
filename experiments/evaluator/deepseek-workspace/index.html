@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anserini Prebuilt Index Evaluator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f5; color: #333; line-height: 1.5;
+}
+.header {
+  background: #1a1a2e; color: white; padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 1.25rem; font-weight: 600; }
+.header .badge { font-size: 0.75rem; background: #e94560; padding: 4px 10px; border-radius: 12px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.card {
+  background: white; border-radius: 8px; padding: 20px;
+  margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.card-header { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #1a1a2e; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.three-col { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+/* Status */
+.status-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot.ok { background: #4caf50; }
+.status-dot.error { background: #f44336; }
+.status-dot.loading { background: #ff9800; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Index catalog */
+.index-list { max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; }
+.index-item {
+  padding: 10px 14px; border-bottom: 1px solid #eee; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  transition: background 0.15s;
+}
+.index-item:hover { background: #f0f4ff; }
+.index-item.selected { background: #e3edff; border-left: 3px solid #1a73e8; }
+.index-item.disabled { opacity: 0.55; cursor: not-allowed; background: #fafafa; }
+.index-item .name { font-weight: 600; font-size: 0.9rem; }
+.index-item .meta { font-size: 0.75rem; color: #888; }
+.index-item .tag {
+  font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 500;
+}
+.tag-evaluable { background: #e8f5e9; color: #2e7d32; }
+.tag-catalog { background: #fff3e0; color: #e65100; }
+.tag-selected { background: #e3f2fd; color: #1565c0; }
+
+.search-box {
+  width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;
+  font-size: 0.9rem; margin-bottom: 8px;
+}
+
+/* Buttons */
+.btn {
+  padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
+  font-size: 0.9rem; font-weight: 500; transition: background 0.2s;
+}
+.btn-primary { background: #1a73e8; color: white; }
+.btn-primary:hover { background: #1557b0; }
+.btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+
+/* Form */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 4px; }
+.form-group select, .form-group input {
+  width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;
+}
+
+/* Results */
+.result-score { font-size: 2.5rem; font-weight: 700; color: #1a73e8; text-align: center; }
+.result-label { font-size: 0.85rem; color: #888; text-align: center; }
+.metadata-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.meta-item { font-size: 0.85rem; }
+.meta-item .key { color: #888; }
+.meta-item .val { font-weight: 500; }
+
+.run-preview {
+  background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 4px;
+  padding: 10px; font-family: monospace; font-size: 0.78rem; max-height: 200px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+.error-msg {
+  background: #ffebee; color: #c62828; padding: 12px; border-radius: 4px;
+  font-size: 0.9rem; margin-top: 8px;
+}
+.loading-spinner {
+  text-align: center; padding: 40px; color: #888;
+}
+.spinner {
+  display: inline-block; width: 24px; height: 24px; border: 3px solid #ddd;
+  border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.stats-row { display: flex; gap: 20px; font-size: 0.85rem; color: #666; margin-top: 8px; }
+.stats-row span { font-weight: 600; color: #333; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Anserini Prebuilt Index Evaluator</h1>
+    <div style="font-size:0.8rem;opacity:0.8">Browser-driven retrieval & evaluation</div>
+  </div>
+  <div class="status-bar">
+    <span id="health-dot" class="status-dot loading"></span>
+    <span id="health-text" style="font-size:0.85rem">Checking...</span>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Left: Index Catalog | Right: Evaluation Controls -->
+  <div class="two-col">
+
+    <!-- Index Catalog -->
+    <div class="card">
+      <div class="card-header">Prebuilt Index Catalog</div>
+      <input type="text" class="search-box" id="index-search" placeholder="Filter indexes..." />
+      <div class="stats-row" id="catalog-stats" style="margin-bottom:8px"></div>
+      <div class="index-list" id="index-list">
+        <div class="loading-spinner"><div class="spinner"></div><div>Loading catalog...</div></div>
+      </div>
+    </div>
+
+    <!-- Evaluation Panel -->
+    <div class="card" id="eval-panel">
+      <div class="card-header">Evaluation</div>
+      <div id="eval-content" data-state="loading">
+        <div style="color:#888;font-size:0.9rem;text-align:center;padding:40px 0">
+          Select an evaluable index from the catalog to begin.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="results-card" style="display:none">
+    <div class="card-header">Results</div>
+    <div id="results-content"></div>
+  </div>
+
+  <!-- Run History -->
+  <div class="card" id="history-card" style="display:none">
+    <div class="card-header">Run History</div>
+    <div id="history-content"></div>
+  </div>
+</div>
+
+<script>
+// State
+let state = {
+  indexes: [],
+  evaluable: [],
+  selectedIndex: null,
+  selectedPairing: null,
+  selectedMetric: 'ndcg_cut.10',
+  metrics: [],
+  currentRun: null,
+};
+
+// API helpers
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// Health check
+async function checkHealth() {
+  const dot = document.getElementById('health-dot');
+  const text = document.getElementById('health-text');
+  try {
+    const data = await api('/api/health');
+    if (data.status === 'ok') {
+      dot.className = 'status-dot ok';
+      text.textContent = 'Ready';
+    } else {
+      dot.className = 'status-dot error';
+      text.textContent = data.issues.join('; ') || 'Degraded';
+    }
+  } catch (e) {
+    dot.className = 'status-dot error';
+    text.textContent = 'Backend unreachable';
+  }
+}
+
+// Load catalog
+async function loadCatalog() {
+  const list = document.getElementById('index-list');
+  list.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><div>Loading catalog...</div></div>';
+
+  try {
+    const [indexData, evalData, metricData] = await Promise.all([
+      api('/api/indexes'),
+      api('/api/evaluable'),
+      api('/api/metrics'),
+    ]);
+
+    state.indexes = indexData.indexes || [];
+    state.evaluable = evalData.evaluable || [];
+    state.metrics = metricData.metrics || [];
+
+    // Stats
+    document.getElementById('catalog-stats').innerHTML =
+      `<span>${state.indexes.length}</span> indexes · <span>${state.evaluable.length}</span> evaluable`;
+
+    renderIndexList();
+
+    // Auto-select CACM
+    const cacmPairing = state.evaluable.find(e => e.index === 'cacm');
+    if (cacmPairing) {
+      selectPairing(cacmPairing);
+    }
+  } catch (e) {
+    list.innerHTML = `<div class="error-msg">Failed to load catalog: ${e.message}</div>`;
+  }
+}
+
+function renderIndexList(filter = '') {
+  const list = document.getElementById('index-list');
+  const q = filter.toLowerCase();
+  const filtered = state.indexes.filter(idx => {
+    if (!q) return true;
+    return idx.name.toLowerCase().includes(q) ||
+           (idx.description && idx.description.toLowerCase().includes(q));
+  });
+
+  const evaluableNames = new Set(state.evaluable.map(e => e.index));
+
+  list.innerHTML = filtered.map(idx => {
+    const isEval = evaluableNames.has(idx.name);
+    const isSelected = state.selectedIndex === idx.name;
+    let cls = 'index-item';
+    if (isSelected) cls += ' selected';
+    if (!isEval) cls += ' disabled';
+
+    const tag = isEval
+      ? `<span class="tag tag-evaluable">evaluable</span>`
+      : `<span class="tag tag-catalog">catalog-only</span>`;
+
+    const sizeStr = idx.size ? `${(idx.size/1024/1024).toFixed(1)} MB` : '';
+    const docsStr = idx.documents ? `${idx.documents.toLocaleString()} docs` : '';
+
+    return `<div class="${cls}" data-index="${idx.name}" onclick="onIndexClick('${idx.name}')">
+      <div>
+        <div class="name">${escapeHtml(idx.name)}</div>
+        <div class="meta">${escapeHtml(idx.description || '')} · ${sizeStr}${docsStr ? ' · ' + docsStr : ''}</div>
+      </div>
+      ${tag}
+    </div>`;
+  }).join('');
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:#888">No indexes found</div>';
+  }
+}
+
+function onIndexClick(name) {
+  state.selectedIndex = name;
+  const pairing = state.evaluable.find(e => e.index === name);
+  if (pairing) {
+    selectPairing(pairing);
+  } else {
+    state.selectedPairing = null;
+    renderEvalPanel();
+  }
+  renderIndexList(document.getElementById('index-search').value);
+}
+
+function selectPairing(pairing) {
+  state.selectedPairing = pairing;
+  state.selectedIndex = pairing.index;
+  document.getElementById('eval-content').setAttribute('data-state', 'ready');
+  // Default to ndcg_cut.10 if available, else first metric
+  const availMetrics = new Set(pairing.metrics);
+  if (availMetrics.has('ndcg_cut.10')) {
+    state.selectedMetric = 'ndcg_cut.10';
+  } else if (availMetrics.has('map')) {
+    state.selectedMetric = 'map';
+  } else {
+    state.selectedMetric = pairing.metrics[0] || 'map';
+  }
+  renderEvalPanel();
+  renderIndexList(document.getElementById('index-search').value);
+}
+
+function renderEvalPanel() {
+  const panel = document.getElementById('eval-content');
+  const pairing = state.selectedPairing;
+
+  if (!pairing) {
+    panel.setAttribute('data-state', 'empty');
+    panel.innerHTML = `<div style="color:#888;font-size:0.9rem;text-align:center;padding:40px 0">
+      Select an evaluable index from the catalog to begin.
+    </div>`;
+    return;
+  }
+
+  // Build metric options
+  const metricOpts = state.metrics.map(m =>
+    `<option value="${m.id}" ${state.selectedMetric === m.id ? 'selected' : ''}>${m.label}</option>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div class="form-group">
+      <label>Index</label>
+      <input type="text" value="${escapeHtml(pairing.index)}" readonly style="background:#f8f8f8" />
+    </div>
+    <div class="form-group">
+      <label>Topics</label>
+      <input type="text" value="${escapeHtml(pairing.topics)}" readonly style="background:#f8f8f8" />
+    </div>
+    <div class="form-group">
+      <label>Qrels / Evaluation Source</label>
+      <input type="text" value="${escapeHtml(pairing.qrels)}" readonly style="background:#f8f8f8" />
+    </div>
+    <div class="form-group">
+      <label>Metric</label>
+      <select id="metric-select" onchange="state.selectedMetric=this.value">${metricOpts}</select>
+    </div>
+    <div style="font-size:0.8rem;color:#888;margin-bottom:12px">
+      Documents: ${pairing.documents ? pairing.documents.toLocaleString() : 'N/A'}
+      ${pairing.size ? ' · Size: ' + (pairing.size/1024/1024).toFixed(1) + ' MB' : ''}
+    </div>
+    <button class="btn btn-primary" id="run-btn" onclick="runEvaluation()" style="width:100%">
+      Run Evaluation
+    </button>
+    <div id="eval-status"></div>
+  `;
+}
+
+async function runEvaluation() {
+  const pairing = state.selectedPairing;
+  if (!pairing) return;
+
+  const btn = document.getElementById('run-btn');
+  const statusEl = document.getElementById('eval-status');
+
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  statusEl.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner"></div><div style="margin-top:8px;color:#888">Running retrieval & evaluation...</div></div>';
+
+  document.getElementById('results-card').style.display = 'none';
+
+  try {
+    const result = await api('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        index: pairing.index,
+        topics: pairing.topics,
+        qrels: pairing.qrels,
+        metric: state.selectedMetric,
+      }),
+    });
+
+    state.currentRun = result;
+    renderResults(result);
+    btn.disabled = false;
+    btn.textContent = 'Run Evaluation';
+    statusEl.innerHTML = '';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Run Evaluation';
+    statusEl.innerHTML = `<div class="error-msg">${e.message}</div>`;
+  }
+}
+
+function renderResults(result) {
+  const card = document.getElementById('results-card');
+  const content = document.getElementById('results-content');
+  card.style.display = 'block';
+
+  if (result.status === 'error') {
+    content.innerHTML = `<div class="error-msg">${escapeHtml(result.error)}</div>`;
+    return;
+  }
+
+  if (result.status === 'running') {
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><div>Running...</div></div>';
+    return;
+  }
+
+  const scoreDisplay = result.score != null
+    ? `<div class="result-score">${result.score.toFixed(4)}</div>`
+    : '<div class="result-score" style="color:#f44336">N/A</div>';
+
+  content.innerHTML = `
+    ${scoreDisplay}
+    <div class="result-label">${escapeHtml(result.metric_label || result.metric)}</div>
+
+    <div style="margin-top:16px">
+      <div class="card-header">Run Metadata</div>
+      <div class="metadata-grid">
+        <div class="meta-item"><span class="key">Index:</span> <span class="val">${escapeHtml(result.index)}</span></div>
+        <div class="meta-item"><span class="key">Topics:</span> <span class="val">${escapeHtml(result.topics)}</span></div>
+        <div class="meta-item"><span class="key">Qrels:</span> <span class="val">${escapeHtml(result.qrels)}</span></div>
+        <div class="meta-item"><span class="key">Metric:</span> <span class="val">${escapeHtml(result.metric)}</span></div>
+        <div class="meta-item"><span class="key">Status:</span> <span class="val">${escapeHtml(result.status)}</span></div>
+        <div class="meta-item"><span class="key">Elapsed:</span> <span class="val">${result.total_elapsed}s (search: ${result.search_elapsed}s, eval: ${result.eval_elapsed}s)</span></div>
+        <div class="meta-item"><span class="key">Run file:</span> <span class="val">${escapeHtml(result.run_file)}</span></div>
+        <div class="meta-item"><span class="key">Eval file:</span> <span class="val">${escapeHtml(result.eval_file)}</span></div>
+      </div>
+    </div>
+
+    ${result.eval_output ? `
+    <div style="margin-top:12px">
+      <div class="card-header">Evaluation Output</div>
+      <div class="run-preview">${escapeHtml(result.eval_output)}</div>
+    </div>` : ''}
+
+    ${result.run_preview ? `
+    <div style="margin-top:12px">
+      <div class="card-header">Run File Preview</div>
+      <div class="run-preview">${escapeHtml(result.run_preview)}</div>
+    </div>` : ''}
+  `;
+
+  // Also update history
+  loadHistory();
+}
+
+async function loadHistory() {
+  try {
+    const data = await api('/api/runs');
+    const runs = data.runs || [];
+    if (runs.length === 0) {
+      document.getElementById('history-card').style.display = 'none';
+      return;
+    }
+    document.getElementById('history-card').style.display = 'block';
+
+    const content = document.getElementById('history-content');
+    content.innerHTML = runs.slice(0, 10).map(r => `
+      <div style="padding:8px 0;border-bottom:1px solid #eee;font-size:0.85rem">
+        <strong>${escapeHtml(r.index)}</strong> · ${escapeHtml(r.metric_label || r.metric)}
+        ${r.score != null ? ` → <span style="font-weight:600;color:#1a73e8">${r.score.toFixed(4)}</span>` : ''}
+        <span style="color:#888"> · ${r.status}</span>
+        <span style="color:#aaa;float:right">${new Date(r.started_at).toLocaleTimeString()}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Search filter
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('index-search').addEventListener('input', (e) => {
+    renderIndexList(e.target.value);
+  });
+});
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Init
+checkHealth();
+loadCatalog();
+
+// Refresh health periodically
+setInterval(checkHealth, 30000);
+</script>
+
+</body>
+</html>

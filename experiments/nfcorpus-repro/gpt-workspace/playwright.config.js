@@ -1,18 +1,13 @@
-import { defineConfig } from '@playwright/test';
+// @ts-check
+const { defineConfig } = require('@playwright/test');
 
-export default defineConfig({
+module.exports = defineConfig({
   testDir: './tests',
-  timeout: 420000,
-  expect: { timeout: 30000 },
-  webServer: {
-    command: 'npm start',
-    url: 'http://127.0.0.1:10000/health',
-    reuseExistingServer: !process.env.CI,
-    timeout: 360000,
-    env: { PORT: '10000', DATA_DIR: './data' }
-  },
+  timeout: 15 * 60 * 1000,
+  expect: { timeout: 180 * 1000 },
   use: {
-    baseURL: 'http://127.0.0.1:10000',
-    trace: 'on-first-retry'
-  }
+    browserName: 'chromium',
+    trace: 'retain-on-failure',
+  },
+  workers: 1,
 });
