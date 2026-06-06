@@ -16,6 +16,14 @@ class CreateAgentWorkspacesTests(unittest.TestCase):
         self.assertEqual(deepseek.provider, "deepseek")
         self.assertEqual(deepseek.model, "deepseek-v4-pro")
 
+    def test_workspaces_include_current_minimax_and_mimo_models(self) -> None:
+        specs = {spec.key: spec for spec in WORKSPACES}
+
+        self.assertEqual(specs["minimax"].provider, "minimax")
+        self.assertEqual(specs["minimax"].model, "MiniMax-M3")
+        self.assertEqual(specs["mimo"].provider, "xiaomi")
+        self.assertEqual(specs["mimo"].model, "mimo-v2.5-pro")
+
     def test_create_workspaces_writes_deepseek_bench_toml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             task_dir = Path(tmp) / "task"

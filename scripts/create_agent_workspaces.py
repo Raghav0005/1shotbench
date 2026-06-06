@@ -51,7 +51,8 @@ WORKSPACES = [
     WorkspaceSpec("deepseek", "DeepSeek workspace", "deepseek", "deepseek-v4-pro"),
     WorkspaceSpec("glm", "GLM workspace", "zai", "glm-5.1"),
     WorkspaceSpec("kimi", "Kimi workspace", "moonshotai", "kimi-k2.6"),
-    WorkspaceSpec("minimax", "MiniMax workspace", "minimax", "MiniMax-M2.7"),
+    WorkspaceSpec("minimax", "MiniMax workspace", "minimax", "MiniMax-M3"),
+    WorkspaceSpec("mimo", "Xiaomi MiMo workspace", "xiaomi", "mimo-v2.5-pro"),
 ]
 
 
