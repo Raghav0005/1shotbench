@@ -6,20 +6,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from bench.config import ROOT_DIR, RUNS_DIR, discover_shared_task_files, load_workspace_configs
+from bench.config import ROOT_DIR, RUNS_DIR, discover_shared_task_files, load_workspace_configs, resolve_workspaces_dir
 from bench.runner import BenchmarkRunner, RunnerOptions
 
 
 app = FastAPI(title="Pi Agent Bench")
 app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "bench" / "static")), name="static")
 
-workspaces = load_workspace_configs()
-runner = BenchmarkRunner(ROOT_DIR, workspaces)
 event_queues: dict[str, list[asyncio.Queue[dict[str, Any]]]] = defaultdict(list)
 active_runs: dict[str, dict[str, Any]] = {}
 
@@ -27,6 +25,7 @@ active_runs: dict[str, dict[str, Any]] = {}
 class StartRunRequest(BaseModel):
     prompt: str = Field(min_length=1)
     models: list[str] = Field(min_length=1)
+    task_dir: str | None = None
     mode: str = "parallel"
     max_concurrency: int = 2
     timeout_seconds: int = 1800
@@ -37,13 +36,78 @@ class StartRunRequest(BaseModel):
     rewrite_timeout_seconds: int = 600
 
 
+def _relative_task_dir(task_dir: str | Path | None = None) -> str:
+    path = resolve_workspaces_dir(task_dir).resolve()
+    try:
+        return path.relative_to(ROOT_DIR).as_posix()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Task directory must be inside {ROOT_DIR}") from exc
+
+
+def _experiment_name(path: Path) -> str:
+    words = path.name.replace("-", " ").replace("_", " ").split()
+    return " ".join(word.upper() if word.lower() in {"nfcorpus"} else word.capitalize() for word in words)
+
+
+def _load_workspaces(task_dir: str | Path | None = None):
+    relative = _relative_task_dir(task_dir)
+    workspaces = load_workspace_configs(relative)
+    if not workspaces:
+        raise HTTPException(status_code=404, detail=f"No workspaces found in {relative}")
+    return relative, workspaces
+
+
+def _discover_experiments() -> list[dict[str, Any]]:
+    experiments_root = ROOT_DIR / "experiments"
+    items: list[dict[str, Any]] = []
+    default_task_dir = _relative_task_dir()
+    if experiments_root.exists():
+        for path in sorted(experiments_root.iterdir()):
+            if not path.is_dir():
+                continue
+            workspaces = load_workspace_configs(path)
+            if not workspaces:
+                continue
+            task_files = discover_shared_task_files(path)
+            relative = path.relative_to(ROOT_DIR).as_posix()
+            items.append(
+                {
+                    "key": relative,
+                    "name": _experiment_name(path),
+                    "path": relative,
+                    "model_count": len(workspaces),
+                    "task_file_count": len(task_files),
+                    "is_default": relative == default_task_dir,
+                }
+            )
+    if not items:
+        relative, workspaces = _load_workspaces()
+        items.append(
+            {
+                "key": relative,
+                "name": _experiment_name(Path(relative)),
+                "path": relative,
+                "model_count": len(workspaces),
+                "task_file_count": len(discover_shared_task_files(relative)),
+                "is_default": True,
+            }
+        )
+    return items
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(ROOT_DIR / "bench" / "static" / "index.html")
 
 
+@app.get("/api/experiments")
+async def experiments() -> list[dict[str, Any]]:
+    return _discover_experiments()
+
+
 @app.get("/api/models")
-async def models() -> list[dict[str, Any]]:
+async def models(task_dir: str | None = Query(default=None)) -> list[dict[str, Any]]:
+    _, workspaces = _load_workspaces(task_dir)
     return [
         {
             "key": cfg.key,
@@ -59,19 +123,22 @@ async def models() -> list[dict[str, Any]]:
 
 
 @app.get("/api/task-files")
-async def task_files() -> list[dict[str, Any]]:
+async def task_files(task_dir: str | None = Query(default=None)) -> list[dict[str, Any]]:
+    relative = _relative_task_dir(task_dir)
     return [
         {
             "name": path.name,
             "path": str(path),
             "size": path.stat().st_size,
         }
-        for path in discover_shared_task_files()
+        for path in discover_shared_task_files(relative)
     ]
 
 
 @app.post("/api/runs")
 async def start_run(req: StartRunRequest) -> dict[str, Any]:
+    task_dir, workspaces = _load_workspaces(req.task_dir)
+    runner = BenchmarkRunner(ROOT_DIR, workspaces)
     errors = runner.preflight(req.models)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
@@ -90,7 +157,7 @@ async def start_run(req: StartRunRequest) -> dict[str, Any]:
     )
 
     run_id = f"run-{len(active_runs) + 1}-{asyncio.get_running_loop().time():.0f}"
-    active_runs[run_id] = {"status": "running", "summary": None}
+    active_runs[run_id] = {"status": "running", "summary": None, "task_dir": task_dir}
 
     options.run_id = run_id
 

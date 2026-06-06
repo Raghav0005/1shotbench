@@ -175,7 +175,7 @@ Run a non-default task directory with:
 python -m bench.cli --task-dir experiments/frontend --prompt "..." --models gpt claude
 ```
 
-The web server uses `experiments/frontend` by default. To point it at another sibling task directory:
+The web server opens on `experiments/frontend` by default, and the dashboard lets you switch between discovered experiment directories such as `experiments/frontend`, `experiments/evaluator`, and `experiments/nfcorpus-repro` without restarting the server. You can still pin the initial directory from the shell:
 
 ```sh
 PI_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010

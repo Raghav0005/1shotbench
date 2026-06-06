@@ -7,17 +7,25 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #111318;
-        --panel: #191d24;
-        --panel-2: #202631;
-        --line: #313845;
-        --text: #f3f6f8;
-        --muted: #9ca8b7;
-        --accent: #46c2b1;
-        --accent-2: #e5b454;
-        --danger: #ff7b7b;
+        --bg: #101214;
+        --surface: #171a1f;
+        --surface-2: #1f242b;
+        --surface-3: #252b34;
+        --line: #343c47;
+        --line-soft: #27303a;
+        --text: #f4f0e8;
+        --muted: #aab2bd;
+        --subtle: #788390;
+        --accent: #4cc0a7;
+        --accent-strong: #7ee1ca;
+        --warning: #f1b969;
+        --danger: #ff8d85;
+        --ok: #8edb93;
+        --ink: #08110f;
       }
+
       * { box-sizing: border-box; }
+      html { min-width: 320px; }
       body {
         margin: 0;
         background: var(--bg);
@@ -26,29 +34,36 @@
       }
       h1, h2, h3, p { margin: 0; }
       button, input, select, textarea {
-        width: 100%;
         border: 1px solid var(--line);
         border-radius: 7px;
-        background: #11151c;
+        background: #11151a;
         color: var(--text);
         font: inherit;
       }
       button {
-        cursor: pointer;
-        background: var(--accent);
-        border-color: transparent;
-        color: #07110f;
-        font-weight: 700;
         min-height: 38px;
+        cursor: pointer;
+        border-color: transparent;
+        background: var(--accent);
+        color: var(--ink);
+        font-weight: 760;
+        padding: 0 0.85rem;
       }
+      button:hover { filter: brightness(1.05); }
       button.secondary {
-        background: #252c37;
+        background: var(--surface-3);
         border-color: var(--line);
         color: var(--text);
       }
-      input, select { min-height: 38px; padding: 0 0.7rem; }
+      button.ghost {
+        background: transparent;
+        border-color: var(--line);
+        color: var(--muted);
+      }
+      input, select { min-height: 38px; padding: 0 0.7rem; width: 100%; }
       textarea {
-        min-height: 150px;
+        width: 100%;
+        min-height: 132px;
         resize: vertical;
         padding: 0.75rem;
       }
@@ -56,155 +71,418 @@
         display: block;
         color: var(--muted);
         font-size: 0.78rem;
-        font-weight: 700;
+        font-weight: 760;
         letter-spacing: 0;
         margin-bottom: 0.35rem;
       }
-      .shell { max-width: 1440px; margin: 0 auto; padding: 1.25rem; }
-      .topbar {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-end;
-        padding: 0.6rem 0 1.1rem;
+      a { color: var(--accent-strong); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .shell {
+        width: min(1540px, 100%);
+        margin: 0 auto;
+        padding: 1rem;
       }
-      .title { display: grid; gap: 0.2rem; }
-      .title h1 { font-size: 1.65rem; font-weight: 750; }
-      .title p { color: var(--muted); max-width: 720px; }
+      .topbar {
+        min-height: 76px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 1rem;
+        padding: 0.25rem 0 1rem;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .title { display: grid; gap: 0.18rem; }
+      .title h1 { font-size: clamp(1.35rem, 1.8vw, 1.85rem); font-weight: 780; }
+      .title p { color: var(--muted); max-width: 820px; }
       .status-pill {
         border: 1px solid var(--line);
-        background: var(--panel);
+        background: var(--surface);
         color: var(--muted);
         border-radius: 999px;
         padding: 0.45rem 0.75rem;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
       }
+      .status-pill.running { color: var(--warning); border-color: #6f5736; }
+      .status-pill.done { color: var(--ok); border-color: #476f49; }
+      .status-pill.failed { color: var(--danger); border-color: #744640; }
+
+      .summary-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
+        padding: 0.85rem 0;
+      }
+      .metric {
+        min-height: 72px;
+        border: 1px solid var(--line-soft);
+        background: var(--surface);
+        border-radius: 8px;
+        padding: 0.75rem;
+      }
+      .metric span {
+        display: block;
+        color: var(--subtle);
+        font-size: 0.75rem;
+        font-weight: 760;
+      }
+      .metric strong {
+        display: block;
+        margin-top: 0.2rem;
+        font-size: 1.28rem;
+        font-weight: 780;
+        font-variant-numeric: tabular-nums;
+      }
+
       .layout {
         display: grid;
-        grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+        grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
         gap: 1rem;
         align-items: start;
       }
-      .panel {
+      .setup-panel, .work-panel {
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: var(--panel);
+        background: var(--surface);
+      }
+      .setup-panel {
         padding: 1rem;
-      }
-      .panel h2 {
-        font-size: 0.92rem;
-        margin-bottom: 0.75rem;
-      }
-      .stack { display: grid; gap: 0.9rem; }
-      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
-      .task-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 0.55rem; }
-      .models-list {
+        position: sticky;
+        top: 1rem;
         display: grid;
-        gap: 0.4rem;
-        max-height: 210px;
-        overflow: auto;
-        padding-right: 0.2rem;
+        gap: 1rem;
       }
-      .model-option {
-        display: flex;
-        gap: 0.55rem;
-        align-items: center;
-        border: 1px solid var(--line);
-        background: var(--panel-2);
-        border-radius: 7px;
-        padding: 0.55rem 0.65rem;
-        color: var(--text);
-        margin: 0;
+      .fieldset {
+        display: grid;
+        gap: 0.75rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--line-soft);
       }
-      .model-option input { width: auto; min-height: 0; }
-      .model-option span { color: var(--muted); font-size: 0.82rem; }
-      .start-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
-      .grid { display: grid; gap: 0.75rem; }
-      .section-head {
+      .fieldset:last-child { border-bottom: 0; padding-bottom: 0; }
+      .fieldset-head {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        margin: 0.2rem 0 0.75rem;
+        gap: 0.75rem;
       }
-      .section-head h2 { font-size: 0.95rem; }
-      .section-head span { color: var(--muted); font-size: 0.82rem; }
-      .card {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--panel);
-        overflow: hidden;
-      }
-      .card h3 {
-        padding: 0.65rem 0.75rem 0;
+      .fieldset h2, .work-head h2 {
         font-size: 0.92rem;
+        font-weight: 780;
       }
-      .card-meta {
+      .fieldset-head span, .work-head span {
+        color: var(--subtle);
+        font-size: 0.8rem;
+      }
+      .experiment-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.45rem;
+      }
+      .experiment-tabs button {
+        min-height: 44px;
+        background: var(--surface-2);
+        border-color: var(--line);
+        color: var(--muted);
+        text-align: left;
+        padding: 0.45rem 0.55rem;
+      }
+      .experiment-tabs button.active {
+        background: #20352f;
+        border-color: #4b9a86;
+        color: var(--text);
+      }
+      .experiment-tabs small {
+        display: block;
+        color: var(--subtle);
+        font-size: 0.7rem;
+        font-weight: 650;
+      }
+      .task-row, .button-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.55rem;
+      }
+      .button-row button { width: auto; }
+      .settings-row {
+        display: grid;
+        grid-template-columns: 1fr 0.8fr;
+        gap: 0.65rem;
+      }
+      .toggle-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.55rem;
+        align-items: start;
+        border: 1px solid var(--line-soft);
+        background: #14181e;
+        border-radius: 7px;
+        padding: 0.62rem;
+      }
+      .toggle-row input {
+        width: 17px;
+        height: 17px;
+        min-height: 0;
+        margin-top: 0.12rem;
+        accent-color: var(--accent);
+      }
+      .toggle-row span {
+        display: block;
+        color: var(--text);
+        font-weight: 760;
+      }
+      .toggle-row small {
+        display: block;
+        margin-top: 0.12rem;
+        color: var(--subtle);
+        font-size: 0.76rem;
+        line-height: 1.35;
+      }
+      .models-toolbar {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 0.45rem;
+        align-items: center;
+      }
+      .models-toolbar span {
+        color: var(--subtle);
+        font-size: 0.78rem;
+        font-weight: 760;
+      }
+      .models-toolbar button {
+        width: auto;
+        min-height: 30px;
+        padding: 0 0.55rem;
+        font-size: 0.78rem;
+      }
+      .models-list {
+        display: grid;
+        gap: 0.42rem;
+        max-height: 285px;
+        overflow: auto;
+        padding-right: 0.15rem;
+      }
+      .model-option {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.58rem;
+        align-items: start;
+        border: 1px solid var(--line-soft);
+        background: #15191f;
+        border-radius: 7px;
+        padding: 0.62rem;
+        margin: 0;
+      }
+      .model-option:hover { border-color: var(--line); background: var(--surface-2); }
+      .model-option input { width: 16px; height: 16px; min-height: 0; margin-top: 0.14rem; accent-color: var(--accent); }
+      .model-title {
         display: flex;
-        align-items: baseline;
+        justify-content: space-between;
         gap: 0.5rem;
+        align-items: center;
+        min-width: 0;
+      }
+      .model-title strong {
+        overflow-wrap: anywhere;
+        font-size: 0.94rem;
+      }
+      .model-meta {
+        margin-top: 0.18rem;
+        display: flex;
         flex-wrap: wrap;
-        padding: 0.2rem 0.75rem 0.55rem;
+        gap: 0.35rem;
+        color: var(--subtle);
+        font-size: 0.76rem;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        border: 1px solid var(--line-soft);
+        border-radius: 999px;
+        padding: 0 0.45rem;
+        color: var(--muted);
+        background: #101419;
+        max-width: 100%;
+      }
+      .badge.ok { color: var(--ok); border-color: #426b44; }
+      .badge.warn { color: var(--warning); border-color: #725a34; }
+      .badge.danger { color: var(--danger); border-color: #71423e; }
+      .actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.55rem;
+        align-items: center;
+      }
+      .actions button { min-width: 128px; }
+      .run-note {
+        color: var(--subtle);
+        font-size: 0.78rem;
+        line-height: 1.35;
+      }
+      .parallel-note {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.42rem;
+        color: var(--muted);
+      }
+      .parallel-dots {
+        display: inline-grid;
+        grid-template-columns: repeat(3, 6px);
+        gap: 3px;
+      }
+      .parallel-dots i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        opacity: 0.55;
+      }
+      .parallel-note .parallel-dots i {
+        animation: pulseDot 900ms ease-in-out infinite;
+      }
+      .parallel-note .parallel-dots i:nth-child(2) { animation-delay: 120ms; }
+      .parallel-note .parallel-dots i:nth-child(3) { animation-delay: 240ms; }
+      @keyframes pulseDot {
+        0%, 100% { opacity: 0.35; transform: translateY(0); }
+        50% { opacity: 1; transform: translateY(-1px); }
+      }
+
+      .main-stack { display: grid; gap: 1rem; min-width: 0; }
+      .work-panel { overflow: hidden; }
+      .work-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 0.9rem;
         border-bottom: 1px solid var(--line);
       }
-      .card-meta .state {
-        color: var(--accent-2);
-        font-weight: 700;
+      .live-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        padding: 0.85rem;
       }
-      .card-meta .elapsed {
-        color: var(--muted);
+      .output-card {
+        min-width: 0;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        background: #12161b;
+        overflow: hidden;
+      }
+      .output-top {
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.65rem 0.72rem;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .output-top h3 {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-size: 0.95rem;
+      }
+      .state {
+        white-space: nowrap;
+        color: var(--warning);
+        font-weight: 760;
         font-variant-numeric: tabular-nums;
-        font-size: 0.88rem;
+      }
+      .state.completed, .state.success { color: var(--ok); }
+      .state.failed, .state.error { color: var(--danger); }
+      .elapsed {
+        display: block;
+        color: var(--subtle);
+        font-size: 0.78rem;
+        font-weight: 650;
       }
       pre {
         margin: 0;
         white-space: pre-wrap;
         word-break: break-word;
-        max-height: 360px;
+        max-height: 350px;
         overflow: auto;
         padding: 0.75rem;
-        background: #0d1016;
-        color: #dbe4ec;
+        background: #0d1014;
+        color: #dde4eb;
         font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
       details {
-        border-top: 1px solid var(--line);
-        background: #11151c;
+        border-top: 1px solid var(--line-soft);
+        background: #11151a;
       }
       summary {
         cursor: pointer;
         padding: 0.55rem 0.75rem;
         color: var(--muted);
       }
+      .table-wrap { overflow: auto; }
       table {
         width: 100%;
+        min-width: 940px;
         border-collapse: collapse;
-        overflow: hidden;
-        border-radius: 8px;
-        background: var(--panel);
+        background: var(--surface);
       }
       th, td {
-        border-bottom: 1px solid var(--line);
-        padding: 0.55rem;
+        border-bottom: 1px solid var(--line-soft);
+        padding: 0.58rem 0.65rem;
         text-align: left;
         font-variant-numeric: tabular-nums;
       }
-      th { color: var(--muted); font-size: 0.78rem; }
+      th {
+        color: var(--subtle);
+        font-size: 0.75rem;
+        font-weight: 780;
+      }
+      tbody tr:hover { background: #1b2027; }
+      .empty {
+        padding: 0.9rem;
+        color: var(--subtle);
+      }
+      .history-list {
+        max-height: 260px;
+        overflow: auto;
+        display: grid;
+        gap: 0.45rem;
+      }
       .history-item {
         cursor: pointer;
-        padding: 0.6rem 0;
-        border-bottom: 1px solid var(--line);
-        color: var(--muted);
+        border: 1px solid var(--line-soft);
+        background: #14181e;
+        border-radius: 7px;
+        padding: 0.58rem 0.65rem;
       }
-      .history-item:hover { color: var(--accent); }
-      .history-item:last-child { border-bottom: 0; }
-      @media (max-width: 960px) {
+      .history-item:hover { border-color: var(--accent); }
+      .history-item strong {
+        display: block;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+      .history-item span {
+        display: block;
+        margin-top: 0.12rem;
+        color: var(--subtle);
+        font-size: 0.77rem;
+      }
+
+      @media (max-width: 1100px) {
         .layout { grid-template-columns: 1fr; }
-        .topbar { align-items: flex-start; flex-direction: column; }
+        .setup-panel { position: static; }
       }
-      @media (max-width: 640px) {
-        .shell { padding: 0.8rem; }
-        .row, .task-row, .start-row { grid-template-columns: 1fr; }
+      @media (max-width: 780px) {
+        .topbar { grid-template-columns: 1fr; align-items: start; }
+        .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .live-grid { grid-template-columns: 1fr; }
+        .experiment-tabs { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 560px) {
+        .shell { padding: 0.75rem; }
+        .summary-strip, .settings-row, .task-row, .button-row, .actions { grid-template-columns: 1fr; }
+        .actions button, .button-row button { width: 100%; }
       }
     </style>
   </head>
@@ -213,121 +491,190 @@
       <header class="topbar">
         <div class="title">
           <h1>Pi Agent Benchmark</h1>
-          <p>Run the same e2e task across model workspaces and compare behavior, logs, duration, and usage signals.</p>
+          <p>Launch an experiment, watch each workspace run, and compare model behavior from one clean console.</p>
         </div>
         <div class="status-pill" id="status">Idle</div>
       </header>
 
+      <section class="summary-strip" aria-label="Run summary">
+        <div class="metric"><span>Experiment</span><strong id="metricExperiment">Frontend</strong></div>
+        <div class="metric"><span>Selected Models</span><strong id="metricModels">0</strong></div>
+        <div class="metric"><span>Completed</span><strong id="metricCompleted">0/0</strong></div>
+        <div class="metric"><span>Total Cost</span><strong id="metricCost">$0.0000</strong></div>
+      </section>
+
       <div class="layout">
-        <aside class="panel stack">
-          <section class="stack">
-            <h2>Run Setup</h2>
+        <aside class="setup-panel">
+          <section class="fieldset">
+            <div class="fieldset-head">
+              <h2>Experiment</h2>
+              <span id="experimentHint">Loading</span>
+            </div>
+            <div class="experiment-tabs" id="experiments"></div>
+          </section>
+
+          <section class="fieldset">
+            <div class="fieldset-head">
+              <h2>Run Setup</h2>
+              <span id="taskHint">No task loaded</span>
+            </div>
             <div>
-              <label>Task File</label>
+              <label for="taskFile">Task File</label>
               <div class="task-row">
                 <select id="taskFile"></select>
                 <button class="secondary" id="useTask" type="button">Use file</button>
               </div>
             </div>
             <div>
-              <label>Prompt</label>
+              <label for="prompt">Prompt</label>
               <textarea id="prompt" placeholder="Enter benchmark prompt"></textarea>
             </div>
-            <div class="row">
+            <div class="settings-row">
               <div>
-                <label>Mode</label>
+                <label for="mode">Mode</label>
                 <select id="mode">
                   <option value="parallel">parallel</option>
                   <option value="sequential">sequential</option>
                 </select>
               </div>
               <div>
-                <label>Concurrency</label>
-                <input id="maxConcurrency" type="number" value="0" min="0" />
+                <label for="maxConcurrency">Concurrency</label>
+                <input id="maxConcurrency" type="number" value="2" min="1" />
               </div>
             </div>
             <div>
-              <label>Label</label>
-              <input id="label" type="text" value="benchmark" />
+              <label for="label">Label</label>
+              <input id="label" type="text" value="demo-benchmark" />
             </div>
+            <label class="toggle-row" for="rewriteTaskFiles">
+              <input id="rewriteTaskFiles" type="checkbox" checked />
+              <span>
+                Rewrite task files
+                <small>Let each model get a rewritten copy of the PRD/task before implementation.</small>
+              </span>
+            </label>
           </section>
 
-          <section class="stack">
-            <h2>Models</h2>
+          <section class="fieldset">
+            <div class="fieldset-head">
+              <h2>Models</h2>
+              <span id="modelHint">0 available</span>
+            </div>
+            <div class="models-toolbar">
+              <span id="selectedHint">0 selected</span>
+              <button class="ghost" id="selectAll" type="button">All</button>
+              <button class="ghost" id="clearModels" type="button">Clear</button>
+            </div>
             <div class="models-list" id="models"></div>
           </section>
 
-          <div class="start-row">
-            <button id="start">Start Run</button>
-            <button class="secondary" id="refreshHistory" type="button">Refresh</button>
-          </div>
+          <section class="fieldset">
+            <div class="actions">
+              <p class="run-note" id="runNote">Parallel mode queues every selected workspace, with two running at a time by default.</p>
+              <button id="start">Start Run</button>
+            </div>
+          </section>
 
-          <section>
-            <h2>Recent Runs</h2>
-            <div id="history"></div>
+          <section class="fieldset">
+            <div class="fieldset-head">
+              <h2>Recent Runs</h2>
+              <button class="ghost" id="refreshHistory" type="button">Refresh</button>
+            </div>
+            <div class="history-list" id="history"></div>
           </section>
         </aside>
 
-        <section class="stack">
-          <div>
-            <div class="section-head">
+        <section class="main-stack">
+          <section class="work-panel">
+            <div class="work-head">
               <h2>Live Output</h2>
               <span id="liveHint">No active run</span>
             </div>
-            <div class="grid" id="live"></div>
-          </div>
-
-          <div>
-            <div class="section-head">
-              <h2>Final Stats</h2>
-              <span>duration and parsed token usage</span>
+            <div class="live-grid" id="live">
+              <div class="empty">Start a run to stream workspace output.</div>
             </div>
-            <table id="stats">
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Status</th>
-                  <th>Duration</th>
-                  <th>Input</th>
-                  <th>Output</th>
-                  <th>Reasoning</th>
-                  <th>Cache</th>
-                  <th>Total</th>
-                  <th>Cost</th>
-                  <th>Requests</th>
-                  <th>Demo</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
+          </section>
+
+          <section class="work-panel">
+            <div class="work-head">
+              <h2>Final Stats</h2>
+              <span>duration, token usage, cost, and demos</span>
+            </div>
+            <div class="table-wrap">
+              <table id="stats">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Input</th>
+                    <th>Output</th>
+                    <th>Reasoning</th>
+                    <th>Cache</th>
+                    <th>Total</th>
+                    <th>Cost</th>
+                    <th>Requests</th>
+                    <th>Demo</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
         </section>
       </div>
     </main>
 
     <script>
-      const modelsDiv = document.getElementById("models");
-      const liveDiv = document.getElementById("live");
-      const statusDiv = document.getElementById("status");
+      const el = (id) => document.getElementById(id);
+      const experimentsDiv = el("experiments");
+      const modelsDiv = el("models");
+      const liveDiv = el("live");
+      const statusDiv = el("status");
       const statsBody = document.querySelector("#stats tbody");
+      const historyDiv = el("history");
+      const liveHint = el("liveHint");
+      const taskFileSelect = el("taskFile");
+      const metricExperiment = el("metricExperiment");
+      const metricModels = el("metricModels");
+      const metricCompleted = el("metricCompleted");
+      const metricCost = el("metricCost");
       const modelCards = {};
       const modelTimers = {};
-      const historyDiv = document.getElementById("history");
-      const liveHint = document.getElementById("liveHint");
-      const taskFileSelect = document.getElementById("taskFile");
-      let currentSummary = null;
+      let experiments = [];
+      let currentTaskDir = "";
+      let loadedModels = [];
 
-      function clearAllModelTimers() {
-        Object.keys(modelTimers).forEach((m) => stopModelTimer(m));
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        })[ch]);
+      }
+
+      function setStatus(text, cls = "") {
+        statusDiv.textContent = text;
+        statusDiv.className = `status-pill ${cls}`.trim();
       }
 
       function formatElapsed(ms) {
+        if (ms == null) return "-";
         if (ms < 1000) return `${(ms / 1000).toFixed(1)} s`;
         const s = Math.floor(ms / 1000);
         const m = Math.floor(s / 60);
         const rs = s % 60;
-        if (m > 0) return `${m}m ${rs}s`;
-        return `${s} s`;
+        return m > 0 ? `${m}m ${rs}s` : `${s} s`;
+      }
+
+      function money(value) {
+        return `$${Number(value || 0).toFixed(4)}`;
+      }
+
+      function clearAllModelTimers() {
+        Object.keys(modelTimers).forEach((m) => stopModelTimer(m));
       }
 
       function stopModelTimer(model) {
@@ -339,47 +686,113 @@
 
       function startModelTimer(model) {
         const card = ensureCard(model);
-        const el = card.querySelector(".elapsed");
-        if (!el) return;
+        const elapsed = card.querySelector(".elapsed");
         stopModelTimer(model);
-        const start = performance.now();
+        const started = performance.now();
         modelTimers[model] = setInterval(() => {
-          el.textContent = `· ${formatElapsed(performance.now() - start)}`;
-        }, 100);
+          elapsed.textContent = formatElapsed(performance.now() - started);
+        }, 150);
       }
 
-      function setElapsedFinal(model, durationMs) {
-        stopModelTimer(model);
-        const card = modelCards[model];
-        if (!card) return;
-        const el = card.querySelector(".elapsed");
-        if (el) el.textContent = durationMs != null ? `· ${durationMs} ms` : "· —";
+      function resetLive() {
+        liveDiv.innerHTML = "";
+        statsBody.innerHTML = "";
+        clearAllModelTimers();
+        Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+        liveHint.textContent = "No active run";
+        updateSummary(null);
       }
 
-      function resetElapsedDisplay(model) {
-        stopModelTimer(model);
-        const card = modelCards[model];
-        if (!card) return;
-        const el = card.querySelector(".elapsed");
-        if (el) el.textContent = "";
+      function selectedModels() {
+        return [...modelsDiv.querySelectorAll("input[type=checkbox]:checked")].map((input) => input.value);
+      }
+
+      function updateSelectedCount() {
+        const count = selectedModels().length;
+        el("selectedHint").textContent = `${count} selected`;
+        metricModels.textContent = String(count);
+      }
+
+      function updateSummary(summary) {
+        const results = (summary || {}).results || [];
+        const total = results.length;
+        const complete = results.filter((r) => ["completed", "success"].includes(r.status)).length;
+        const cost = results.reduce((sum, r) => sum + Number((r.metrics || {}).cost_usd || 0), 0);
+        metricCompleted.textContent = `${complete}/${total || selectedModels().length || 0}`;
+        metricCost.textContent = money(cost);
+      }
+
+      function experimentLabel(exp) {
+        return exp.name || exp.path || "Experiment";
+      }
+
+      async function loadExperiments() {
+        const res = await fetch("/api/experiments");
+        experiments = await res.json();
+        const fallback = experiments[0] || { key: "experiments/frontend", name: "Frontend", path: "experiments/frontend" };
+        currentTaskDir = (experiments.find((exp) => exp.is_default) || fallback).path;
+        renderExperiments();
+        await changeExperiment(currentTaskDir, false);
+      }
+
+      function renderExperiments() {
+        experimentsDiv.innerHTML = experiments.map((exp) => `
+          <button type="button" class="${exp.path === currentTaskDir ? "active" : ""}" data-task-dir="${escapeHtml(exp.path)}">
+            ${escapeHtml(experimentLabel(exp))}
+            <small>${exp.model_count || 0} models / ${exp.task_file_count || 0} tasks</small>
+          </button>
+        `).join("");
+        experimentsDiv.querySelectorAll("button").forEach((button) => {
+          button.onclick = () => changeExperiment(button.dataset.taskDir, true);
+        });
+      }
+
+      async function changeExperiment(taskDir, shouldReset) {
+        currentTaskDir = taskDir;
+        const exp = experiments.find((item) => item.path === taskDir) || { name: taskDir, path: taskDir };
+        metricExperiment.textContent = experimentLabel(exp);
+        el("experimentHint").textContent = exp.path || taskDir;
+        renderExperiments();
+        await loadModels();
+        await loadTaskFiles(shouldReset);
+        if (shouldReset) resetLive();
       }
 
       async function loadModels() {
-        const res = await fetch("/api/models");
-        const models = await res.json();
-        modelsDiv.innerHTML = models.map((m) =>
-          `<label class="model-option"><input type="checkbox" value="${m.key}" checked /><strong>${m.key}</strong><span>${m.provider || "default"}/${m.model}</span></label>`
-        ).join("");
+        const res = await fetch(`/api/models?task_dir=${encodeURIComponent(currentTaskDir)}`);
+        loadedModels = await res.json();
+        el("modelHint").textContent = `${loadedModels.length} available`;
+        modelsDiv.innerHTML = loadedModels.map((m) => {
+          const thinking = m.thinking ? `<span class="badge warn">thinking ${escapeHtml(m.thinking)}</span>` : "";
+          const provider = m.provider ? `<span class="badge">${escapeHtml(m.provider)}</span>` : "";
+          return `
+            <label class="model-option">
+              <input type="checkbox" value="${escapeHtml(m.key)}" checked />
+              <span>
+                <span class="model-title">
+                  <strong>${escapeHtml(m.key)}</strong>
+                  ${thinking}
+                </span>
+                <span class="model-meta">
+                  ${provider}
+                  <span class="badge">${escapeHtml(m.model || "default")}</span>
+                </span>
+              </span>
+            </label>`;
+        }).join("") || `<div class="empty">No workspaces found.</div>`;
+        modelsDiv.querySelectorAll("input[type=checkbox]").forEach((input) => {
+          input.onchange = updateSelectedCount;
+        });
+        updateSelectedCount();
       }
 
-      async function loadTaskFiles() {
-        const res = await fetch("/api/task-files");
+      async function loadTaskFiles(resetPrompt = false) {
+        const res = await fetch(`/api/task-files?task_dir=${encodeURIComponent(currentTaskDir)}`);
         const files = await res.json();
-        taskFileSelect.innerHTML = files.map((f) =>
-          `<option value="${f.name}">${f.name}</option>`
-        ).join("") || `<option value="">No task files found</option>`;
-        if (files.length && !document.getElementById("prompt").value.trim()) {
-          document.getElementById("prompt").value = `Please read ${files[0].name} and complete the task exactly as specified.`;
+        taskFileSelect.innerHTML = files.map((f) => `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`).join("") || `<option value="">No task files found</option>`;
+        el("taskHint").textContent = files.length ? `${files.length} task file${files.length === 1 ? "" : "s"}` : "No task files";
+        if (files.length && (resetPrompt || !el("prompt").value.trim())) {
+          el("prompt").value = `Please read ${files[0].name} and complete the task exactly as specified.`;
         }
       }
 
@@ -389,106 +802,120 @@
         historyDiv.innerHTML = rows.map((r) => {
           const deployments = (r.deployments || {}).deployments || [];
           const previewCount = deployments.filter((d) => d.preview_url).length;
-          const deployText = deployments.length ? ` | ${previewCount}/${deployments.length} demos` : "";
-          return `<div class="history-item" data-run-id="${r.run_id}">${r.run_id} | ${r.label} | ${r.mode} | ${r.duration_ms}ms${deployText} | ${r.started_at}</div>`;
-        }).join("") || "No runs yet.";
+          const demos = deployments.length ? `${previewCount}/${deployments.length} demos` : "no demos";
+          return `
+            <div class="history-item" data-run-id="${escapeHtml(r.run_id)}">
+              <strong>${escapeHtml(r.label || r.run_id || "run")}</strong>
+              <span>${escapeHtml(r.run_id)} / ${escapeHtml(r.mode || "-")} / ${formatElapsed(r.duration_ms || 0)} / ${demos}</span>
+            </div>`;
+        }).join("") || `<div class="empty">No runs yet.</div>`;
         historyDiv.querySelectorAll(".history-item").forEach((item) => {
           item.onclick = () => loadRunDetails(item.dataset.runId);
         });
       }
 
-      function selectedModels() {
-        return [...modelsDiv.querySelectorAll("input[type=checkbox]:checked")].map((el) => el.value);
-      }
-
       function ensureCard(model) {
         if (modelCards[model]) return modelCards[model];
+        if (liveDiv.querySelector(".empty")) liveDiv.innerHTML = "";
         const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `<h3>${model}</h3><div class="card-meta"><span class="state">queued</span><span class="elapsed" aria-live="polite"></span></div><pre class="stdout"></pre><details><summary>stderr</summary><pre class="stderr"></pre></details>`;
+        card.className = "output-card";
+        card.innerHTML = `
+          <div class="output-top">
+            <h3>${escapeHtml(model)}</h3>
+            <div><span class="state">queued</span><span class="elapsed"></span></div>
+          </div>
+          <pre class="stdout"></pre>
+          <details><summary>stderr</summary><pre class="stderr"></pre></details>`;
         liveDiv.appendChild(card);
-        liveHint.textContent = `${Object.keys(modelCards).length + 1} workspace${Object.keys(modelCards).length ? "s" : ""}`;
         modelCards[model] = card;
         applyGridColumns();
         return card;
       }
 
-      function appendOutput(model, text, stream = "stdout") {
-        const card = ensureCard(model);
-        const pre = stream === "stderr" ? card.querySelector(".stderr") : card.querySelector(".stdout");
-        pre.textContent = (pre.textContent + "\n" + (text || "")).slice(-10000);
-      }
-
       function applyGridColumns() {
         const count = Object.keys(modelCards).length;
-        if (count <= 0) return;
-        if (count === 4) {
-          liveDiv.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+        if (window.matchMedia("(max-width: 780px)").matches) {
+          liveDiv.style.gridTemplateColumns = "1fr";
           return;
         }
-        const cols = Math.min(3, count);
+        const cols = count === 1 ? 1 : 2;
         liveDiv.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
       }
 
       function updateState(model, state) {
         const card = ensureCard(model);
-        card.querySelector(".state").textContent = state;
-        if (state === "running") {
-          if (!modelTimers[model]) startModelTimer(model);
-        } else if (state === "retrying") {
-          if (!modelTimers[model]) startModelTimer(model);
-        } else if (state === "queued") {
-          resetElapsedDisplay(model);
+        const stateEl = card.querySelector(".state");
+        stateEl.textContent = state;
+        stateEl.className = `state ${state}`;
+        if (["running", "retrying"].includes(state)) startModelTimer(model);
+        if (state === "queued") {
+          stopModelTimer(model);
+          card.querySelector(".elapsed").textContent = "";
         }
+      }
+
+      function setElapsedFinal(model, durationMs) {
+        stopModelTimer(model);
+        const card = modelCards[model];
+        if (card) card.querySelector(".elapsed").textContent = formatElapsed(durationMs);
+      }
+
+      function appendOutput(model, text, stream = "stdout") {
+        const card = ensureCard(model);
+        const pre = stream === "stderr" ? card.querySelector(".stderr") : card.querySelector(".stdout");
+        const pinnedToBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
+        pre.textContent = (pre.textContent + (pre.textContent ? "\n" : "") + (text || "")).slice(-12000);
+        if (pinnedToBottom) pre.scrollTop = pre.scrollHeight;
       }
 
       function deploymentsByModel(deployments) {
         const map = {};
-        for (const item of (deployments || {}).deployments || []) {
-          map[item.model_key] = item;
-        }
+        for (const item of (deployments || {}).deployments || []) map[item.model_key] = item;
         return map;
       }
 
       function deploymentCell(deployment) {
-        if (!deployment) return "—";
+        if (!deployment) return "-";
         if (deployment.preview_url) {
-          return `<a href="${deployment.preview_url}" target="_blank" rel="noopener">preview</a>`;
+          return `<a href="${escapeHtml(deployment.preview_url)}" target="_blank" rel="noopener">preview</a>`;
         }
-        return deployment.status || "—";
+        return escapeHtml(deployment.status || "-");
       }
 
       function fillStats(summary, deployments = null) {
-        currentSummary = summary;
+        updateSummary(summary);
         const deployMap = deploymentsByModel(deployments);
         statsBody.innerHTML = "";
         for (const r of summary.results || []) {
           const m = r.metrics || {};
-          const demo = deploymentCell(deployMap[r.model_key]);
           const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td>${r.model_key}</td><td>${r.status}</td><td>${r.duration_ms}</td>
-            <td>${m.input_tokens || 0}</td><td>${m.output_tokens || 0}</td>
-            <td>${m.reasoning_tokens || 0}</td><td>${m.cache_read_tokens || 0}</td>
-            <td>${m.total_tokens || 0}</td><td>${(m.cost_usd || 0).toFixed(4)}</td>
-            <td>${m.requests || 0}</td><td>${demo}</td>`;
+            <td>${escapeHtml(r.model_key)}</td>
+            <td><span class="badge ${r.status === "failed" ? "danger" : "ok"}">${escapeHtml(r.status)}</span></td>
+            <td>${formatElapsed(r.duration_ms)}</td>
+            <td>${Number(m.input_tokens || 0).toLocaleString()}</td>
+            <td>${Number(m.output_tokens || 0).toLocaleString()}</td>
+            <td>${Number(m.reasoning_tokens || 0).toLocaleString()}</td>
+            <td>${Number(m.cache_read_tokens || 0).toLocaleString()}</td>
+            <td>${Number(m.total_tokens || 0).toLocaleString()}</td>
+            <td>${money(m.cost_usd)}</td>
+            <td>${Number(m.requests || 0).toLocaleString()}</td>
+            <td>${deploymentCell(deployMap[r.model_key])}</td>`;
           statsBody.appendChild(tr);
         }
       }
 
       async function loadRunDetails(runId) {
-        const res = await fetch(`/api/runs/${runId}/details`);
+        const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/details`);
         if (!res.ok) {
-          statusDiv.textContent = `Failed to load run ${runId}`;
+          setStatus(`Failed to load ${runId}`, "failed");
           return;
         }
         const data = await res.json();
         const summary = data.summary || {};
         const outputs = data.outputs || {};
-        document.getElementById("prompt").value = data.prompt || "";
-        liveDiv.innerHTML = "";
-        clearAllModelTimers();
-        Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+        el("prompt").value = data.prompt || "";
+        resetLive();
         for (const r of summary.results || []) {
           const model = r.model_key;
           ensureCard(model);
@@ -498,35 +925,47 @@
           appendOutput(model, (outputs[model] || {}).stderr || "", "stderr");
         }
         fillStats(summary, data.deployments || null);
-        statusDiv.textContent = `Loaded run: ${runId}`;
         liveHint.textContent = `${(summary.results || []).length} loaded workspace${(summary.results || []).length === 1 ? "" : "s"}`;
+        setStatus(`Loaded: ${runId}`, "done");
       }
 
-      document.getElementById("useTask").onclick = () => {
+      el("useTask").onclick = () => {
         const file = taskFileSelect.value;
-        if (!file) return;
-        document.getElementById("prompt").value = `Please read ${file} and complete the task exactly as specified.`;
+        if (file) el("prompt").value = `Please read ${file} and complete the task exactly as specified.`;
       };
 
-      document.getElementById("refreshHistory").onclick = loadHistory;
+      el("selectAll").onclick = () => {
+        modelsDiv.querySelectorAll("input[type=checkbox]").forEach((input) => { input.checked = true; });
+        updateSelectedCount();
+      };
 
-      document.getElementById("start").onclick = async () => {
-        liveDiv.innerHTML = "";
-        statsBody.innerHTML = "";
-        statusDiv.textContent = "Starting...";
-        clearAllModelTimers();
-        Object.keys(modelCards).forEach((key) => delete modelCards[key]);
+      el("clearModels").onclick = () => {
+        modelsDiv.querySelectorAll("input[type=checkbox]").forEach((input) => { input.checked = false; });
+        updateSelectedCount();
+      };
+
+      el("refreshHistory").onclick = loadHistory;
+      window.addEventListener("resize", applyGridColumns);
+
+      el("start").onclick = async () => {
+        const models = selectedModels();
+        if (!models.length) {
+          setStatus("Select at least one model", "failed");
+          return;
+        }
+        resetLive();
+        setStatus("Starting...", "running");
         liveHint.textContent = "Preparing workspaces";
         const payload = {
-          prompt: document.getElementById("prompt").value,
-          models: selectedModels(),
-          mode: document.getElementById("mode").value,
-          max_concurrency: Number(document.getElementById("maxConcurrency").value || 0),
-          label: document.getElementById("label").value || "benchmark"
+          task_dir: currentTaskDir,
+          prompt: el("prompt").value,
+          models,
+          mode: el("mode").value,
+          max_concurrency: Number(el("maxConcurrency").value || 0),
+          label: el("label").value || "benchmark",
+          rewrite_task_files: el("rewriteTaskFiles").checked
         };
-        if (payload.mode === "parallel" && payload.max_concurrency <= 0) {
-          payload.max_concurrency = Math.max(1, payload.models.length);
-        }
+        if (payload.max_concurrency <= 0) payload.max_concurrency = 2;
         for (const model of payload.models) ensureCard(model);
 
         const startRes = await fetch("/api/runs", {
@@ -535,16 +974,16 @@
           body: JSON.stringify(payload)
         });
         if (!startRes.ok) {
-          statusDiv.textContent = "Failed to start run";
-          const err = await startRes.text();
-          appendOutput("system", err);
+          setStatus("Failed to start run", "failed");
+          appendOutput("system", await startRes.text());
           return;
         }
         const { run_id } = await startRes.json();
-        statusDiv.textContent = `Running: ${run_id}`;
-        liveHint.textContent = `${payload.models.length} active workspace${payload.models.length === 1 ? "" : "s"}`;
+        setStatus(`Running: ${run_id}`, "running");
+        liveHint.innerHTML = `<span class="parallel-note"><span class="parallel-dots"><i></i><i></i><i></i></span>${payload.models.length} workspace${payload.models.length === 1 ? "" : "s"} queued; ${payload.max_concurrency} run at a time</span>`;
+        metricCompleted.textContent = `0/${payload.models.length}`;
 
-        const events = new EventSource(`/api/runs/${run_id}/events`);
+        const events = new EventSource(`/api/runs/${encodeURIComponent(run_id)}/events`);
         events.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           if (data.type === "status") {
@@ -554,24 +993,26 @@
           } else if (data.type === "complete") {
             updateState(data.model, data.status);
             setElapsedFinal(data.model, data.duration_ms);
-            // Do not append stdout_tail/stderr_tail here: output events already streamed
-            // the full logs; re-appending duplicates GLM/GPT (and others) in the GUI.
           } else if (data.type === "run_complete") {
-            statusDiv.textContent = "Completed";
+            setStatus("Completed", "done");
             (data.summary.results || []).forEach((r) => setElapsedFinal(r.model_key, r.duration_ms));
             fillStats(data.summary);
             loadHistory();
             events.close();
           } else if (data.type === "run_failed") {
             clearAllModelTimers();
-            statusDiv.textContent = `Run failed: ${data.error || "unknown error"}`;
+            setStatus(`Run failed: ${data.error || "unknown error"}`, "failed");
             events.close();
           }
         };
+        events.onerror = () => {
+          setStatus("Event stream interrupted", "failed");
+          clearAllModelTimers();
+          events.close();
+        };
       };
 
-      loadModels();
-      loadTaskFiles();
+      loadExperiments();
       loadHistory();
     </script>
   </body>
