@@ -36,7 +36,13 @@ def write_artifacts(
 
 
 def render_markdown(summary: WebEvalSummary, output_dir: Path) -> str:
-    title = "Codex Judge Report" if (summary.judge_model or "").startswith("codex:") else "LLM Judge Report"
+    judge_model = summary.judge_model or ""
+    if judge_model.startswith("codex:"):
+        title = "Codex Judge Report"
+    elif judge_model.startswith("pi:"):
+        title = "Pi Judge Report"
+    else:
+        title = "LLM Judge Report"
     lines = [
         f"# {title}: {summary.label}",
         "",

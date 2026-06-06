@@ -40,6 +40,7 @@ MUTATION_IGNORED_DIRS = {
     "playwright-report",
     "test-results",
     ".codex",
+    ".next",
 }
 MUTATION_IGNORED_NAMES = {
     "package-lock.json",
@@ -100,6 +101,8 @@ def _git_commit(root: Path) -> str | None:
 
 
 class CodexJudgeRunner:
+    JUDGE_DISPLAY_NAME = "Codex"
+
     def __init__(self, root_dir: Path = ROOT_DIR):
         self.root_dir = root_dir.resolve()
 
@@ -390,7 +393,8 @@ class CodexJudgeRunner:
             - Do not rerun a successful end-to-end evaluation just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
             - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation. Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
             - If the browser helper records an error but the captured visible text already proves the behavior, use that evidence instead of repeating the same action.
-            - Start app servers in the background, write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load instead of leaving a foreground server command open.
+            - Start app servers in the background only if they remain reachable after the startup command exits. Write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load.
+            - In Codex `exec`, background children may be cleaned up when the shell command finishes. If the log says the server started but the next command gets connection refused, do not treat that as an app failure yet: run the documented server command as a long-lived foreground exec command, leave that command running, and gather browser evidence from a separate command.
             - For negative/error-path tests, use a bounded setup variation such as an invalid environment variable or unsupported UI option when available. Do not spend more than one short follow-up pass trying to force an error state.
 
             Evidence collection guidance:
@@ -448,13 +452,13 @@ class CodexJudgeRunner:
                         feature_id=feature.id,
                         verdict="uncertain",
                         confidence=0.0,
-                        reason="Codex judge did not return a verdict for this feature.",
+                        reason=f"{self.JUDGE_DISPLAY_NAME} judge did not return a verdict for this feature.",
                         evidence_used=["missing_judgment"],
                     )
                 )
                 evidence_by_feature[feature.id] = EvidencePacket(
                     feature_id=feature.id,
-                    error="No evidence returned by Codex judge.",
+                    error=f"No evidence returned by {self.JUDGE_DISPLAY_NAME} judge.",
                 )
                 continue
 

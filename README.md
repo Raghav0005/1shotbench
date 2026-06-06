@@ -278,6 +278,37 @@ Useful options:
 - `--model <codex-model>` to choose the Codex model
 - `--search` to enable live web search for the judge if you explicitly want that mode
 
+## Pi Judge
+
+Pi Bench also supports a Pi-based judge. This path mirrors the Codex judge flow: it copies the coding agent workspace into a disposable judge workspace, gives Pi the dedicated judging skill in `judge_skills/web_judge/`, and writes the same `evals/<eval_id>/` artifacts.
+
+Run the Pi judge with:
+
+```sh
+python3 -m bench.pi_judge \
+  --project experiments/evaluator/gpt-workspace \
+  --features experiments/evaluator/features.yaml \
+  --prd experiments/evaluator/PRD.md \
+  --label gpt-pi-judge
+```
+
+Or ask Pi to generate the features from the PRD:
+
+```sh
+python3 -m bench.pi_judge \
+  --project experiments/evaluator/gpt-workspace \
+  --prd experiments/evaluator/PRD.md \
+  --label gpt-pi-judge-generated
+```
+
+Useful options:
+
+- `--base-url http://127.0.0.1:3000` and `--no-start` when the app is already running
+- `--keep-judge-workspace` to preserve the disposable copy at `evals/<eval_id>/judge-workspace/`
+- `--judge-workspace-root path/to/root` to control where the disposable copy lives instead
+- `--provider <pi-provider>` and `--model <pi-model>` to choose the Pi judge backend
+- `--thinking <level>`, `--system-prompt`, `--append-system-prompt`, and `--tools read,bash,edit,write,grep,find,ls` to control Pi CLI options
+
 ## CLI
 
 Run one prompt against multiple model workspaces:

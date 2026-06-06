@@ -42,6 +42,9 @@ class CodexJudgeMutationTests(unittest.TestCase):
             (root / "eval.cacm.recall_1000.txt").write_text("eval\n", encoding="utf-8")
             (root / "server.log").write_text("hello\n", encoding="utf-8")
             (root / "package-lock.json").write_text("{}", encoding="utf-8")
+            (root / ".next" / "cache" / "webpack").mkdir(parents=True)
+            (root / ".next" / "cache" / "webpack" / "index.pack.gz").write_text("cache\n", encoding="utf-8")
+            (root / ".next" / "build-manifest.json").write_text("{}", encoding="utf-8")
             after = _snapshot_mutation_manifest(root)
             self.assertEqual(_detect_forbidden_mutations(before, after), [])
 
@@ -52,6 +55,7 @@ class CodexJudgeMutationTests(unittest.TestCase):
         self.assertTrue(_ignore_for_mutation(Path("eval.cacm.recall_1000.txt")))
         self.assertTrue(_ignore_for_mutation(Path("package-lock.json")))
         self.assertTrue(_ignore_for_mutation(Path("server.log")))
+        self.assertTrue(_ignore_for_mutation(Path(".next/build-manifest.json")))
         self.assertFalse(_ignore_for_mutation(Path("src/app/page.tsx")))
 
     def test_build_codex_command_places_approval_before_exec(self) -> None:
@@ -159,6 +163,8 @@ class CodexJudgeMutationTests(unittest.TestCase):
             self.assertIn("Do not run separate backend/evaluator smoke commands", prompt)
             self.assertIn("generate at most 5", prompt)
             self.assertIn("Do not rerun a successful end-to-end evaluation", prompt)
+            self.assertIn("background children may be cleaned up", prompt)
+            self.assertIn("long-lived foreground exec command", prompt)
             self.assertIn("Do not print full evidence JSON", prompt)
             self.assertIn("at most 30s", prompt)
             self.assertIn("wait_for_any_text", prompt)
