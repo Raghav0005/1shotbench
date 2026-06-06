@@ -58,12 +58,12 @@ Keep this token private.
 Create one Render Web Service per model:
 
 ```text
-pi-bench-nfcorpus-repro-gpt
-pi-bench-nfcorpus-repro-claude
-pi-bench-nfcorpus-repro-gemini
-pi-bench-nfcorpus-repro-glm
-pi-bench-nfcorpus-repro-kimi
-pi-bench-nfcorpus-repro-minimax
+1shot-bench-nfcorpus-repro-gpt
+1shot-bench-nfcorpus-repro-claude
+1shot-bench-nfcorpus-repro-gemini
+1shot-bench-nfcorpus-repro-glm
+1shot-bench-nfcorpus-repro-kimi
+1shot-bench-nfcorpus-repro-minimax
 ```
 
 Use Render image-backed web services, not Git-backed services.
@@ -99,7 +99,7 @@ credential ID must be included in the image deploy details. For this account,
 the GHCR credential was:
 
 ```text
-pi-bench-ghcr-read-packages
+1shot-bench-ghcr-read-packages
 ```
 
 Do not commit the Render API key or GHCR tokens.
@@ -156,11 +156,11 @@ python -m bench.deploy \
 This builds and pushes images like:
 
 ```text
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-gemini:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-glm:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-kimi:20260604-195631-698d5dac
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-gemini:20260604-195631-698d5dac
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-glm:20260604-195631-698d5dac
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-kimi:20260604-195631-698d5dac
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac
 ```
 
 The harness may also build a GPT image for this run because it deploys every
@@ -178,7 +178,7 @@ python -m bench.deploy \
 This pushes the successful GPT image:
 
 ```text
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-gpt:20260604-202345-c2acbb5c
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-gpt:20260604-202345-c2acbb5c
 ```
 
 It also triggers the GPT Render deploy hook with that image URL.
@@ -280,7 +280,7 @@ MINIMAX
 Open the corresponding deployment stderr log. The build context is staged under:
 
 ```text
-runs/<run-id>/deploy-staging/pi-bench-nfcorpus-repro-<model>/
+runs/<run-id>/deploy-staging/1shot-bench-nfcorpus-repro-<model>/
 ```
 
 You can rerun the printed Docker build command manually from the repo root.
@@ -295,7 +295,7 @@ docker run --rm -p 18100:10000 \
   -e PORT=10000 \
   -e APP_CACHE_DIR=/data \
   -e ANSERINI_REST_PORT=18083 \
-  ghcr.io/<owner>/pi-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
+  ghcr.io/<owner>/1shot-bench-nfcorpus-repro-claude:20260604-195631-698d5dac
 
 curl -sS "http://127.0.0.1:18100/api/search?q=diet&hits=10" | jq .
 ```
@@ -329,7 +329,7 @@ benchmark workspace was not patched; the fix was applied in deployment staging
 and pushed as:
 
 ```text
-ghcr.io/<owner>/pi-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac-renderfix
+ghcr.io/<owner>/1shot-bench-nfcorpus-repro-minimax:20260604-195631-698d5dac-renderfix
 ```
 
 Even with that renderfix image, MiniMax still did not satisfy the full Anserini

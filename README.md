@@ -1,6 +1,6 @@
-# Pi Bench
+# 1ShotBench
 
-Pi Bench runs the same task prompt through multiple Pi agent workspaces so you can compare how different models behave under the same harness.
+1ShotBench runs the same task prompt through multiple Pi agent workspaces so you can compare how different models behave under the same harness.
 
 The old Codex proxy path has been removed. Each model now runs through the `pi` CLI directly, using a small `bench.toml` file inside its workspace.
 
@@ -58,7 +58,7 @@ Task files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` should li
 
 ## Workspace Isolation
 
-Pi Bench runs each model from its own workspace directory and wraps each Pi subprocess in a platform sandbox. On macOS it uses `sandbox-exec`; on Linux it uses `bwrap` (bubblewrap). The sandbox allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
+1ShotBench runs each model from its own workspace directory and wraps each Pi subprocess in a platform sandbox. On macOS it uses `sandbox-exec`; on Linux it uses `bwrap` (bubblewrap). The sandbox allows normal process behavior but denies file reads and writes against the other configured model workspace directories.
 
 That means a run from `glm-workspace` cannot inspect or modify `kimi-workspace`, `gpt-workspace`, and the other sibling model workspaces for the same task. Preflight fails if neither `sandbox-exec` nor a functional `bwrap` is available, because that isolation cannot be enforced.
 
@@ -66,7 +66,7 @@ This is workspace isolation, not a full container. Agents can still use allowed 
 
 ## Codex-Private Notes
 
-Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and Pi Bench adds it to every generated sandbox profile as a denied read/write path.
+Use `.codex-private/` for notes intended for Codex but not Pi benchmark agents. The directory is gitignored, and 1ShotBench adds it to every generated sandbox profile as a denied read/write path.
 
 Do not put benchmark instructions for Pi agents there. Use task-local files such as `experiments/frontend/PRD.md` for agent-visible task prompts.
 
@@ -87,7 +87,7 @@ Pi stores login credentials in:
 ~/.pi/agent/auth.json
 ```
 
-For API keys, either use Pi's `/login` flow and choose the provider, edit `~/.pi/agent/auth.json`, export environment variables in your shell, or put them in this project's gitignored `.env` file. Pi Bench loads `.env` before starting each agent process.
+For API keys, either use Pi's `/login` flow and choose the provider, edit `~/.pi/agent/auth.json`, export environment variables in your shell, or put them in this project's gitignored `.env` file. 1ShotBench loads `.env` before starting each agent process.
 
 Common `.env` entries:
 
@@ -180,7 +180,7 @@ python -m bench.cli --task-dir experiments/frontend --prompt "..." --models gpt 
 The web server opens on `experiments/frontend` by default, and the dashboard lets you switch between discovered experiment directories such as `experiments/frontend`, `experiments/evaluator`, and `experiments/nfcorpus-repro` without restarting the server. You can still pin the initial directory from the shell:
 
 ```sh
-PI_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010
+ONESHOT_BENCH_TASK_DIR=experiments/evaluator uvicorn bench.web:app --port 4010
 ```
 
 ## LLM Judge
@@ -238,7 +238,7 @@ Correctness is `passed / total * 100`; **uncertain** counts as not passed.
 
 ## Codex Judge
 
-Pi Bench also supports a separate Codex-based judge. This path uses Codex CLI as the evaluator, runs it in a disposable copied workspace, and gives it a dedicated judging skill stored under `judge_skills/web_judge/`.
+1ShotBench also supports a separate Codex-based judge. This path uses Codex CLI as the evaluator, runs it in a disposable copied workspace, and gives it a dedicated judging skill stored under `judge_skills/web_judge/`.
 
 Before using the Codex judge, make sure Codex CLI is installed and logged in:
 
@@ -280,7 +280,7 @@ Useful options:
 
 ## Pi Judge
 
-Pi Bench also supports a Pi-based judge. This path mirrors the Codex judge flow: it copies the coding agent workspace into a disposable judge workspace, gives Pi the dedicated judging skill in `judge_skills/web_judge/`, and writes the same `evals/<eval_id>/` artifacts.
+1ShotBench also supports a Pi-based judge. This path mirrors the Codex judge flow: it copies the coding agent workspace into a disposable judge workspace, gives Pi the dedicated judging skill in `judge_skills/web_judge/`, and writes the same `evals/<eval_id>/` artifacts.
 
 Run the Pi judge with:
 
@@ -340,7 +340,7 @@ Useful options:
 The CLI flow is:
 
 1. It reads the prompt from `--prompt` or `--prompt-file`.
-2. It loads `*-workspace/bench.toml` files from `--task-dir`, `PI_BENCH_TASK_DIR`, or the default `experiments/frontend`.
+2. It loads `*-workspace/bench.toml` files from `--task-dir`, `ONESHOT_BENCH_TASK_DIR`, or the default `experiments/frontend`.
 3. It runs preflight checks for the selected model keys, the workspace folders, the `pi` executable, a sandbox backend (`sandbox-exec` or `bwrap`), and any declared `required_skills`.
 4. It refreshes task-local files matching `PRD*.md`, `TASK*.md`, `task*.md`, or `prompt*.md` into every configured workspace.
 5. It creates a fresh `runs/<run_id>/` directory and writes the exact prompt to `prompt.txt`.
@@ -412,7 +412,7 @@ Or deploy automatically after a CLI benchmark:
 python -m bench.cli --task-dir experiments/frontend --prompt-file experiments/frontend/PRD.md --models gpt claude --deploy render
 ```
 
-Pi Bench deploys demos as Docker images for Render image-backed web services. For each attempted model, the harness stages the workspace under `runs/<run_id>/deploy-staging/`, uses an existing Dockerfile when present, or generates a generic Dockerfile for runnable Node/Next/Express or Python `server.py` apps. Unsupported or failed deployments still get `<model>/deployment.json` so the public demo table can show what happened.
+1ShotBench deploys demos as Docker images for Render image-backed web services. For each attempted model, the harness stages the workspace under `runs/<run_id>/deploy-staging/`, uses an existing Dockerfile when present, or generates a generic Dockerfile for runnable Node/Next/Express or Python `server.py` apps. Unsupported or failed deployments still get `<model>/deployment.json` so the public demo table can show what happened.
 
 One-time Render setup:
 
@@ -433,7 +433,7 @@ RENDER_SERVICE_URL_FRONTEND_GPT=https://your-demo.onrender.com
 EOF
 ```
 
-Do not put `GHCR_TOKEN` or Render deploy hooks in this repo's `.env`; `.env` is passed to benchmark agents. The deploy harness also accepts these values from the shell environment. It builds Docker images for `linux/amd64`, pushes them to `ghcr.io/<owner>/pi-bench-<task>-<model>:<run_id>`, and triggers each Render deploy hook with `imgURL=<encoded-image-url>`. Render web services must bind to `0.0.0.0` and the expected `$PORT`; generated Dockerfiles set sensible defaults, but agent-built apps still need to honor `PORT` for live demos. See Render's docs for [Docker](https://render.com/docs/docker), [prebuilt image deploys](https://render.com/docs/deploying-an-image), [deploy hooks](https://render.com/docs/deploy-hooks), and [web services](https://render.com/docs/web-services).
+Do not put `GHCR_TOKEN` or Render deploy hooks in this repo's `.env`; `.env` is passed to benchmark agents. The deploy harness also accepts these values from the shell environment. It builds Docker images for `linux/amd64`, pushes them to `ghcr.io/<owner>/1shot-bench-<task>-<model>:<run_id>`, and triggers each Render deploy hook with `imgURL=<encoded-image-url>`. Render web services must bind to `0.0.0.0` and the expected `$PORT`; generated Dockerfiles set sensible defaults, but agent-built apps still need to honor `PORT` for live demos. See Render's docs for [Docker](https://render.com/docs/docker), [prebuilt image deploys](https://render.com/docs/deploying-an-image), [deploy hooks](https://render.com/docs/deploy-hooks), and [web services](https://render.com/docs/web-services).
 
 ## Web UI
 
@@ -459,7 +459,7 @@ The UI can:
 
 ## Metrics
 
-Pi Bench records wall-clock duration and process status for every model. New runs execute Pi in JSON event mode and parse final assistant `usage` fields from `message_end` events. Raw Pi events are saved per model as `events.jsonl`, while readable output remains in `stdout.log`.
+1ShotBench records wall-clock duration and process status for every model. New runs execute Pi in JSON event mode and parse final assistant `usage` fields from `message_end` events. Raw Pi events are saved per model as `events.jsonl`, while readable output remains in `stdout.log`.
 
 Older runs made before JSON event parsing may show zero token and cost fields because they were run with `--no-session` and text output did not include usage.
 

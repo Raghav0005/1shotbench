@@ -15,7 +15,7 @@ SHARED_TASK_GLOBS = ("PRD*.md", "TASK*.md", "task*.md", "prompt*.md")
 
 
 def resolve_workspaces_dir(task_dir: str | Path | None = None) -> Path:
-    selected = task_dir or os.environ.get("PI_BENCH_TASK_DIR") or DEFAULT_TASK_DIR_NAME
+    selected = task_dir or os.environ.get("ONESHOT_BENCH_TASK_DIR") or DEFAULT_TASK_DIR_NAME
     path = Path(selected)
     return path if path.is_absolute() else ROOT_DIR / path
 

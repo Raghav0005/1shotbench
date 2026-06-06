@@ -54,7 +54,7 @@ class BatchResult:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run a Pi Bench judge across every workspace in every experiment project."
+        description="Run a 1ShotBench judge across every workspace in every experiment project."
     )
     parser.add_argument(
         "--judge",
