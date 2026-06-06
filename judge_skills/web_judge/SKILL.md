@@ -17,6 +17,7 @@ You are acting as an evaluator for a benchmarked web application, not as a progr
 - Do not infer correctness from reading source files or implementation intent.
 - Do not inspect source code to decide whether a feature passes. Use browser/runtime evidence instead.
 - You may read README files, package manifests, config needed to run the app, the PRD, and feature definitions to understand how to run the app and what behavior is required.
+- You may read repo-local skill instructions under `.agents/skills` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
 - Do not read, inspect, compare, or mention any other coding-agent workspace. Ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside the app copy.
 - Do not mutate files outside the provided app copy, temporary work directory, and temporary artifacts directory.
 

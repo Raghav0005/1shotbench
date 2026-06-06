@@ -363,6 +363,7 @@ class CodexJudgeRunner:
             - Do not infer correctness from source files or implementation intent.
             - Do not inspect source code to determine whether a feature passes. Use browser/runtime evidence instead.
             - You may read README files, package manifests, config needed to run the app, PRD files, feature files, and the judging skill.
+            - You may read repo-local skill instructions under `{self.root_dir / ".agents" / "skills"}` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
             - Do not read, inspect, compare, or mention any other coding-agent workspace. In particular, ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside `./app`.
             - Do not mutate files outside `./app`, `./work`, and `./artifacts`.
             - Inside `./app`, you may install dependencies, create virtual environments, download jars, and allow the app to write documented runtime outputs such as run/evaluation artifacts in its configured output directories.

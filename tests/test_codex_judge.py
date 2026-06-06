@@ -125,4 +125,6 @@ class CodexJudgeMutationTests(unittest.TestCase):
             self.assertIn("Do not mutate files outside `./app`, `./work`, and `./artifacts`", prompt)
             self.assertIn("allow the app to write documented runtime outputs", prompt)
             self.assertIn("Prefer `./work` and `./artifacts` for judge-created evidence", prompt)
+            self.assertIn(".agents/skills", prompt)
+            self.assertIn("only to understand documented setup/runtime commands", prompt)
             self.assertIn("Do not inspect source code to determine whether a feature passes", prompt)
