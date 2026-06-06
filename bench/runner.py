@@ -140,17 +140,11 @@ class BenchmarkRunner:
                 continue
             for task_file in task_files:
                 link_path = workspace_path / task_file.name
-                target = Path("..") / task_file.name
-                if link_path.is_symlink():
-                    if link_path.readlink() != target:
-                        link_path.unlink()
-                        link_path.symlink_to(target)
-                    continue
                 if link_path.exists():
                     if link_path.is_dir():
                         continue
                     link_path.unlink()
-                link_path.symlink_to(target)
+                link_path.write_text(task_file.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _task_dir(self) -> Path | None:
         parents = {

@@ -91,7 +91,7 @@ class RunnerLoggingTests(unittest.IsolatedAsyncioTestCase):
                 "rewritten prd\n",
             )
             runner.sync_shared_task_files()
-            self.assertTrue((workspace_dir / "PRD.md").is_symlink())
+            self.assertFalse((workspace_dir / "PRD.md").is_symlink())
             self.assertEqual((workspace_dir / "PRD.md").read_text(encoding="utf-8"), "original prd\n")
 
     async def test_timeout_preserves_live_stdout_and_events(self) -> None:

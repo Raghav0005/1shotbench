@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from bench.schemas import WorkspaceConfig
@@ -73,13 +74,60 @@ def denied_workspace_paths(
     workspace_path = Path(workspace.path).resolve()
     private_path = (root_dir / ".codex-private").resolve()
     private_path.mkdir(parents=True, exist_ok=True)
-    denied_paths = [
-        Path(other.path).resolve()
-        for other in workspaces.values()
-        if Path(other.path).resolve() != workspace_path
-    ]
-    denied_paths.append(private_path)
-    return denied_paths
+    allowed_paths = [workspace_path]
+
+    local_skills = (root_dir / ".agents" / "skills").resolve()
+    if local_skills.exists():
+        allowed_paths.append(local_skills)
+
+    denied_paths = _denied_project_paths(root_dir.resolve(), allowed_paths)
+    if private_path not in denied_paths:
+        denied_paths.append(private_path)
+    return _dedupe_paths(denied_paths)
+
+
+def _dedupe_paths(paths: list[Path]) -> list[Path]:
+    seen: set[Path] = set()
+    deduped: list[Path] = []
+    for path in paths:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(resolved)
+    return deduped
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_allowed_or_contains_allowed(path: Path, allowed_paths: list[Path]) -> bool:
+    return any(path == allowed or _is_relative_to(path, allowed) or _is_relative_to(allowed, path) for allowed in allowed_paths)
+
+
+def _denied_project_paths(root_dir: Path, allowed_paths: list[Path]) -> list[Path]:
+    denied: list[Path] = []
+
+    def walk(path: Path) -> None:
+        if not path.exists():
+            return
+        if not _is_allowed_or_contains_allowed(path, allowed_paths):
+            denied.append(path.resolve())
+            return
+        if any(path == allowed or _is_relative_to(path, allowed) for allowed in allowed_paths):
+            return
+        if path.is_dir():
+            for child in sorted(path.iterdir()):
+                walk(child.resolve())
+
+    for child in sorted(root_dir.iterdir()):
+        walk(child.resolve())
+    return denied
 
 
 def apply_workspace_sandbox(
@@ -128,8 +176,9 @@ def _wrap_with_sandbox_exec(
     lines = ["(version 1)", "(allow default)"]
     for denied_path in denied_paths:
         quoted = json.dumps(str(denied_path))
-        lines.append(f"(deny file-read* (subpath {quoted}))")
-        lines.append(f"(deny file-write* (subpath {quoted}))")
+        selector = "subpath" if denied_path.is_dir() else "literal"
+        lines.append(f"(deny file-read* ({selector} {quoted}))")
+        lines.append(f"(deny file-write* ({selector} {quoted}))")
     profile_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return [sandbox_exe, "-f", str(profile_path), *command]
 
@@ -144,12 +193,14 @@ def _wrap_with_bwrap(
     if not args:
         return command
 
-    overlay_dir = model_dir / "sandbox-deny-overlay"
-    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay_dir = Path(tempfile.mkdtemp(prefix=f"{model_dir.name}-sandbox-deny-overlay-")).resolve()
+    empty_file = overlay_dir / "empty-file"
+    empty_file.touch()
     for denied_path in denied_paths:
         if not denied_path.exists():
             denied_path.mkdir(parents=True, exist_ok=True)
-        args.extend(["--ro-bind", str(overlay_dir), str(denied_path)])
+        overlay_source = overlay_dir if denied_path.is_dir() else empty_file
+        args.extend(["--ro-bind", str(overlay_source), str(denied_path)])
 
     wrapped = [*args, "--", *command]
     artifact_path = model_dir / BWRAP_ARTIFACT_NAME

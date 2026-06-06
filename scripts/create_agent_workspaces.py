@@ -48,6 +48,7 @@ WORKSPACES = [
     WorkspaceSpec("gpt", "GPT workspace", "openai-codex", "gpt-5.5"),
     WorkspaceSpec("claude", "Claude workspace", "anthropic", "claude-opus-4-7"),
     WorkspaceSpec("gemini", "Gemini workspace", "google", "gemini-3.1-pro-preview"),
+    WorkspaceSpec("deepseek", "DeepSeek workspace", "deepseek", "deepseek-v4-pro"),
     WorkspaceSpec("glm", "GLM workspace", "zai", "glm-5.1"),
     WorkspaceSpec("kimi", "Kimi workspace", "moonshotai", "kimi-k2.6"),
     WorkspaceSpec("minimax", "MiniMax workspace", "minimax", "MiniMax-M2.7"),
@@ -56,6 +57,13 @@ WORKSPACES = [
 
 def _toml_list(values: list[str]) -> str:
     return "[" + ", ".join(f'"{value}"' for value in values) + "]"
+
+
+def _display_path(path: Path) -> Path:
+    try:
+        return path.relative_to(ROOT_DIR)
+    except ValueError:
+        return path
 
 
 def discover_task_files(task_dir: Path) -> list[Path]:
@@ -78,9 +86,9 @@ def create_workspaces(task_dir: Path, force: bool) -> None:
         config_path = workspace_dir / "bench.toml"
         if force or not config_path.exists():
             config_path.write_text(spec.to_toml(), encoding="utf-8")
-            print(f"wrote {config_path.relative_to(ROOT_DIR)}")
+            print(f"wrote {_display_path(config_path)}")
         else:
-            print(f"kept  {config_path.relative_to(ROOT_DIR)}")
+            print(f"kept  {_display_path(config_path)}")
 
         for task_file in task_files:
             link_path = workspace_dir / task_file.name
@@ -89,13 +97,13 @@ def create_workspaces(task_dir: Path, force: bool) -> None:
                 if link_path.readlink() != target:
                     link_path.unlink()
                     link_path.symlink_to(target)
-                    print(f"fixed {link_path.relative_to(ROOT_DIR)} -> {target}")
+                    print(f"fixed {_display_path(link_path)} -> {target}")
                 continue
             if link_path.exists():
-                print(f"skip  {link_path.relative_to(ROOT_DIR)} exists")
+                print(f"skip  {_display_path(link_path)} exists")
                 continue
             link_path.symlink_to(target)
-            print(f"link  {link_path.relative_to(ROOT_DIR)} -> {target}")
+            print(f"link  {_display_path(link_path)} -> {target}")
 
 
 def build_parser() -> argparse.ArgumentParser:

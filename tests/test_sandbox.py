@@ -23,7 +23,7 @@ from bench.schemas import WorkspaceConfig
 
 
 class SandboxPathTests(unittest.TestCase):
-    def test_denied_paths_include_sibling_workspaces_and_private_dir(self) -> None:
+    def test_denied_paths_hide_project_files_except_workspace_and_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             task_dir = root / "task"
@@ -31,6 +31,11 @@ class SandboxPathTests(unittest.TestCase):
             beta = task_dir / "beta-workspace"
             alpha.mkdir(parents=True)
             beta.mkdir(parents=True)
+            (task_dir / "PRD.md").write_text("task", encoding="utf-8")
+            (root / "AGENTS.md").write_text("instructions", encoding="utf-8")
+            (root / "docs").mkdir()
+            (root / ".agents" / "skills" / "anserini-cli").mkdir(parents=True)
+            (root / ".agents" / "tmp").mkdir(parents=True)
             workspaces = {
                 "alpha": WorkspaceConfig("alpha", "Alpha", str(alpha), "model-a"),
                 "beta": WorkspaceConfig("beta", "Beta", str(beta), "model-b"),
@@ -42,7 +47,14 @@ class SandboxPathTests(unittest.TestCase):
                 workspace=workspaces["alpha"],
             )
 
-            self.assertEqual(denied, [beta.resolve(), (root / ".codex-private").resolve()])
+            self.assertIn(beta.resolve(), denied)
+            self.assertIn((task_dir / "PRD.md").resolve(), denied)
+            self.assertIn((root / "AGENTS.md").resolve(), denied)
+            self.assertIn((root / "docs").resolve(), denied)
+            self.assertIn((root / ".agents" / "tmp").resolve(), denied)
+            self.assertIn((root / ".codex-private").resolve(), denied)
+            self.assertNotIn(alpha.resolve(), denied)
+            self.assertNotIn((root / ".agents" / "skills").resolve(), denied)
             self.assertTrue((root / ".codex-private").exists())
 
 
@@ -55,6 +67,7 @@ class SandboxWrapTests(unittest.TestCase):
             beta = task_dir / "beta-workspace"
             alpha.mkdir(parents=True)
             beta.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("instructions", encoding="utf-8")
             model_dir = root / "run" / "alpha"
             model_dir.mkdir(parents=True)
             workspaces = {
@@ -74,7 +87,8 @@ class SandboxWrapTests(unittest.TestCase):
             self.assertEqual(wrapped[:3], ["/usr/bin/sandbox-exec", "-f", str(model_dir / SANDBOX_PROFILE_NAME)])
             profile = (model_dir / SANDBOX_PROFILE_NAME).read_text(encoding="utf-8")
             self.assertIn("(allow default)", profile)
-            self.assertIn(str(beta.resolve()), profile)
+            self.assertIn(f"(subpath {json.dumps(str(beta.resolve()))})", profile)
+            self.assertIn(f"(literal {json.dumps(str((root / 'AGENTS.md').resolve()))})", profile)
             self.assertIn(str((root / ".codex-private").resolve()), profile)
 
     def test_wrap_with_bwrap_overlays_denied_paths(self) -> None:
@@ -86,6 +100,7 @@ class SandboxWrapTests(unittest.TestCase):
             alpha.mkdir(parents=True)
             beta.mkdir(parents=True)
             (beta / "secret.txt").write_text("secret", encoding="utf-8")
+            (root / "AGENTS.md").write_text("instructions", encoding="utf-8")
             model_dir = root / "run" / "alpha"
             model_dir.mkdir(parents=True)
             workspaces = {
@@ -112,17 +127,19 @@ class SandboxWrapTests(unittest.TestCase):
                     command=["pi", "hello"],
                 )
 
-            overlay_dir = model_dir / "sandbox-deny-overlay"
+            artifact = json.loads((model_dir / BWRAP_ARTIFACT_NAME).read_text(encoding="utf-8"))
+            overlay_dir = Path(artifact["overlay_dir"])
             self.assertTrue(overlay_dir.is_dir())
             self.assertEqual(wrapped[0], "/usr/bin/bwrap")
             self.assertIn("--ro-bind", wrapped)
             self.assertIn(str(overlay_dir), wrapped)
             self.assertIn(str(beta.resolve()), wrapped)
+            self.assertIn(str((root / "AGENTS.md").resolve()), wrapped)
             self.assertEqual(wrapped[-3:], ["--", "pi", "hello"])
 
-            artifact = json.loads((model_dir / BWRAP_ARTIFACT_NAME).read_text(encoding="utf-8"))
             self.assertEqual(artifact["backend"], "bwrap")
             self.assertIn(str(beta.resolve()), artifact["denied_paths"])
+            self.assertIn(str((root / "AGENTS.md").resolve()), artifact["denied_paths"])
 
     def test_preflight_requires_functional_sandbox_backend(self) -> None:
         with mock.patch("bench.sandbox.shutil.which", return_value=None):
