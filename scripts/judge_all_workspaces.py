@@ -5,6 +5,7 @@ import argparse
 import json
 import sys
 import textwrap
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -49,6 +50,7 @@ class BatchResult:
     failed_features: list[str] | None = None
     uncertain_features: list[str] | None = None
     artifact_dir: str | None = None
+    elapsed_seconds: float | None = None
     error: str | None = None
 
 
@@ -157,17 +159,20 @@ def main() -> int:
     for index, target in enumerate(targets, start=1):
         label = f"{label_prefix}-{target.project_name}-{target.workspace_name.removesuffix('-workspace')}"
         print(f"[{index}/{len(targets)}] {target.project_name}/{target.workspace_name} ... ", end="", flush=True)
+        started = time.monotonic()
         try:
             summary = run_target(args, target, label=label)
         except Exception as exc:
+            elapsed_seconds = time.monotonic() - started
             result = BatchResult(
                 project=target.project_name,
                 workspace=target.workspace_name,
                 status="error",
+                elapsed_seconds=elapsed_seconds,
                 error=str(exc),
             )
             results.append(result)
-            print(f"ERROR: {_one_line(str(exc), 140)}")
+            print(f"ERROR after {_format_elapsed(elapsed_seconds)}: {_one_line(str(exc), 140)}")
             if not args.continue_on_error:
                 write_batch_artifacts(batch_dir, args.judge, results)
                 print("")
@@ -175,12 +180,14 @@ def main() -> int:
                 return 1
             continue
 
-        result = result_from_summary(target, summary)
+        elapsed_seconds = time.monotonic() - started
+        result = result_from_summary(target, summary, elapsed_seconds=elapsed_seconds)
         results.append(result)
         print(
             f"{summary.correctness_pct:.1f}% "
             f"({summary.passed} pass, {summary.failed} fail, {summary.uncertain} uncertain) "
-            f"eval={summary.eval_id}"
+            f"eval={summary.eval_id} "
+            f"elapsed={_format_elapsed(elapsed_seconds)}"
         )
         if summary.notes:
             print(f"    notes: {_one_line(summary.notes, 180)}")
@@ -289,7 +296,12 @@ def run_target(args: argparse.Namespace, target: WorkspaceTarget, *, label: str)
     )
 
 
-def result_from_summary(target: WorkspaceTarget, summary: WebEvalSummary) -> BatchResult:
+def result_from_summary(
+    target: WorkspaceTarget,
+    summary: WebEvalSummary,
+    *,
+    elapsed_seconds: float,
+) -> BatchResult:
     failed_features = [judgment.feature_id for judgment in summary.judgments if judgment.verdict == "fail"]
     uncertain_features = [judgment.feature_id for judgment in summary.judgments if judgment.verdict == "uncertain"]
     return BatchResult(
@@ -306,6 +318,7 @@ def result_from_summary(target: WorkspaceTarget, summary: WebEvalSummary) -> Bat
         failed_features=failed_features,
         uncertain_features=uncertain_features,
         artifact_dir=str(EVALS_DIR / summary.eval_id),
+        elapsed_seconds=elapsed_seconds,
     )
 
 
@@ -349,8 +362,8 @@ def render_batch_markdown(payload: dict) -> str:
         f"- **Failed:** {totals['failed']}",
         f"- **Uncertain:** {totals['uncertain']}",
         "",
-        "| Project | Workspace | Status | Score | Failed | Uncertain | Notes |",
-        "| --- | --- | --- | ---: | --- | --- | --- |",
+        "| Project | Workspace | Status | Elapsed | Score | Failed | Uncertain | Notes |",
+        "| --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ]
     for item in payload["results"]:
         if item["status"] == "completed":
@@ -365,7 +378,7 @@ def render_batch_markdown(payload: dict) -> str:
             notes = _one_line(item.get("error") or "", 120)
         lines.append(
             f"| {item['project']} | {item['workspace']} | {item['status']} | "
-            f"{score} | {failed} | {uncertain} | {notes} |"
+            f"{_format_elapsed(item.get('elapsed_seconds'))} | {score} | {failed} | {uncertain} | {notes} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -412,6 +425,19 @@ def _normalize_workspace_name(value: str) -> str:
 def _one_line(value: str, limit: int) -> str:
     compact = " ".join(str(value).split())
     return textwrap.shorten(compact, width=limit, placeholder="...") if compact else ""
+
+
+def _format_elapsed(seconds: float | None) -> str:
+    if seconds is None:
+        return "n/a"
+    total = max(0, int(round(seconds)))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m{secs:02d}s"
+    if minutes:
+        return f"{minutes}m{secs:02d}s"
+    return f"{secs}s"
 
 
 if __name__ == "__main__":

@@ -28,12 +28,40 @@ You are acting as an evaluator for a benchmarked web application, not as a progr
 - install dependencies
 - create a virtual environment
 - run documented setup scripts
-- download runtime artifacts such as jars
+- download runtime artifacts such as data files, model files, databases, indexes, jars, or browser/runtime caches
+- place or symlink downloaded runtime artifacts into the app-local path the delivered app expects
 - start and stop the app
 - gather browser evidence
 - write temporary evaluation artifacts
 
 These actions are allowed only to evaluate the app as delivered, and only inside the provided app copy or judge temporary directories.
+
+## Required Runtime Artifacts
+
+Some benchmark apps require runtime artifacts that are intentionally not checked
+into the workspace, such as model weights, sample databases, search indexes,
+compiled jars, media assets, browser/runtime caches, or other large generated
+files. Missing runtime artifacts are setup work, not an automatic app failure,
+when the PRD, feature file, manifest, README, config, or repo-local skill names
+the artifact or setup workflow.
+
+Before failing an app because the browser shows a missing-artifact error, or
+because an API endpoint fails due to a missing local file/class/resource:
+
+1. Read the PRD, feature file, manifest, README/config, and any referenced
+   repo-local skill instructions to identify the expected artifact.
+2. Download, copy, or symlink the artifact inside `./app`, `./work`, or
+   `./artifacts`, using the app-local filename/location that the delivered app
+   expects.
+3. Restart the app and gather browser evidence again.
+
+Do not record final failure for missing runtime artifacts until you have tried
+the documented or conventional app-local artifact location without editing
+source-like files. For example, if a task references a setup skill for a jar,
+database, index, model, or fixture bundle, install or copy that artifact into the
+path the app expects; if the app reports errors such as `file not found`,
+`resource not found`, `No fatjar found`, or `ClassNotFoundException`, resolve the
+documented artifact placement and restart before judging final behavior.
 
 ## Feature Workflow
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from bench.pi_judge.runner import (
     DEFAULT_PI_JUDGE_MODEL,
@@ -85,13 +88,13 @@ class PiJudgeTests(unittest.TestCase):
             self.assertIn("You are the Pi judge", prompt)
             self.assertIn("Final structured response path: `pi-final.json`", prompt)
             self.assertIn("Write only JSON matching the provided output schema", prompt)
-            self.assertIn("Do not inspect source code to determine whether a feature passes", prompt)
-            self.assertIn("Do not mutate files outside `./app`, `./work`, and `./artifacts`", prompt)
+            self.assertIn("follow the judge skill for full safety, setup, speed, and evidence rules", prompt)
+            self.assertIn("Do not inspect sibling agent workspaces", prompt)
+            self.assertIn("mutate outside `./app`, `./work`, and `./artifacts`", prompt)
             self.assertIn("MUST use the Playwright helper", prompt)
             self.assertIn("Do not print full evidence JSON", prompt)
-            self.assertIn("do not evaluate the unrelated existing listener", prompt)
-            self.assertIn("alternate free local port", prompt)
-            self.assertIn("documented nested app directory", prompt)
+            self.assertNotIn("alternate free local port", prompt)
+            self.assertNotIn("documented nested app directory", prompt)
 
     def test_report_title_uses_pi_judge_model_prefix(self) -> None:
         summary = WebEvalSummary(
@@ -112,6 +115,46 @@ class PiJudgeTests(unittest.TestCase):
             judge_model="pi:openai-codex/gpt-5.4-mini",
         )
         self.assertTrue(render_markdown(summary, Path("/tmp/eval")).startswith("# Pi Judge Report: Pi Test"))
+
+    def test_timeout_writes_logs_and_preserves_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root / "app"
+            project.mkdir()
+            (project / "README.md").write_text("# App\n", encoding="utf-8")
+            prd = root / "PRD.md"
+            prd.write_text("# PRD\n\nRun the app.\n", encoding="utf-8")
+            evals_dir = root / "evals"
+
+            timeout = subprocess.TimeoutExpired(
+                ["pi", "judge"],
+                timeout=3,
+                output="partial stdout",
+                stderr=b"partial stderr",
+            )
+            with (
+                mock.patch.object(PiJudgeRunner, "preflight", return_value=[]),
+                mock.patch("bench.pi_judge.runner.EVALS_DIR", evals_dir),
+                mock.patch("bench.pi_judge.runner._run_pi_command", side_effect=timeout),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "timed out after 3s"):
+                    PiJudgeRunner(root_dir=root).run(
+                        PiJudgeOptions(
+                            project_path=project,
+                            prd_path=prd,
+                            eval_id="pi-timeout",
+                            judge_timeout_seconds=3,
+                        )
+                    )
+
+            output_dir = evals_dir / "pi-timeout"
+            self.assertEqual((output_dir / "pi.stdout.log").read_text(encoding="utf-8"), "partial stdout")
+            stderr = (output_dir / "pi.stderr.log").read_text(encoding="utf-8")
+            self.assertIn("partial stderr", stderr)
+            self.assertIn("Pi judge timed out after 3s", stderr)
+            run_metadata = json.loads((output_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_metadata["status"], "timed_out")
+            self.assertTrue(Path(run_metadata["judge_workspace"]).exists())
 
 
 if __name__ == "__main__":

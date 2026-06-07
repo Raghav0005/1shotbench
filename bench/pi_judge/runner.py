@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import signal
 import subprocess
 import tempfile
 import textwrap
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -171,15 +174,52 @@ class PiJudgeRunner(CodexJudgeRunner):
                 encoding="utf-8",
             )
 
-            proc = subprocess.run(
-                command,
-                cwd=str(judge_workspace),
-                env=load_project_env(),
-                capture_output=True,
-                text=True,
-                timeout=options.judge_timeout_seconds,
-                check=False,
-            )
+            try:
+                proc = _run_pi_command(
+                    command,
+                    cwd=judge_workspace,
+                    env=load_project_env(),
+                    timeout=options.judge_timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                cleanup_workspace = False
+                stdout_path.write_text(_process_output_to_text(exc.stdout), encoding="utf-8")
+                stderr = _process_output_to_text(exc.stderr)
+                if stderr and not stderr.endswith("\n"):
+                    stderr += "\n"
+                stderr += f"Pi judge timed out after {options.judge_timeout_seconds}s.\n"
+                stderr_path.write_text(stderr, encoding="utf-8")
+                run_metadata_path.write_text(
+                    json.dumps(
+                        {
+                            "judge": "pi",
+                            "status": "timed_out",
+                            "pi_command": command,
+                            "pi_stdout_path": str(stdout_path),
+                            "pi_stderr_path": str(stderr_path),
+                            "structured_result_path": str(final_path),
+                            "structured_result_schema_path": str(schema_path),
+                            "project_path": str(project_path),
+                            "features_path": str(features_path) if features_path else None,
+                            "prd_path": str(options.prd_path.resolve()) if options.prd_path else None,
+                            "generated_features": generated_features,
+                            "judge_workspace": str(judge_workspace),
+                            "keep_judge_workspace": True,
+                            "provider": options.provider,
+                            "model": options.model,
+                            "thinking": options.thinking,
+                            "tools": options.tools,
+                            "timeout_seconds": options.judge_timeout_seconds,
+                        },
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                raise RuntimeError(
+                    f"Pi judge timed out after {options.judge_timeout_seconds}s. "
+                    f"See {stdout_path}, {stderr_path}, and preserved workspace {judge_workspace}."
+                ) from exc
             stdout_path.write_text(proc.stdout or "", encoding="utf-8")
             stderr_path.write_text(proc.stderr or "", encoding="utf-8")
             if proc.returncode != 0:
@@ -314,24 +354,12 @@ class PiJudgeRunner(CodexJudgeRunner):
             - Final structured response path: `{final_path.relative_to(final_path.parent)}`
             - Final structured response schema: `{schema_path.relative_to(schema_path.parent)}`
 
-            Constraints:
-            - Act as an evaluator, not a programmer.
-            - Do not judge code quality or source structure.
-            - Do not infer correctness from source files or implementation intent.
-            - Do not inspect source code to determine whether a feature passes. Use browser/runtime evidence instead.
-            - You may read README files, package manifests, config needed to run the app, PRD files, feature files, and the judging skill.
-            - Do not read app tests, e2e tests, or source files except as a last resort to find a documented runtime command when README/manifests are insufficient.
-            - You may read repo-local skill instructions under `{self.root_dir / ".agents" / "skills"}` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
-            - Do not read or use user Codex plugin skills, including the Browser/in-app-browser skill. This judge must use the browser helper named below.
-            - Do not read, inspect, compare, or mention any other coding-agent workspace. In particular, ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside `./app`.
-            - Do not mutate files outside `./app`, `./work`, and `./artifacts`.
-            - Inside `./app`, you may install dependencies, create virtual environments, download jars, and allow the app to write documented runtime outputs such as run/evaluation artifacts in its configured output directories.
-            - Prefer `./work` and `./artifacts` for judge-created evidence and temporary files that are not app runtime outputs.
-            - Do not edit source-like app files to make the app run. In particular, do not modify package manifests, requirements files, source code, tests, configs, or README files inside `./app`.
-            - If the app fails because it is not actually runnable as delivered, record that as an evaluation failure rather than repairing it.
+            Core constraints:
+            - Act as an evaluator, not a programmer; follow the judge skill for full safety, setup, speed, and evidence rules.
+            - Judge only observed browser/runtime behavior, not source intent or code quality.
+            - Do not inspect sibling agent workspaces or mutate outside `./app`, `./work`, and `./artifacts`.
+            - Do not edit source-like app files to make the app run.
             - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, interactive elements, and screenshots.
-            - Do not write ad-hoc Python or Node Playwright scripts unless the helper itself fails to launch. If the helper fails, do at most one small fallback attempt and keep waits under 30s.
-            - Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
             - Keep command output concise. Do not print full evidence JSON, full app logs, full catalog dumps, or long file contents into the Pi transcript. Store full artifacts on disk and print only small summaries.
 
             Inputs:
@@ -339,23 +367,10 @@ class PiJudgeRunner(CodexJudgeRunner):
             - {prd_line}
             - {app_line}
 
-            Fast bounded workflow guidance:
-            - If generating features from a PRD, generate at most 5 high-value externally observable features.
-            - Prefer one setup pass, one initial browser snapshot, one focused interaction/evaluation pass, and at most one small follow-up pass.
-            - Do not rerun a successful end-to-end evaluation just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
-            - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation. Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
-            - If the browser helper records an error but the captured visible text already proves the behavior, use that evidence instead of repeating the same action.
-            - Start app servers in the background only if they remain reachable after the startup command exits. Write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load.
-            - If the default or feature-file port is already occupied, do not evaluate the unrelated existing listener. Start the delivered app on an alternate free local port using documented environment variables such as `PORT`, then use that URL in evidence and final `base_url`.
-            - If a workspace root has no runnable manifest but a README or manifest in a nested app directory documents startup such as `cd app && npm start`, run from that documented nested app directory.
-            - If a background server command is cleaned up when the shell command finishes, do not treat that as an app failure yet: run the documented server command as a long-lived foreground command, leave that command running, and gather browser evidence from a separate command.
-            - For negative/error-path tests, use a bounded setup variation such as an invalid environment variable or unsupported UI option when available. Do not spend more than one short follow-up pass trying to force an error state.
-
-            Evidence collection guidance:
-            - For each feature, gather browser evidence and then decide pass/fail/uncertain from evidence only.
-            - Save any screenshots under `./work` using the browser helper's normal output flow.
-            - If the existing evidence is insufficient, do a small bounded follow-up evidence pass.
-            - If startup fails completely, still return a verdict for every feature. Those verdicts will usually be fail unless there is a principled reason for uncertain.
+            Evidence workflow:
+            - Gather browser evidence and decide pass/fail/uncertain from evidence only.
+            - Save screenshots under `./work`.
+            - If startup fails completely, still return a verdict for every feature.
 
             Final response requirements:
             - Write only JSON matching the provided output schema to `{final_path.relative_to(final_path.parent)}`.
@@ -388,6 +403,74 @@ def _build_pi_exec_command(*, options: PiJudgeOptions, prompt: str) -> list[str]
     command[0] = options.pi_command
     command.append(prompt)
     return command
+
+
+def _run_pi_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_process_group(proc.pid, signal.SIGTERM)
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            _terminate_process_group(proc.pid, signal.SIGKILL)
+            stdout, stderr = proc.communicate()
+        exc.stdout = _merge_timeout_output(exc.stdout, stdout)
+        exc.stderr = _merge_timeout_output(exc.stderr, stderr)
+        raise
+    finally:
+        _terminate_process_group(proc.pid, signal.SIGTERM)
+    return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
+
+
+def _terminate_process_group(pid: int, sig: signal.Signals) -> None:
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid in {os.getpid(), os.getpgrp()}:
+        return
+    try:
+        os.killpg(pgid, sig)
+        if sig == signal.SIGTERM:
+            time.sleep(0.2)
+    except (ProcessLookupError, PermissionError, OSError):
+        return
+
+
+def _merge_timeout_output(original: str | bytes | None, after_kill: str | bytes | None) -> str:
+    original_text = _process_output_to_text(original)
+    after_text = _process_output_to_text(after_kill)
+    if not original_text:
+        return after_text
+    if not after_text:
+        return original_text
+    if original_text.endswith(after_text):
+        return original_text
+    return original_text + after_text
+
+
+def _process_output_to_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def _pi_model_label(options: PiJudgeOptions) -> str:
