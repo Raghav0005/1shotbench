@@ -780,9 +780,14 @@ class BenchmarkRunner:
         total_tokens = int(usage.get("totalTokens") or 0)
         if total_tokens <= 0:
             return
-        metrics.input_tokens += int(usage.get("input") or 0)
+        input_tokens = int(usage.get("input") or 0)
+        cache_read_tokens = int(usage.get("cacheRead") or 0)
+        cache_write_tokens = int(usage.get("cacheWrite") or 0)
+        metrics.input_tokens += input_tokens
         metrics.output_tokens += int(usage.get("output") or 0)
-        metrics.cache_read_tokens += int(usage.get("cacheRead") or 0)
+        metrics.cache_read_tokens += cache_read_tokens
+        metrics.cache_write_tokens += cache_write_tokens
+        metrics.prompt_tokens += input_tokens + cache_read_tokens + cache_write_tokens
         metrics.total_tokens += total_tokens
         cost = usage.get("cost") or {}
         metrics.cost_usd += float(cost.get("total") or 0)
@@ -815,6 +820,8 @@ class BenchmarkRunner:
                     "output_tokens",
                     "reasoning_tokens",
                     "cache_read_tokens",
+                    "cache_write_tokens",
+                    "prompt_tokens",
                     "total_tokens",
                     "cost_usd",
                     "requests",
@@ -832,6 +839,8 @@ class BenchmarkRunner:
                         m.output_tokens,
                         m.reasoning_tokens,
                         m.cache_read_tokens,
+                        m.cache_write_tokens,
+                        m.prompt_tokens,
                         m.total_tokens,
                         f"{m.cost_usd:.4f}",
                         m.requests,

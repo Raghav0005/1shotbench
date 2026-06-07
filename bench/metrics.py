@@ -23,6 +23,7 @@ def extract_inline_token_usage(output: str) -> TokenMetrics | None:
         input_tokens=input_t,
         output_tokens=output_t,
         reasoning_tokens=reasoning_t,
+        prompt_tokens=input_t,
         total_tokens=total,
         requests=1,
     )

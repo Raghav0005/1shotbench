@@ -63,7 +63,9 @@
         "cache_read_tokens": 1803776,
         "total_tokens": 1898285,
         "cost_usd": 1.9740080000000007,
-        "requests": 49
+        "requests": 49,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 1874302
       }
     },
     {
@@ -107,7 +109,9 @@
         "cache_read_tokens": 3812066,
         "total_tokens": 3967354,
         "cost_usd": 3.8941504999999994,
-        "requests": 66
+        "requests": 66,
+        "cache_write_tokens": 100942,
+        "prompt_tokens": 3913079
       }
     },
     {
@@ -151,7 +155,9 @@
         "cache_read_tokens": 1790487,
         "total_tokens": 1996115,
         "cost_usd": 0.9566633999999999,
-        "requests": 57
+        "requests": 57,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 1977384
       }
     },
     {
@@ -195,7 +201,9 @@
         "cache_read_tokens": 1545216,
         "total_tokens": 1620280,
         "cost_usd": 0.048114392999999984,
-        "requests": 31
+        "requests": 31,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 1597613
       }
     },
     {
@@ -239,7 +247,9 @@
         "cache_read_tokens": 2944256,
         "total_tokens": 3033759,
         "cost_usd": 0.0,
-        "requests": 66
+        "requests": 66,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 3011782
       }
     },
     {
@@ -283,7 +293,9 @@
         "cache_read_tokens": 1674240,
         "total_tokens": 1800191,
         "cost_usd": 0.4653708999999999,
-        "requests": 46
+        "requests": 46,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 1774670
       }
     },
     {
@@ -327,7 +339,9 @@
         "cache_read_tokens": 1752520,
         "total_tokens": 1847231,
         "cost_usd": 0.3177071999999999,
-        "requests": 58
+        "requests": 58,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 1819132
       }
     },
     {
@@ -371,7 +385,9 @@
         "cache_read_tokens": 2789440,
         "total_tokens": 2895264,
         "cost_usd": 0.731106,
-        "requests": 67
+        "requests": 67,
+        "cache_write_tokens": 0,
+        "prompt_tokens": 2861567
       }
     }
   ],
@@ -380,6 +396,8 @@
     "output_tokens": 228950,
     "reasoning_tokens": 0,
     "cache_read_tokens": 18112001,
+    "cache_write_tokens": 100942,
+    "prompt_tokens": 18829529,
     "total_tokens": 19058479,
     "cost_usd": 8.387120393,
     "requests": 440

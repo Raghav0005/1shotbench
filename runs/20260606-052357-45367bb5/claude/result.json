@@ -39,6 +39,8 @@
     "cache_read_tokens": 3812066,
     "total_tokens": 3967354,
     "cost_usd": 3.8941504999999994,
-    "requests": 66
+    "requests": 66,
+    "cache_write_tokens": 100942,
+    "prompt_tokens": 3913079
   }
 }

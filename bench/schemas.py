@@ -11,6 +11,8 @@ class TokenMetrics:
     output_tokens: int = 0
     reasoning_tokens: int = 0
     cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    prompt_tokens: int = 0
     total_tokens: int = 0
     cost_usd: float = 0.0
     requests: int = 0
@@ -20,6 +22,8 @@ class TokenMetrics:
         self.output_tokens += other.output_tokens
         self.reasoning_tokens += other.reasoning_tokens
         self.cache_read_tokens += other.cache_read_tokens
+        self.cache_write_tokens += other.cache_write_tokens
+        self.prompt_tokens += other.prompt_tokens
         self.total_tokens += other.total_tokens
         self.cost_usd += other.cost_usd
         self.requests += other.requests

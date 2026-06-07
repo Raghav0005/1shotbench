@@ -614,7 +614,9 @@
                     <th>Input</th>
                     <th>Output</th>
                     <th>Reasoning</th>
-                    <th>Cache</th>
+                    <th>Cache Read</th>
+                    <th>Cache Write</th>
+                    <th>Prompt</th>
                     <th>Total</th>
                     <th>Cost</th>
                     <th>Requests</th>
@@ -905,6 +907,11 @@
         statsBody.innerHTML = "";
         for (const r of summary.results || []) {
           const m = r.metrics || {};
+          const promptTokens = m.prompt_tokens ?? (
+            Number(m.input_tokens || 0) +
+            Number(m.cache_read_tokens || 0) +
+            Number(m.cache_write_tokens || 0)
+          );
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${escapeHtml(r.model_key)}</td>
@@ -914,6 +921,8 @@
             <td>${Number(m.output_tokens || 0).toLocaleString()}</td>
             <td>${Number(m.reasoning_tokens || 0).toLocaleString()}</td>
             <td>${Number(m.cache_read_tokens || 0).toLocaleString()}</td>
+            <td>${Number(m.cache_write_tokens || 0).toLocaleString()}</td>
+            <td>${Number(promptTokens || 0).toLocaleString()}</td>
             <td>${Number(m.total_tokens || 0).toLocaleString()}</td>
             <td>${money(m.cost_usd)}</td>
             <td>${Number(m.requests || 0).toLocaleString()}</td>
