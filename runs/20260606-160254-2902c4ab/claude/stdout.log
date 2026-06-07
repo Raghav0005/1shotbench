@@ -1,0 +1,213 @@
+
+[tool start] ls
+
+[tool start] read
+
+[tool start] read
+
+[tool end] ls: ok
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool start] read
+
+[tool start] read
+
+[tool start] bash
+
+[tool end] read: ok
+
+[tool end] read: ok
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+I have a clear picture. Now let me build the app.
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now the catalog module that pairs indexes with topics/qrels using reproduce configs:
+[tool start] write
+
+[tool end] write: ok
+Now the Express server:
+[tool start] write
+
+[tool end] write: ok
+Now the frontend:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Now let me sanity check the catalog builder and server with a quick smoke test before writing the Playwright test:
+[tool start] bash
+
+[tool end] bash: ok
+Catalog works. Let me start the server and verify the API end-to-end:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Catalog has 109 indexes, 99 evaluable, 10 catalog-only. Now let me test the evaluate endpoint with CACM and nDCG@10:
+[tool start] bash
+
+[tool end] bash: ok
+End-to-end works: nDCG@10 = 0.4543 matches expected. Now stop the server and write the Playwright test:
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Now Playwright config and test:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+
+[tool start] bash
+
+[tool end] bash: ok
+Playwright test passes. Let me also verify the test actually fails if the app is mocked, just to validate the anti-mock guarantees. I'll do a quick sanity check by examining the artifacts that were created:
+[tool start] bash
+
+[tool end] bash: ok
+Real artifacts, real scores. Let me also write a README so users know how to run it:
+[tool start] write
+
+[tool end] write: ok
+
+[tool start] write
+
+[tool end] write: ok
+Let me re-run the Playwright test one more time end-to-end with a fresh server (no warm cache, no leftover artifacts) to make sure everything reliably works from a clean state:
+[tool start] bash
+
+[tool end] bash: ok
+Clean run from scratch: server boots, catalog warms, browser runs CACM retrieval + nDCG@10 evaluation, score appears, and artifacts are written. Test passes in 5.8s.
+
+## Summary
+
+Built a complete local web app at `/Users/lily/dev/pi-bench/experiments/evaluator-no-rewrite/claude-workspace/` that satisfies every PRD requirement:
+
+**Architecture**
+- `lib/anserini.js` — thin wrapper around `java -cp $ANSERINI_JAR …` for `PrebuiltIndexRegistry`, `TopicsRegistry`, `ReproduceFromPrebuiltIndexes`, `SearchCollection`, `TrecEval`. Never mocks.
+- `lib/catalog.js` — pulls 109 inverted indexes from the registry, parses the 17 shipped reproduction-config YAMLs, tokenizes each `command:` template, substitutes `$topics`, and derives every (index → topics → eval_key → metric_definitions) pairing dynamically. CACM lights up as evaluable purely from the `cacm` reproduction config — no hardcoded pairings.
+- `server.js` — Express app exposing `/api/health`, `/api/catalog`, `/api/evaluate`, `/api/artifacts/:name`, with in-memory catalog cache and structured error reporting.
+- `public/` — vanilla HTML/CSS/JS UI: filterable catalog (109 indexes, 99 evaluable, 10 catalog-only badged), per-index detail, pairing selector, metric selector that promotes `nDCG@10` / `Recall@1000`, Run Evaluation button, score display, evaluator output, run-file preview, and the actual commands invoked.
+- `tests/e2e.spec.js` + `playwright.config.js` — Playwright e2e that auto-starts the server, asserts >10 indexes, CACM auto-selected, ≥1 catalog-only entry, nDCG@10 selectable, real numeric score in [0,1], all metadata fields present, and crucially **anti-mock checks** on the displayed `io.anserini.*` commands, `anserini-*-fatjar.jar` reference, `trec_eval`-shaped `\tall\t<score>` output, and TREC-format run lines on disk.
+
+**Verified end-to-end**
+- Health: Java 21.0.11 + `anserini-2.1.1-fatjar.jar` ✓
+- Catalog: 109 inverted indexes, 99 evaluable, 17 reproduce configs ✓
+- CACM nDCG@10 = **0.4543** (matches expected) in ~1.4s retrieval + 0.2s eval ✓
+- Playwright passes from a clean state in ~6 s ✓
+
+**Run it**
+```bash
+npm install
+npm start              # http://localhost:4317
+npm run test:e2e       # Playwright e2e
+```

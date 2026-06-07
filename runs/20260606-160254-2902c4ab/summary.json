@@ -1,0 +1,76 @@
+{
+  "run_id": "20260606-160254-2902c4ab",
+  "label": "evaluator-no-rewrite-claude-rerun",
+  "started_at": "2026-06-06T16:02:54.716700+00:00",
+  "ended_at": "2026-06-06T16:11:38.175754+00:00",
+  "duration_ms": 523459,
+  "mode": "sequential",
+  "max_concurrency": 1,
+  "retries": 0,
+  "timeout_seconds": 1800,
+  "warmup": false,
+  "prompt_hash": "17acf21b4b891e906f5aa4bb09fa91626546d85ae2c5ec1a4d405b805e01d594",
+  "selected_models": [
+    "claude"
+  ],
+  "git_commit": "193ec20e71c55b8a7aed6953c103c305ec28bb51",
+  "results": [
+    {
+      "model_key": "claude",
+      "workspace_path": "/Users/lily/dev/pi-bench/experiments/evaluator-no-rewrite/claude-workspace",
+      "model_name": "claude-opus-4-7",
+      "provider": "anthropic",
+      "status": "completed",
+      "exit_code": 0,
+      "started_at": "2026-06-06T16:02:54.718880+00:00",
+      "ended_at": "2026-06-06T16:11:38.174899+00:00",
+      "duration_ms": 523456,
+      "prompt_hash": "17acf21b4b891e906f5aa4bb09fa91626546d85ae2c5ec1a4d405b805e01d594",
+      "stdout_path": "/Users/lily/dev/pi-bench/runs/20260606-160254-2902c4ab/claude/stdout.log",
+      "stderr_path": "/Users/lily/dev/pi-bench/runs/20260606-160254-2902c4ab/claude/stderr.log",
+      "result_path": "/Users/lily/dev/pi-bench/runs/20260606-160254-2902c4ab/claude/result.json",
+      "command": [
+        "pi",
+        "--mode",
+        "json",
+        "--print",
+        "--no-session",
+        "--provider",
+        "anthropic",
+        "--model",
+        "claude-opus-4-7",
+        "--thinking",
+        "high",
+        "--tools",
+        "read,bash,edit,write,grep,find,ls",
+        "<prompt>"
+      ],
+      "events_path": "/Users/lily/dev/pi-bench/runs/20260606-160254-2902c4ab/claude/events.jsonl",
+      "task_rewrite_path": null,
+      "attempts": 1,
+      "error": null,
+      "metrics": {
+        "input_tokens": 48,
+        "output_tokens": 36688,
+        "reasoning_tokens": 0,
+        "cache_read_tokens": 1650874,
+        "total_tokens": 1753980,
+        "cost_usd": 2.1576895,
+        "requests": 44,
+        "cache_write_tokens": 66370,
+        "prompt_tokens": 1717292
+      }
+    }
+  ],
+  "totals": {
+    "input_tokens": 48,
+    "output_tokens": 36688,
+    "reasoning_tokens": 0,
+    "cache_read_tokens": 1650874,
+    "cache_write_tokens": 66370,
+    "prompt_tokens": 1717292,
+    "total_tokens": 1753980,
+    "cost_usd": 2.1576895,
+    "requests": 44
+  }
+}
