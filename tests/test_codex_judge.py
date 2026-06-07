@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import subprocess
+import sys
 import time
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from bench.codex_judge.runner import (
     CodexJudgeOptions,
     CodexJudgeRunner,
+    CODEX_SKILL_DIR,
     DEFAULT_CODEX_MODEL,
     DEFAULT_CODEX_REASONING_EFFORT,
     _build_codex_exec_command,
@@ -16,8 +18,10 @@ from bench.codex_judge.runner import (
     _codex_result_schema,
     _detect_forbidden_mutations,
     _ignore_for_mutation,
+    _run_codex_command,
     _snapshot_mutation_manifest,
 )
+from bench.llm_judge.schemas import FeatureCheck
 
 
 class CodexJudgeMutationTests(unittest.TestCase):
@@ -164,7 +168,7 @@ class CodexJudgeMutationTests(unittest.TestCase):
 
         walk(_codex_result_schema())
 
-    def test_prompt_forbids_sibling_workspace_inspection_and_external_mutation(self) -> None:
+    def test_prompt_contains_core_constraints_without_repeating_skill_details(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             inputs = root / "inputs"
@@ -177,28 +181,96 @@ class CodexJudgeMutationTests(unittest.TestCase):
                 base_url=None,
                 no_start=False,
             )
-            self.assertIn("Do not read, inspect, compare, or mention any other coding-agent workspace", prompt)
-            self.assertIn("Do not mutate files outside `./app`, `./work`, and `./artifacts`", prompt)
-            self.assertIn("allow the app to write documented runtime outputs", prompt)
-            self.assertIn("Prefer `./work` and `./artifacts` for judge-created evidence", prompt)
-            self.assertIn(".agents/skills", prompt)
-            self.assertIn("only to understand documented setup/runtime commands", prompt)
-            self.assertIn("Do not inspect source code to determine whether a feature passes", prompt)
-            self.assertIn("Do not read app tests, e2e tests, or source files", prompt)
-            self.assertIn("Do not read or use user Codex plugin skills", prompt)
+            self.assertIn("follow the judge skill for full safety, setup, speed, and evidence rules", prompt)
+            self.assertIn("Do not inspect sibling agent workspaces", prompt)
+            self.assertIn("mutate outside `./app`, `./work`, and `./artifacts`", prompt)
             self.assertIn("MUST use the Playwright helper", prompt)
-            self.assertIn("Do not write ad-hoc Python or Node Playwright scripts", prompt)
-            self.assertIn("Do not run separate backend/evaluator smoke commands", prompt)
-            self.assertIn("generate at most 5", prompt)
-            self.assertIn("Do not rerun a successful end-to-end evaluation", prompt)
-            self.assertIn("background children may be cleaned up", prompt)
-            self.assertIn("long-lived foreground exec command", prompt)
-            self.assertIn("do not evaluate the unrelated existing listener", prompt)
-            self.assertIn("alternate free local port", prompt)
-            self.assertIn("documented nested app directory", prompt)
+            self.assertIn("same-origin API request statuses", prompt)
+            self.assertIn("UI remains in a loading state", prompt)
             self.assertIn("Do not print full evidence JSON", prompt)
-            self.assertIn("at most 30s", prompt)
-            self.assertIn("wait_for_any_text", prompt)
+            self.assertNotIn("alternate free local port", prompt)
+            self.assertNotIn("documented nested app directory", prompt)
+
+    def test_web_judge_skill_contains_operational_recovery_guidance(self) -> None:
+        skill = (CODEX_SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Do not read, inspect, compare, or mention any other coding-agent workspace", skill)
+        self.assertIn("Do not write ad-hoc Python or Node Playwright scripts", skill)
+        self.assertIn("Do not run separate backend/evaluator smoke commands", skill)
+        self.assertIn("generate at most 5", skill)
+        self.assertIn("Do not rerun a successful end-to-end workflow", skill)
+        self.assertIn("same-origin API request diagnostics", skill)
+        self.assertIn("page remains in a loading state", skill)
+        self.assertIn("background children may be cleaned up", skill)
+        self.assertIn("long-lived foreground exec command", skill)
+        self.assertIn("do not evaluate the unrelated existing listener", skill)
+        self.assertIn("alternate free local port", skill)
+        self.assertIn("A successful `curl` to an alternate port is not enough", skill)
+        self.assertIn("documented nested app directory", skill)
+        self.assertIn("conventional app-local artifact location", skill)
+        self.assertIn("Missing runtime artifacts are setup work", skill)
+        self.assertIn("missing local file/class/resource", skill)
+        self.assertIn("Do not record final failure for missing runtime artifacts", skill)
+        self.assertIn("fixture bundle", skill)
+        self.assertIn("at most 30s", skill)
+        self.assertIn("wait_for_any_text", skill)
+
+    def test_materialize_results_normalizes_unambiguous_feature_id_typo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            features = [
+                FeatureCheck("cacam-evaluable", "CACM", "CACM appears", "CACM visible"),
+            ]
+            raw_result = {
+                "judgments": [
+                    {
+                        "feature_id": "cacm-evaluable",
+                        "verdict": "pass",
+                        "confidence": 0.9,
+                        "reason": "CACM evidence was visible.",
+                        "evidence_used": ["browser evidence"],
+                        "evidence": {"visible_text": "Topics: cacm Qrels: cacm"},
+                    }
+                ]
+            }
+
+            judgments, evidence_by_feature, notes = CodexJudgeRunner()._materialize_results(
+                raw_result=raw_result,
+                features=features,
+                output_dir=output_dir,
+            )
+
+            self.assertEqual(judgments[0].feature_id, "cacam-evaluable")
+            self.assertEqual(judgments[0].verdict, "pass")
+            self.assertEqual(evidence_by_feature["cacam-evaluable"].visible_text, "Topics: cacm Qrels: cacm")
+            self.assertIn("Normalized judgment feature ids: cacm-evaluable -> cacam-evaluable", notes or "")
+
+    def test_materialize_results_does_not_normalize_ambiguous_feature_id_typo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            features = [
+                FeatureCheck("foo", "Foo", "Foo", "Foo"),
+                FeatureCheck("fob", "Fob", "Fob", "Fob"),
+            ]
+            raw_result = {
+                "judgments": [
+                    {
+                        "feature_id": "fo",
+                        "verdict": "pass",
+                        "confidence": 0.9,
+                        "reason": "Ambiguous.",
+                        "evidence": {"visible_text": "ambiguous"},
+                    }
+                ]
+            }
+
+            judgments, _, notes = CodexJudgeRunner()._materialize_results(
+                raw_result=raw_result,
+                features=features,
+                output_dir=output_dir,
+            )
+
+            self.assertEqual([judgment.verdict for judgment in judgments], ["uncertain", "uncertain"])
+            self.assertIn("Ignored judgments for unknown feature ids: fo", notes or "")
 
     def test_cleanup_judge_processes_stops_pid_files_under_work(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -218,3 +290,37 @@ class CodexJudgeMutationTests(unittest.TestCase):
                 if proc.poll() is None:
                     proc.kill()
                     proc.wait(timeout=5)
+
+    def test_codex_command_cleanup_stops_lingering_process_group_children(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pid_file = root / "child.pid"
+            script = root / "judge.py"
+            script.write_text(
+                "\n".join(
+                    [
+                        "import pathlib, subprocess, sys",
+                        "pid_file = pathlib.Path(sys.argv[1])",
+                        "child = subprocess.Popen(['sleep', '60'])",
+                        "pid_file.write_text(str(child.pid), encoding='utf-8')",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            _run_codex_command([sys.executable, str(script), str(pid_file)], cwd=root, env={}, timeout=10)
+            child_pid = int(pid_file.read_text(encoding="utf-8"))
+            for _ in range(20):
+                if not _pid_is_alive(child_pid):
+                    break
+                time.sleep(0.1)
+            self.assertFalse(_pid_is_alive(child_pid))
+
+
+def _pid_is_alive(pid: int) -> bool:
+    try:
+        subprocess.run(["kill", "-0", str(pid)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except subprocess.CalledProcessError:
+        return False

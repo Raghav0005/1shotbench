@@ -75,7 +75,7 @@ documented artifact placement and restart before judging final behavior.
 For each feature:
 
 1. Gather browser evidence using the provided Playwright helper.
-2. Prefer visible text, snapshots, page title, URL, console errors, network errors, interactive elements, and screenshots.
+2. Prefer visible text, snapshots, page title, URL, console errors, network errors, same-origin API request statuses, interactive elements, and screenshots.
 3. If the first pass is insufficient, do a small bounded follow-up evidence pass.
 4. Decide `pass`, `fail`, or `uncertain` from evidence only.
 
@@ -88,6 +88,8 @@ For each feature:
 - Do not rerun a successful end-to-end workflow just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
 - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation.
 - Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
+- If a page remains in a loading state, inspect the helper's same-origin API request diagnostics before failing the feature. If a required app API request is still pending, do one bounded longer wait, up to 30s total for that evidence pass. If it returned a non-2xx status, failed, or never fired, include that in the evidence and verdict.
+- If documentation or visible UI clearly identifies a same-origin app API route needed for the feature, a single direct browser-helper API/URL check is acceptable when the UI stays ambiguous; use it to explain whether the app route is healthy, failing, or unreachable.
 - Do not write ad-hoc Python or Node Playwright scripts unless the helper itself fails to launch. If the helper fails, do at most one small fallback attempt and keep waits under 30s.
 - Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
 - Start app servers in the background only if they remain reachable after the startup command exits. Write logs/PIDs under the temporary work directory or app runtime output directories.

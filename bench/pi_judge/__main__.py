@@ -15,6 +15,9 @@ from bench.pi_judge.runner import (
 )
 
 
+DEFAULT_PI_CODEX_FAST_THINKING = "low"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="1ShotBench Pi judge for web apps")
     parser.add_argument("--project", required=True, help="Path to the coding agent workspace")
@@ -35,10 +38,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_PI_JUDGE_MODEL,
+        default=None,
         help=f"Pi model to use for judging. Defaults to {DEFAULT_PI_JUDGE_MODEL}",
     )
     parser.add_argument("--thinking", help="Optional Pi thinking setting")
+    parser.add_argument(
+        "--codex-fast",
+        action="store_true",
+        help=(
+            "Use the openai-codex provider in fast mode. "
+            f"Sets provider={DEFAULT_PI_JUDGE_PROVIDER}, model={DEFAULT_PI_JUDGE_MODEL} "
+            f"when --model is omitted, and thinking={DEFAULT_PI_CODEX_FAST_THINKING} "
+            "when --thinking is omitted."
+        ),
+    )
     parser.add_argument("--system-prompt", help="Optional Pi system prompt")
     parser.add_argument(
         "--append-system-prompt",
@@ -78,6 +91,11 @@ def main() -> int:
         judge_workspace_root = ROOT_DIR / judge_workspace_root
 
     tools = [tool.strip() for tool in args.tools.split(",") if tool.strip()]
+    provider = DEFAULT_PI_JUDGE_PROVIDER if args.codex_fast else args.provider
+    model = args.model or DEFAULT_PI_JUDGE_MODEL
+    thinking = args.thinking
+    if args.codex_fast and thinking is None:
+        thinking = DEFAULT_PI_CODEX_FAST_THINKING
     runner = PiJudgeRunner()
     options = PiJudgeOptions(
         project_path=project,
@@ -88,9 +106,9 @@ def main() -> int:
         label=args.label,
         eval_id=args.eval_id,
         pi_command=args.pi_command,
-        provider=args.provider,
-        model=args.model,
-        thinking=args.thinking,
+        provider=provider,
+        model=model,
+        thinking=thinking,
         system_prompt=args.system_prompt,
         append_system_prompt=args.append_system_prompt,
         tools=tools,

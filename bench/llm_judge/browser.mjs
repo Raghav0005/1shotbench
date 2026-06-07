@@ -36,6 +36,7 @@ const limits = {
   actionTimeout: job.maxActionTimeoutMs ?? 10000,
   fillTimeout: job.maxFillTimeoutMs ?? 5000,
   networkIdleTimeout: job.maxNetworkIdleTimeoutMs ?? 2000,
+  maxApiEvents: job.maxApiEvents ?? 40,
 };
 
 fs.mkdirSync(outputDir, { recursive: true });
@@ -56,6 +57,37 @@ const evidence = {
   checks: {},
   error: null,
 };
+const apiRequests = new Map();
+
+function isSameOriginApiRequest(url) {
+  try {
+    const parsed = new URL(url);
+    const base = new URL(baseURL);
+    return parsed.origin === base.origin && parsed.pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
+}
+
+function recordApiRequest(request) {
+  if (!isSameOriginApiRequest(request.url())) return;
+  apiRequests.set(request, {
+    method: request.method(),
+    url: request.url(),
+    status: null,
+    status_text: null,
+    failure: null,
+  });
+  trimApiEvents();
+}
+
+function trimApiEvents() {
+  const entries = Array.from(apiRequests.keys());
+  if (entries.length <= limits.maxApiEvents) return;
+  for (const request of entries.slice(0, entries.length - limits.maxApiEvents)) {
+    apiRequests.delete(request);
+  }
+}
 
 function truncate(text, max) {
   if (!text) return text;
@@ -97,6 +129,10 @@ async function captureState(page) {
   evidence.checks.body_text_tail = tail(normalizedBody, limits.bodyTail);
   evidence.checks.result_like_text = await collectResultLikeText(page);
   evidence.checks.numeric_candidates = collectNumericCandidates(normalizedBody);
+  evidence.checks.api_requests = Array.from(apiRequests.values());
+  evidence.checks.pending_api_requests = evidence.checks.api_requests.filter(
+    (event) => !event.status && !event.failure
+  );
   evidence.interactive_elements = await collectInteractiveElements(page);
   try {
     const snapshot = await page.locator('body').ariaSnapshot();
@@ -246,9 +282,22 @@ async function run() {
   });
   page.on('requestfailed', (request) => {
     const failure = request.failure();
+    const apiEvent = apiRequests.get(request);
+    if (apiEvent) {
+      apiEvent.failure = failure?.errorText || 'failed';
+    }
     evidence.network_errors.push(
       `${request.method()} ${request.url()} -> ${failure?.errorText || 'failed'}`
     );
+  });
+  page.on('request', (request) => {
+    recordApiRequest(request);
+  });
+  page.on('response', (response) => {
+    const apiEvent = apiRequests.get(response.request());
+    if (!apiEvent) return;
+    apiEvent.status = response.status();
+    apiEvent.status_text = response.statusText();
   });
 
   try {

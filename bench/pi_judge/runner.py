@@ -25,7 +25,9 @@ from bench.codex_judge.runner import (
     _features_from_codex_result,
     _git_commit,
     _now_iso,
+    _read_temp_output,
     _snapshot_mutation_manifest,
+    _terminate_process_group_id,
 )
 from bench.config import ROOT_DIR, load_project_env
 from bench.llm_judge.report import write_artifacts
@@ -359,7 +361,7 @@ class PiJudgeRunner(CodexJudgeRunner):
             - Judge only observed browser/runtime behavior, not source intent or code quality.
             - Do not inspect sibling agent workspaces or mutate outside `./app`, `./work`, and `./artifacts`.
             - Do not edit source-like app files to make the app run.
-            - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, interactive elements, and screenshots.
+            - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, same-origin API request statuses, interactive elements, and screenshots.
             - Keep command output concise. Do not print full evidence JSON, full app logs, full catalog dumps, or long file contents into the Pi transcript. Store full artifacts on disk and print only small summaries.
 
             Inputs:
@@ -370,6 +372,11 @@ class PiJudgeRunner(CodexJudgeRunner):
             Evidence workflow:
             - Gather browser evidence and decide pass/fail/uncertain from evidence only.
             - Save screenshots under `./work`.
+            - Use canonical feature ids verbatim from the feature file; do not rename or correct spelling.
+            - Prefer one initial browser pass and at most one bounded follow-up per feature.
+            - Do not rerun successful evidence or duplicate browser/API checks once captured evidence proves the behavior.
+            - If the UI remains in a loading state, inspect helper API diagnostics and do one bounded longer wait, up to 30s total, before treating the feature as failed.
+            - If using an alternate port, verify the response belongs to the current `./app` copy. If logs, error pages, paths, or page identity reference a different temp workspace or wrong app root, treat that listener as stale/wrong and use a fresh port before judging.
             - If startup fails completely, still return a verdict for every feature.
 
             Final response requirements:
@@ -412,30 +419,37 @@ def _run_pi_command(
     env: dict[str, str],
     timeout: int,
 ) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.Popen(
-        command,
-        cwd=str(cwd),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        _terminate_process_group(proc.pid, signal.SIGTERM)
-        try:
-            stdout, stderr = proc.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            _terminate_process_group(proc.pid, signal.SIGKILL)
-            stdout, stderr = proc.communicate()
-        exc.stdout = _merge_timeout_output(exc.stdout, stdout)
-        exc.stderr = _merge_timeout_output(exc.stderr, stderr)
-        raise
-    finally:
-        _terminate_process_group(proc.pid, signal.SIGTERM)
-    return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_file:
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stderr_file:
+            proc = subprocess.Popen(
+                command,
+                cwd=str(cwd),
+                env=env,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired as exc:
+                _terminate_process_group_id(proc.pid, signal.SIGTERM)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    _terminate_process_group_id(proc.pid, signal.SIGKILL)
+                    proc.wait()
+                exc.stdout = _merge_timeout_output(exc.stdout, _read_temp_output(stdout_file))
+                exc.stderr = _merge_timeout_output(exc.stderr, _read_temp_output(stderr_file))
+                raise
+            finally:
+                _terminate_process_group_id(proc.pid, signal.SIGTERM)
+            return subprocess.CompletedProcess(
+                command,
+                proc.returncode,
+                _read_temp_output(stdout_file),
+                _read_temp_output(stderr_file),
+            )
 
 
 def _terminate_process_group(pid: int, sig: signal.Signals) -> None:

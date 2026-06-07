@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from bench.config import ROOT_DIR, load_project_env
 from bench.llm_judge.report import write_artifacts
@@ -227,15 +227,11 @@ class CodexJudgeRunner:
                 encoding="utf-8",
             )
 
-            env = load_project_env()
-            proc = subprocess.run(
+            proc = _run_codex_command(
                 command,
-                cwd=str(judge_workspace),
-                env=env,
-                capture_output=True,
-                text=True,
+                cwd=judge_workspace,
+                env=load_project_env(),
                 timeout=options.judge_timeout_seconds,
-                check=False,
             )
             stdout_path.write_text(proc.stdout or "", encoding="utf-8")
             stderr_path.write_text(proc.stderr or "", encoding="utf-8")
@@ -370,24 +366,12 @@ class CodexJudgeRunner:
             - Inputs copied for this evaluation: `./inputs`
             - Final structured response: return it directly as your final message
 
-            Constraints:
-            - Act as an evaluator, not a programmer.
-            - Do not judge code quality or source structure.
-            - Do not infer correctness from source files or implementation intent.
-            - Do not inspect source code to determine whether a feature passes. Use browser/runtime evidence instead.
-            - You may read README files, package manifests, config needed to run the app, PRD files, feature files, and the judging skill.
-            - Do not read app tests, e2e tests, or source files except as a last resort to find a documented runtime command when README/manifests are insufficient.
-            - You may read repo-local skill instructions under `{self.root_dir / ".agents" / "skills"}` when the PRD, README, manifest, or judging skill references them. Use those skill files only to understand documented setup/runtime commands and evaluation context.
-            - Do not read or use user Codex plugin skills, including the Browser/in-app-browser skill. This CLI judge must use the browser helper named below.
-            - Do not read, inspect, compare, or mention any other coding-agent workspace. In particular, ignore sibling `*-workspace/` directories and any `projects/*/runs/*/*/workspace` directories outside `./app`.
-            - Do not mutate files outside `./app`, `./work`, and `./artifacts`.
-            - Inside `./app`, you may install dependencies, create virtual environments, download jars, and allow the app to write documented runtime outputs such as run/evaluation artifacts in its configured output directories.
-            - Prefer `./work` and `./artifacts` for judge-created evidence and temporary files that are not app runtime outputs.
-            - Do not edit source-like app files to make the app run. In particular, do not modify package manifests, requirements files, source code, tests, configs, or README files inside `./app`.
-            - If the app fails because it is not actually runnable as delivered, record that as an evaluation failure rather than repairing it.
-            - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, interactive elements, and screenshots.
-            - Do not write ad-hoc Python or Node Playwright scripts unless the helper itself fails to launch. If the helper fails, do at most one small fallback attempt and keep waits under 30s.
-            - Do not run separate backend/evaluator smoke commands when browser evidence can exercise the app. Runtime setup checks should be minimal and should not duplicate a successful UI evaluation.
+            Core constraints:
+            - Act as an evaluator, not a programmer; follow the judge skill for full safety, setup, speed, and evidence rules.
+            - Judge only observed browser/runtime behavior, not source intent or code quality.
+            - Do not inspect sibling agent workspaces or mutate outside `./app`, `./work`, and `./artifacts`.
+            - Do not edit source-like app files to make the app run.
+            - MUST use the Playwright helper at `{BROWSER_HELPER}` for browser evidence gathering. It already knows how to capture visible text, aria snapshots, console/network errors, same-origin API request statuses, interactive elements, and screenshots.
             - Keep command output concise. Do not print full evidence JSON, full app logs, full catalog dumps, or long file contents into the Codex transcript. Store full artifacts on disk and print only small summaries.
 
             Inputs:
@@ -395,23 +379,11 @@ class CodexJudgeRunner:
             - {prd_line}
             - {app_line}
 
-            Fast bounded workflow guidance:
-            - If generating features from a PRD, generate at most 5 high-value externally observable features.
-            - Prefer one setup pass, one initial browser snapshot, one focused interaction/evaluation pass, and at most one small follow-up pass.
-            - Do not rerun a successful end-to-end evaluation just because a brittle wait selector failed. Inspect captured visible text, result-like text, artifacts, and screenshots first.
-            - Keep browser waits short: use 5-15s normally and at most 30s unless the PRD explicitly requires a longer operation. Prefer `wait_settle`, `snapshot`, `wait_for_any_text`, or stable selectors over a single exact text wait.
-            - If the browser helper records an error but the captured visible text already proves the behavior, use that evidence instead of repeating the same action.
-            - Start app servers in the background only if they remain reachable after the startup command exits. Write logs and PIDs under `./work` or app runtime output dirs, and poll a health URL or page load.
-            - If the default or feature-file port is already occupied, do not evaluate the unrelated existing listener. Start the delivered app on an alternate free local port using documented environment variables such as `PORT`, then use that URL in evidence and final `base_url`.
-            - If a workspace root has no runnable manifest but a README or manifest in a nested app directory documents startup such as `cd app && npm start`, run from that documented nested app directory.
-            - In Codex `exec`, background children may be cleaned up when the shell command finishes. If the log says the server started but the next command gets connection refused, do not treat that as an app failure yet: run the documented server command as a long-lived foreground exec command, leave that command running, and gather browser evidence from a separate command.
-            - For negative/error-path tests, use a bounded setup variation such as an invalid environment variable or unsupported UI option when available. Do not spend more than one short follow-up pass trying to force an error state.
-
-            Evidence collection guidance:
-            - For each feature, gather browser evidence and then decide pass/fail/uncertain from evidence only.
-            - Save any screenshots under `./work` using the browser helper's normal output flow.
-            - If the existing evidence is insufficient, do a small bounded follow-up evidence pass.
-            - If startup fails completely, still return a verdict for every feature. Those verdicts will usually be fail unless there is a principled reason for uncertain.
+            Evidence workflow:
+            - Gather browser evidence and decide pass/fail/uncertain from evidence only.
+            - Save screenshots under `./work`.
+            - If the UI remains in a loading state, inspect helper API diagnostics and do one bounded longer wait, up to 30s total, before treating the feature as failed.
+            - If startup fails completely, still return a verdict for every feature.
 
             Final response requirements:
             - Return only JSON matching the provided output schema.
@@ -436,22 +408,40 @@ class CodexJudgeRunner:
         evidence_by_feature: dict[str, EvidencePacket] = {}
         raw_judgments = raw_result.get("judgments") or []
         returned_by_id: dict[str, dict[str, Any]] = {}
+        unknown_by_id: dict[str, dict[str, Any]] = {}
         for item in raw_judgments:
             if not isinstance(item, dict):
                 continue
             feature_id = str(item.get("feature_id") or "").strip()
-            if feature_id:
+            if not feature_id:
+                continue
+            if feature_id in by_id:
                 returned_by_id[feature_id] = item
+            else:
+                unknown_by_id[feature_id] = item
 
-        extra_feature_ids = sorted(set(returned_by_id) - set(by_id))
         notes_parts: list[str] = []
+        remapped_feature_ids: list[str] = []
+        extra_feature_ids: list[str] = []
+        for feature_id, item in unknown_by_id.items():
+            match = _closest_feature_id(feature_id, by_id.keys())
+            if match and match not in returned_by_id:
+                returned_by_id[match] = item
+                remapped_feature_ids.append(f"{feature_id} -> {match}")
+            else:
+                extra_feature_ids.append(feature_id)
+
         if raw_result.get("notes"):
             notes_parts.append(str(raw_result["notes"]))
         if raw_result.get("startup_error"):
             notes_parts.append(f"Startup error: {raw_result['startup_error']}")
+        if remapped_feature_ids:
+            notes_parts.append(
+                "Normalized judgment feature ids: " + ", ".join(sorted(remapped_feature_ids)[:8])
+            )
         if extra_feature_ids:
             notes_parts.append(
-                "Ignored judgments for unknown feature ids: " + ", ".join(extra_feature_ids[:8])
+                "Ignored judgments for unknown feature ids: " + ", ".join(sorted(extra_feature_ids)[:8])
             )
 
         for feature in features:
@@ -490,6 +480,36 @@ class CodexJudgeRunner:
 
         notes = "\n".join(part for part in notes_parts if part).strip() or None
         return judgments, evidence_by_feature, notes
+
+
+def _closest_feature_id(raw_id: str, candidates: Iterable[str]) -> str | None:
+    matches = [candidate for candidate in candidates if _edit_distance_at_most_one(raw_id, candidate)]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _edit_distance_at_most_one(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if abs(len(left) - len(right)) > 1:
+        return False
+
+    if len(left) == len(right):
+        return sum(1 for a, b in zip(left, right) if a != b) == 1
+
+    shorter, longer = (left, right) if len(left) < len(right) else (right, left)
+    i = j = edits = 0
+    while i < len(shorter) and j < len(longer):
+        if shorter[i] == longer[j]:
+            i += 1
+            j += 1
+            continue
+        edits += 1
+        if edits > 1:
+            return False
+        j += 1
+    return True
 
 
 def _make_eval_id() -> str:
@@ -537,6 +557,54 @@ def _build_codex_exec_command(
         command.extend(["--model", options.codex_model])
     command.append(prompt)
     return command
+
+
+def _run_codex_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_file:
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stderr_file:
+            proc = subprocess.Popen(
+                command,
+                cwd=str(cwd),
+                env=env,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _terminate_process_group_id(proc.pid, signal.SIGTERM)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    _terminate_process_group_id(proc.pid, signal.SIGKILL)
+                    proc.wait()
+                stdout = _read_temp_output(stdout_file)
+                stderr = _read_temp_output(stderr_file)
+                raise subprocess.TimeoutExpired(command, timeout, output=stdout, stderr=stderr)
+            finally:
+                _terminate_process_group_id(proc.pid, signal.SIGTERM)
+            return subprocess.CompletedProcess(
+                command,
+                proc.returncode,
+                _read_temp_output(stdout_file),
+                _read_temp_output(stderr_file),
+            )
+
+
+def _read_temp_output(file: Any) -> str:
+    with contextlib.suppress(Exception):
+        file.flush()
+        file.seek(0)
+        return file.read() or ""
+    return ""
 
 
 def _build_summary(
@@ -724,6 +792,13 @@ def _terminate_pid(pid: int, sig: signal.Signals) -> None:
             return
     with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
         os.kill(pid, sig)
+
+
+def _terminate_process_group_id(pgid: int, sig: signal.Signals) -> None:
+    if pgid in {os.getpid(), os.getpgrp()}:
+        return
+    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+        os.killpg(pgid, sig)
 
 
 def _pid_exists(pid: int) -> bool:

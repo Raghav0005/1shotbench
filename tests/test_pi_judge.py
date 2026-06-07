@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import bench.pi_judge.__main__ as pi_main
 from bench.pi_judge.runner import (
     DEFAULT_PI_JUDGE_MODEL,
     DEFAULT_PI_JUDGE_PROVIDER,
@@ -14,6 +19,7 @@ from bench.pi_judge.runner import (
     PiJudgeOptions,
     PiJudgeRunner,
     _build_pi_exec_command,
+    _run_pi_command,
 )
 from bench.llm_judge.report import render_markdown
 from bench.llm_judge.schemas import WebEvalSummary
@@ -50,6 +56,49 @@ class PiJudgeTests(unittest.TestCase):
             self.assertEqual(command[command.index("--provider") + 1], DEFAULT_PI_JUDGE_PROVIDER)
             self.assertEqual(command[command.index("--model") + 1], DEFAULT_PI_JUDGE_MODEL)
             self.assertEqual(command[command.index("--tools") + 1], ",".join(DEFAULT_PI_JUDGE_TOOLS))
+
+    def test_pi_main_codex_fast_sets_low_thinking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root / "app"
+            project.mkdir()
+            prd = root / "PRD.md"
+            prd.write_text("# PRD\n", encoding="utf-8")
+            captured: dict[str, PiJudgeOptions] = {}
+
+            class FakeRunner:
+                def run(self, options: PiJudgeOptions) -> WebEvalSummary:
+                    captured["options"] = options
+                    return WebEvalSummary(
+                        eval_id="pi-fast-test",
+                        label=options.label,
+                        started_at="2026-06-07T00:00:00Z",
+                        ended_at="2026-06-07T00:00:01Z",
+                        project_path=str(options.project_path),
+                        features_path="",
+                        prd_path=str(options.prd_path),
+                        base_url="",
+                        total_features=0,
+                        passed=0,
+                        failed=0,
+                        uncertain=0,
+                        correctness_pct=0.0,
+                        judgments=[],
+                        judge_model="pi:openai-codex/gpt-5.4-mini",
+                    )
+
+            with (
+                mock.patch.object(pi_main, "ROOT_DIR", root),
+                mock.patch.object(pi_main, "PiJudgeRunner", return_value=FakeRunner()),
+                mock.patch.object(sys, "argv", ["pi-judge", "--project", str(project), "--prd", str(prd), "--codex-fast"]),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                self.assertEqual(pi_main.main(), 0)
+
+            options = captured["options"]
+            self.assertEqual(options.provider, DEFAULT_PI_JUDGE_PROVIDER)
+            self.assertEqual(options.model, DEFAULT_PI_JUDGE_MODEL)
+            self.assertEqual(options.thinking, "low")
 
     def test_keep_workspace_defaults_inside_eval_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -93,6 +142,11 @@ class PiJudgeTests(unittest.TestCase):
             self.assertIn("mutate outside `./app`, `./work`, and `./artifacts`", prompt)
             self.assertIn("MUST use the Playwright helper", prompt)
             self.assertIn("Do not print full evidence JSON", prompt)
+            self.assertIn("Use canonical feature ids verbatim", prompt)
+            self.assertIn("at most one bounded follow-up per feature", prompt)
+            self.assertIn("same-origin API request statuses", prompt)
+            self.assertIn("UI remains in a loading state", prompt)
+            self.assertIn("different temp workspace or wrong app root", prompt)
             self.assertNotIn("alternate free local port", prompt)
             self.assertNotIn("documented nested app directory", prompt)
 
@@ -155,6 +209,40 @@ class PiJudgeTests(unittest.TestCase):
             run_metadata = json.loads((output_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(run_metadata["status"], "timed_out")
             self.assertTrue(Path(run_metadata["judge_workspace"]).exists())
+
+    def test_pi_command_cleanup_stops_lingering_process_group_children(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pid_file = root / "child.pid"
+            script = root / "judge.py"
+            script.write_text(
+                "\n".join(
+                    [
+                        "import pathlib, subprocess, sys",
+                        "pid_file = pathlib.Path(sys.argv[1])",
+                        "child = subprocess.Popen(['sleep', '60'])",
+                        "pid_file.write_text(str(child.pid), encoding='utf-8')",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            _run_pi_command([sys.executable, str(script), str(pid_file)], cwd=root, env={}, timeout=10)
+            child_pid = int(pid_file.read_text(encoding="utf-8"))
+            for _ in range(20):
+                if not _pid_is_alive(child_pid):
+                    break
+                time.sleep(0.1)
+            self.assertFalse(_pid_is_alive(child_pid))
+
+
+def _pid_is_alive(pid: int) -> bool:
+    try:
+        subprocess.run(["kill", "-0", str(pid)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 
 if __name__ == "__main__":

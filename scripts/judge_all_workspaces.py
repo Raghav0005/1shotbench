@@ -20,6 +20,7 @@ from bench.llm_judge.schemas import WebEvalSummary
 
 DEFAULT_PI_JUDGE_MODEL = "gpt-5.4-mini"
 DEFAULT_PI_JUDGE_PROVIDER = "openai-codex"
+DEFAULT_PI_CODEX_FAST_THINKING = "low"
 DEFAULT_PI_JUDGE_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 
 
@@ -108,6 +109,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--provider", default=DEFAULT_PI_JUDGE_PROVIDER, help="Pi judge provider.")
     parser.add_argument("--model", default=None, help="Pi or Codex judge model.")
     parser.add_argument("--thinking", help="Pi judge thinking setting.")
+    parser.add_argument(
+        "--codex-fast",
+        action="store_true",
+        help=(
+            "Use the Pi judge with the openai-codex provider in fast mode. "
+            f"Sets provider={DEFAULT_PI_JUDGE_PROVIDER}, model={DEFAULT_PI_JUDGE_MODEL} "
+            f"when --model is omitted, and thinking={DEFAULT_PI_CODEX_FAST_THINKING} "
+            "when --thinking is omitted."
+        ),
+    )
     parser.add_argument("--pi-command", default="pi", help="Pi CLI executable.")
     parser.add_argument(
         "--tools",
@@ -131,7 +142,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.codex_fast and args.judge != "pi":
+        parser.error("--codex-fast only applies to --judge pi")
     targets = discover_targets(args)
     if args.limit is not None:
         targets = targets[: max(0, args.limit)]
@@ -244,6 +258,11 @@ def run_target(args: argparse.Namespace, target: WorkspaceTarget, *, label: str)
         from bench.pi_judge.runner import PiJudgeOptions, PiJudgeRunner
 
         tools = [tool.strip() for tool in args.tools.split(",") if tool.strip()]
+        provider = DEFAULT_PI_JUDGE_PROVIDER if args.codex_fast else args.provider
+        model = args.model or DEFAULT_PI_JUDGE_MODEL
+        thinking = args.thinking
+        if args.codex_fast and thinking is None:
+            thinking = DEFAULT_PI_CODEX_FAST_THINKING
         return PiJudgeRunner().run(
             PiJudgeOptions(
                 project_path=target.workspace_path,
@@ -251,9 +270,9 @@ def run_target(args: argparse.Namespace, target: WorkspaceTarget, *, label: str)
                 prd_path=target.prd_path,
                 label=label,
                 pi_command=args.pi_command,
-                provider=args.provider,
-                model=args.model or DEFAULT_PI_JUDGE_MODEL,
-                thinking=args.thinking,
+                provider=provider,
+                model=model,
+                thinking=thinking,
                 tools=tools,
                 judge_timeout_seconds=args.judge_timeout_seconds,
                 keep_judge_workspace=args.keep_judge_workspace,
