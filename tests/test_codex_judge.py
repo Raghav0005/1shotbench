@@ -53,12 +53,33 @@ class CodexJudgeMutationTests(unittest.TestCase):
             after = _snapshot_mutation_manifest(root)
             self.assertEqual(_detect_forbidden_mutations(before, after), [])
 
+    def test_ignores_next_generated_env_file_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            next_env = root / "next-env.d.ts"
+            next_env.write_text(
+                '/// <reference types="next" />\n'
+                '/// <reference types="next/image-types/global" />\n'
+                'import "./.next/types/routes.d.ts";\n',
+                encoding="utf-8",
+            )
+            before = _snapshot_mutation_manifest(root)
+            next_env.write_text(
+                '/// <reference types="next" />\n'
+                '/// <reference types="next/image-types/global" />\n'
+                'import "./.next/dev/types/routes.d.ts";\n',
+                encoding="utf-8",
+            )
+            after = _snapshot_mutation_manifest(root)
+            self.assertEqual(_detect_forbidden_mutations(before, after), [])
+
     def test_ignore_helper_matches_expected_paths(self) -> None:
         self.assertTrue(_ignore_for_mutation(Path("node_modules/react/index.js")))
         self.assertTrue(_ignore_for_mutation(Path("artifacts/runs/run.cacm.recall_1000.txt")))
         self.assertTrue(_ignore_for_mutation(Path("run.cacm.recall_1000.txt")))
         self.assertTrue(_ignore_for_mutation(Path("eval.cacm.recall_1000.txt")))
         self.assertTrue(_ignore_for_mutation(Path("package-lock.json")))
+        self.assertTrue(_ignore_for_mutation(Path("next-env.d.ts")))
         self.assertTrue(_ignore_for_mutation(Path("server.log")))
         self.assertTrue(_ignore_for_mutation(Path(".next/build-manifest.json")))
         self.assertTrue(_ignore_for_mutation(Path("work/browser-catalog/screenshots/catalog.png")))

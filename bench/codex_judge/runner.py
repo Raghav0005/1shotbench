@@ -55,6 +55,7 @@ MUTATION_IGNORED_NAMES = {
     "poetry.lock",
     "Pipfile.lock",
     ".DS_Store",
+    "next-env.d.ts",
 }
 MUTATION_IGNORED_SUFFIXES = {
     ".log",
