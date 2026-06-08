@@ -35,6 +35,11 @@ The ideal direction is a lightweight agentic judge loop that can discover how to
 
 ## Debugging Discipline
 
+Useful artifact roots:
+
+- `runs/<run_id>/`
+- `evals/<eval_id>/`
+
 When a web eval result looks wrong, inspect artifacts before changing code:
 
 1. `evals/<id>/setup.json`
