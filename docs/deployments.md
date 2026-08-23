@@ -1,6 +1,6 @@
 # Deployments
 
-1ShotBench can deploy benchmark demos as Docker images for Render image-backed web services.
+1ShotGym can deploy benchmark demos as Docker images for Render image-backed web services.
 
 Deploy benchmark demos after a run:
 
