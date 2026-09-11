@@ -18,7 +18,7 @@ if str(ROOT_DIR) not in sys.path:
 from bench.config import ROOT_DIR as BENCH_ROOT_DIR
 from bench.llm_judge.schemas import WebEvalSummary
 
-DEFAULT_PI_JUDGE_MODEL = "gpt-5.4-mini"
+DEFAULT_PI_JUDGE_MODEL = "gpt-5.6-luna"
 DEFAULT_PI_JUDGE_PROVIDER = "openai-codex"
 DEFAULT_PI_CODEX_FAST_THINKING = "low"
 DEFAULT_PI_JUDGE_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"]

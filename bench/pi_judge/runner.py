@@ -35,7 +35,7 @@ from bench.llm_judge.schemas import FeatureCheck, WebEvalSummary
 from bench.schemas import WorkspaceConfig
 
 
-DEFAULT_PI_JUDGE_MODEL = "gpt-5.4-mini"
+DEFAULT_PI_JUDGE_MODEL = "gpt-5.6-luna"
 DEFAULT_PI_JUDGE_PROVIDER = "openai-codex"
 DEFAULT_PI_JUDGE_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 

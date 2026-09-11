@@ -24,7 +24,7 @@ from bench.llm_judge.schemas import EvidencePacket, FeatureCheck, FeatureJudgmen
 EVALS_DIR = ROOT_DIR / "evals"
 CODEX_SKILL_DIR = ROOT_DIR / "judge_skills" / "web_judge"
 BROWSER_HELPER = ROOT_DIR / "bench" / "llm_judge" / "browser.mjs"
-DEFAULT_CODEX_MODEL = "gpt-5.4-mini"
+DEFAULT_CODEX_MODEL = "gpt-5.6-luna"
 DEFAULT_CODEX_REASONING_EFFORT = "low"
 MUTATION_IGNORED_DIRS = {
     ".venv",
