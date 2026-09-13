@@ -57,6 +57,10 @@ MUTATION_IGNORED_NAMES = {
     ".DS_Store",
     "next-env.d.ts",
 }
+TOP_LEVEL_MUTATION_IGNORED_NAMES = {
+    "AGENTS.md",
+    "CLAUDE.md",
+}
 MUTATION_IGNORED_SUFFIXES = {
     ".log",
     ".pid",
@@ -733,6 +737,8 @@ def _snapshot_mutation_manifest(root: Path) -> dict[str, str]:
 def _ignore_for_mutation(rel: Path) -> bool:
     parts = rel.parts
     if parts and parts[0] in TOP_LEVEL_MUTATION_IGNORED_DIRS:
+        return True
+    if len(parts) == 1 and rel.name in TOP_LEVEL_MUTATION_IGNORED_NAMES:
         return True
     if any(part in MUTATION_IGNORED_DIRS for part in parts):
         return True

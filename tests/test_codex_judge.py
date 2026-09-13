@@ -77,6 +77,15 @@ class CodexJudgeMutationTests(unittest.TestCase):
             after = _snapshot_mutation_manifest(root)
             self.assertEqual(_detect_forbidden_mutations(before, after), [])
 
+    def test_ignores_next_generated_agent_instruction_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            before = _snapshot_mutation_manifest(root)
+            (root / "AGENTS.md").write_text("<!-- BEGIN:nextjs-agent-rules -->\n", encoding="utf-8")
+            (root / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+            after = _snapshot_mutation_manifest(root)
+            self.assertEqual(_detect_forbidden_mutations(before, after), [])
+
     def test_ignore_helper_matches_expected_paths(self) -> None:
         self.assertTrue(_ignore_for_mutation(Path("node_modules/react/index.js")))
         self.assertTrue(_ignore_for_mutation(Path("artifacts/runs/run.cacm.recall_1000.txt")))
@@ -84,6 +93,9 @@ class CodexJudgeMutationTests(unittest.TestCase):
         self.assertTrue(_ignore_for_mutation(Path("eval.cacm.recall_1000.txt")))
         self.assertTrue(_ignore_for_mutation(Path("package-lock.json")))
         self.assertTrue(_ignore_for_mutation(Path("next-env.d.ts")))
+        self.assertTrue(_ignore_for_mutation(Path("AGENTS.md")))
+        self.assertTrue(_ignore_for_mutation(Path("CLAUDE.md")))
+        self.assertFalse(_ignore_for_mutation(Path("src/AGENTS.md")))
         self.assertTrue(_ignore_for_mutation(Path("server.log")))
         self.assertTrue(_ignore_for_mutation(Path(".next/build-manifest.json")))
         self.assertTrue(_ignore_for_mutation(Path("work/browser-catalog/screenshots/catalog.png")))
